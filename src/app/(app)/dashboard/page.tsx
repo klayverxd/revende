@@ -51,6 +51,7 @@ export default async function DashboardPage({
 		{ data: modelos },
 		{ data: producoes },
 		{ data: envioItens },
+		{ data: vendasDiretasEstoque },
 		{ data: vendasDiretas8m },
 		{ data: acertos8m },
 		{ data: producoesTimeline },
@@ -109,6 +110,10 @@ export default async function DashboardPage({
 			)
 			.is("deleted_at", null)
 			.not("envio", "is", null),
+		supabase
+			.from("venda_direta_item")
+			.select("modelo_id, quantidade, venda:venda_id(deleted_at)")
+			.not("venda", "is", null),
 		supabase
 			.from("venda_direta")
 			.select("data_venda, valor_total")
@@ -207,6 +212,15 @@ export default async function DashboardPage({
 					(((i.qtd_enviada as number | null) ?? 0) - qtdDevolvida)
 			);
 		}
+	}
+	for (const v of vendasDiretasEstoque ?? []) {
+		const venda = v.venda as unknown as { deleted_at: string | null } | null;
+		if (venda?.deleted_at) continue;
+		const id = v.modelo_id as string;
+		saidasMap.set(
+			id,
+			(saidasMap.get(id) ?? 0) + ((v.quantidade as number | null) ?? 0)
+		);
 	}
 	const produtosSemEstoque = (modelos ?? []).filter(m => {
 		const id = m.modelo_id as string;

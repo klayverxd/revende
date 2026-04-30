@@ -1,16 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
+import { buscarEstoque } from "@/app/(app)/estoque/actions";
 import ProdutosTable, { type ProdutoRow } from "./ProdutosTable";
 
 export default async function ProdutosPage() {
 	const supabase = await createClient();
 
 	// Fetch modelos ativos com preços e estoque
-	const [
-		{ data: modelos },
-		{ data: precos },
-		{ data: producoes },
-		{ data: envioItens },
-	] = await Promise.all([
+	const [{ data: modelos }, { data: precos }, estoque] = await Promise.all([
 		supabase
 			.from("modelo")
 			.select("modelo_id, codigo, nome, custo_producao, estoque_minimo, ativo")
@@ -20,30 +16,13 @@ export default async function ProdutosPage() {
 			.from("modelo_preco")
 			.select("modelo_id, quantidade_minima, preco")
 			.eq("ativo", true),
-		supabase.from("producao").select("modelo_id, quantidade"),
-		supabase
-			.from("envio_item")
-			.select("modelo_id, qtd_enviada, qtd_vendida, envio:envio_id(status)")
-			.not("envio", "is", null),
+		buscarEstoque(),
 	]);
 
 	// Calcula estoque disponível por modelo
 	const estoqueMap: Record<string, number> = {};
-
-	for (const p of producoes ?? []) {
-		estoqueMap[p.modelo_id] = (estoqueMap[p.modelo_id] ?? 0) + p.quantidade;
-	}
-
-	for (const item of envioItens ?? []) {
-		const envio = item.envio as unknown as { status: string } | null;
-		if (!envio) continue;
-		if (envio.status === "ABERTO") {
-			estoqueMap[item.modelo_id] =
-				(estoqueMap[item.modelo_id] ?? 0) - item.qtd_enviada;
-		} else if (envio.status === "CONFERIDO" || envio.status === "ENCERRADO") {
-			estoqueMap[item.modelo_id] =
-				(estoqueMap[item.modelo_id] ?? 0) - (item.qtd_vendida ?? 0);
-		}
+	for (const row of estoque) {
+		estoqueMap[row.modelo_id] = row.disponivel;
 	}
 
 	// Resolve preço 1un e 2+ por modelo (menor qtd_minima e segunda faixa)

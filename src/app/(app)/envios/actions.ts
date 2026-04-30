@@ -126,6 +126,19 @@ export async function registrarDevolucao(
 	if (!itens.length) throw new Error("Informe as quantidades devolvidas");
 
 	const supabase = await createClient();
+	const { data: envio, error: envioError } = await supabase
+		.from("envio")
+		.select("status")
+		.eq("envio_id", envioId)
+		.is("deleted_at", null)
+		.single();
+
+	if (envioError || !envio) throw new Error("Envio não encontrado");
+	if (!["CONFERIDO", "ENCERRADO"].includes(envio.status as string)) {
+		throw new Error(
+			"A devolução só pode ser registrada para envios conferidos"
+		);
+	}
 
 	// Busca os itens do envio para validar
 	const { data: envioItens, error: fetchError } = await supabase
@@ -187,4 +200,5 @@ export async function registrarDevolucao(
 	revalidatePath("/envios");
 	revalidatePath("/estoque");
 	revalidatePath("/financeiro");
+	revalidatePath("/dashboard");
 }

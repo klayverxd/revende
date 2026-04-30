@@ -42,6 +42,7 @@ export default async function DashboardPage({
 
 	const [
 		{ data: vendasMes },
+		{ data: acertosMes },
 		{ data: vendasPeriodo },
 		{ data: acertosPendentes },
 		{ data: acertosRecebidosPeriodo },
@@ -51,6 +52,7 @@ export default async function DashboardPage({
 		{ data: producoes },
 		{ data: envioItens },
 		{ data: vendasDiretas8m },
+		{ data: acertos8m },
 		{ data: producoesTimeline },
 		{ data: vendasTimeline },
 		{ data: acertosTimeline },
@@ -60,6 +62,12 @@ export default async function DashboardPage({
 			.from("venda_direta")
 			.select("valor_total")
 			.gte("data_venda", monthStart.toISOString().slice(0, 10))
+			.is("deleted_at", null),
+		supabase
+			.from("acerto")
+			.select("valor_repassado")
+			.eq("status", "RECEBIDO")
+			.gte("data_recebimento", monthStart.toISOString().slice(0, 10))
 			.is("deleted_at", null),
 		supabase
 			.from("venda_direta")
@@ -96,7 +104,9 @@ export default async function DashboardPage({
 			.is("deleted_at", null),
 		supabase
 			.from("envio_item")
-			.select("modelo_id, qtd_enviada, qtd_vendida, envio:envio_id(status)")
+			.select(
+				"modelo_id, qtd_enviada, qtd_vendida, qtd_devolvida, envio:envio_id(status)"
+			)
 			.is("deleted_at", null)
 			.not("envio", "is", null),
 		supabase
@@ -104,6 +114,17 @@ export default async function DashboardPage({
 			.select("data_venda, valor_total")
 			.gte(
 				"data_venda",
+				new Date(new Date().getFullYear(), new Date().getMonth() - 7, 1)
+					.toISOString()
+					.slice(0, 10)
+			)
+			.is("deleted_at", null),
+		supabase
+			.from("acerto")
+			.select("data_recebimento, valor_repassado")
+			.eq("status", "RECEBIDO")
+			.gte(
+				"data_recebimento",
 				new Date(new Date().getFullYear(), new Date().getMonth() - 7, 1)
 					.toISOString()
 					.slice(0, 10)
@@ -134,10 +155,15 @@ export default async function DashboardPage({
 			.limit(10),
 	]);
 
-	const faturamentoMes = (vendasMes ?? []).reduce(
+	const faturamentoMesVendasDiretas = (vendasMes ?? []).reduce(
 		(acc, v) => acc + ((v.valor_total as number | null) ?? 0),
 		0
 	);
+	const faturamentoMesAcertos = (acertosMes ?? []).reduce(
+		(acc, a) => acc + ((a.valor_repassado as number | null) ?? 0),
+		0
+	);
+	const faturamentoMes = faturamentoMesVendasDiretas + faturamentoMesAcertos;
 	const totalPendente = (acertosPendentes ?? []).reduce((acc, a) => {
 		const tipo = a.modelo_acerto as string;
 		return (
@@ -173,11 +199,14 @@ export default async function DashboardPage({
 				id,
 				(saidasMap.get(id) ?? 0) + ((i.qtd_enviada as number | null) ?? 0)
 			);
-		if (envio.status === "CONFERIDO" || envio.status === "ENCERRADO")
+		if (envio.status === "CONFERIDO" || envio.status === "ENCERRADO") {
+			const qtdDevolvida = (i.qtd_devolvida as number | null) ?? 0;
 			saidasMap.set(
 				id,
-				(saidasMap.get(id) ?? 0) + ((i.qtd_vendida as number | null) ?? 0)
+				(saidasMap.get(id) ?? 0) +
+					(((i.qtd_enviada as number | null) ?? 0) - qtdDevolvida)
 			);
+		}
 	}
 	const produtosSemEstoque = (modelos ?? []).filter(m => {
 		const id = m.modelo_id as string;
@@ -238,6 +267,18 @@ export default async function DashboardPage({
 				k,
 				(monthMap.get(k) ?? 0) + ((v.valor_total as number | null) ?? 0)
 			);
+	}
+	for (const a of acertos8m ?? []) {
+		const dRaw = a.data_recebimento as string | null;
+		if (!dRaw) continue;
+		const d = new Date(dRaw);
+		const k = monthKey(d);
+		if (monthMap.has(k)) {
+			monthMap.set(
+				k,
+				(monthMap.get(k) ?? 0) + ((a.valor_repassado as number | null) ?? 0)
+			);
+		}
 	}
 	const chartData: MonthBar[] = Array.from(monthMap.entries()).map(
 		([k, receita]) => {

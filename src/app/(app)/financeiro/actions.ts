@@ -39,15 +39,34 @@ export async function registrarRecebimento(
 
 	if (updateAcertoError) throw new Error(updateAcertoError.message);
 
+	const { data: envioItens, error: itensError } = await supabase
+		.from("envio_item")
+		.select("qtd_enviada, qtd_vendida, qtd_devolvida")
+		.eq("envio_id", acerto.envio_id as string)
+		.is("deleted_at", null);
+
+	if (itensError) throw new Error(itensError.message);
+
+	const temItensComRevendedor = (envioItens ?? []).some(i => {
+		const qtdEnviada = (i.qtd_enviada as number) ?? 0;
+		const qtdVendida = (i.qtd_vendida as number | null) ?? 0;
+		const qtdDevolvida = (i.qtd_devolvida as number | null) ?? 0;
+		return qtdEnviada > qtdVendida + qtdDevolvida;
+	});
+
+	const proximoStatus = temItensComRevendedor ? "CONFERIDO" : "ENCERRADO";
+
 	const { error: updateEnvioError } = await supabase
 		.from("envio")
-		.update({ status: "ENCERRADO" })
-		.eq("envio_id", acerto.envio_id as string)
-		.eq("status", "CONFERIDO");
+		.update({ status: proximoStatus })
+		.eq("envio_id", acerto.envio_id as string);
 
 	if (updateEnvioError) throw new Error(updateEnvioError.message);
 
 	revalidatePath("/financeiro");
 	revalidatePath("/financeiro/fluxo");
 	revalidatePath("/conferencias");
+	revalidatePath("/envios");
+	revalidatePath("/estoque");
+	revalidatePath("/dashboard");
 }

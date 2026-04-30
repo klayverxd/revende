@@ -45,7 +45,7 @@ export default async function FluxoPage() {
 				.is("deleted_at", null),
 			supabase
 				.from("acerto")
-				.select("data_recebimento, valor_repassado")
+				.select("data_recebimento, valor_repassado, comissao_calculada")
 				.eq("status", "RECEBIDO")
 				.is("deleted_at", null),
 		]);
@@ -69,7 +69,10 @@ export default async function FluxoPage() {
 
 	for (const a of acertos ?? []) {
 		const m = mesIndex(a.data_recebimento as string | null);
-		if (m >= 0) acertosPagos[m] += (a.valor_repassado as number | null) ?? 0;
+		if (m >= 0) {
+			receita[m] += (a.valor_repassado as number | null) ?? 0;
+			acertosPagos[m] += (a.comissao_calculada as number | null) ?? 0;
+		}
 	}
 
 	const lucroLiquido = receita.map(

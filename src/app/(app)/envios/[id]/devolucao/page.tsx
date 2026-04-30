@@ -18,7 +18,9 @@ export default async function DevolucaoPage({ params }: Props) {
 		.single();
 
 	if (envioError || !envio) notFound();
-	if ((envio.status as string) !== "CONFERIDO") notFound();
+	if (!["CONFERIDO", "ENCERRADO"].includes(envio.status as string)) {
+		notFound();
+	}
 
 	const { data: envioItensRaw } = await supabase
 		.from("envio_item")

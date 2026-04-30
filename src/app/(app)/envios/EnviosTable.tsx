@@ -127,7 +127,12 @@ export default function EnviosTable({ envios }: Props) {
 										</a>
 									)}
 									{e.status === "ENCERRADO" && (
-										<span className="text-gray-400 text-sm">Encerrado</span>
+										<a
+											href={`/envios/${e.envio_id}/devolucao`}
+											className="text-[#185FA5] hover:underline text-sm"
+										>
+											Devolução
+										</a>
 									)}
 								</td>
 							</tr>

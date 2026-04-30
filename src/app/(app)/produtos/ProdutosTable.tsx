@@ -1,0 +1,364 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import Link from "next/link";
+import { Badge, BulkActionBar, Button, Modal, useToast } from "@/components/ui";
+import ProdutoModal, { type ProdutoParaEditar } from "./ProdutoModal";
+import { deletarProdutos, ativarProdutos, desativarProdutos } from "./actions";
+
+export interface ProdutoRow {
+	modelo_id: string;
+	codigo: string;
+	nome: string;
+	custo_producao: number | null;
+	estoque_minimo: number;
+	ativo: boolean;
+	// preços resolvidos pelo servidor
+	preco_1un: number | null;
+	preco_2mais: number | null;
+	estoque_disponivel: number;
+}
+
+type StatusEstoque = "OK" | "ATENÇÃO" | "REPOR" | "SEM ESTOQUE";
+
+function calcularStatus(disponivel: number, minimo: number): StatusEstoque {
+	if (disponivel <= 0) return "SEM ESTOQUE";
+	if (disponivel <= minimo) return "REPOR";
+	if (disponivel <= minimo * 1.5) return "ATENÇÃO";
+	return "OK";
+}
+
+function statusVariant(s: StatusEstoque) {
+	if (s === "OK") return "success" as const;
+	if (s === "ATENÇÃO") return "warning" as const;
+	return "danger" as const;
+}
+
+const PAGE_SIZE = 20;
+
+function fmt(value: number | null) {
+	if (value === null) return "—";
+	return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+interface ProdutosTableProps {
+	readonly produtos: ProdutoRow[];
+}
+
+export default function ProdutosTable({ produtos }: ProdutosTableProps) {
+	const { showToast } = useToast();
+	const [search, setSearch] = useState("");
+	const [page, setPage] = useState(1);
+	const [selected, setSelected] = useState<Set<string>>(new Set());
+	const [modalOpen, setModalOpen] = useState(false);
+	const [editando, setEditando] = useState<ProdutoParaEditar | null>(null);
+	const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+	const [loading, setLoading] = useState(false);
+
+	const filtered = useMemo(
+		() =>
+			produtos.filter(
+				p =>
+					p.nome.toLowerCase().includes(search.toLowerCase()) ||
+					p.codigo.toLowerCase().includes(search.toLowerCase())
+			),
+		[produtos, search]
+	);
+
+	const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+	const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+	function toggleAll() {
+		if (selected.size === paginated.length) {
+			setSelected(new Set());
+		} else {
+			setSelected(new Set(paginated.map(p => p.modelo_id)));
+		}
+	}
+
+	function toggleOne(id: string) {
+		setSelected(prev => {
+			const next = new Set(prev);
+			if (next.has(id)) next.delete(id);
+			else next.add(id);
+			return next;
+		});
+	}
+
+	function openCreate() {
+		setEditando(null);
+		setModalOpen(true);
+	}
+
+	function openEdit(p: ProdutoRow) {
+		setEditando({
+			modelo_id: p.modelo_id,
+			nome: p.nome,
+			codigo: p.codigo,
+			custo_producao: p.custo_producao,
+			estoque_minimo: p.estoque_minimo,
+		});
+		setModalOpen(true);
+	}
+
+	async function handleDelete() {
+		setLoading(true);
+		try {
+			await deletarProdutos(Array.from(selected));
+			showToast(`${selected.size} produto(s) removido(s)`, "success");
+			setSelected(new Set());
+			setConfirmDeleteOpen(false);
+		} catch {
+			showToast("Erro ao deletar produtos", "error");
+		} finally {
+			setLoading(false);
+		}
+	}
+
+	async function handleActivate() {
+		setLoading(true);
+		try {
+			await ativarProdutos(Array.from(selected));
+			showToast(`${selected.size} produto(s) ativado(s)`, "success");
+			setSelected(new Set());
+		} catch {
+			showToast("Erro ao ativar produtos", "error");
+		} finally {
+			setLoading(false);
+		}
+	}
+
+	async function handleDeactivate() {
+		setLoading(true);
+		try {
+			await desativarProdutos(Array.from(selected));
+			showToast(`${selected.size} produto(s) desativado(s)`, "success");
+			setSelected(new Set());
+		} catch {
+			showToast("Erro ao desativar produtos", "error");
+		} finally {
+			setLoading(false);
+		}
+	}
+
+	return (
+		<div className="flex flex-col gap-4">
+			{/* Toolbar */}
+			<div className="flex items-center gap-3">
+				<input
+					type="search"
+					placeholder="Buscar produto..."
+					value={search}
+					onChange={e => {
+						setSearch(e.target.value);
+						setPage(1);
+					}}
+					className="flex-1 max-w-sm h-9 rounded-md border border-[#B5D4F4] px-3 text-sm focus:outline-none focus:ring-1 focus:border-[#185FA5] focus:ring-[#185FA5]"
+				/>
+				<Button variant="primary" size="sm" onClick={openCreate}>
+					+ Novo produto
+				</Button>
+			</div>
+
+			{/* Bulk action bar */}
+			<BulkActionBar
+				selectedCount={selected.size}
+				onDelete={() => setConfirmDeleteOpen(true)}
+				onActivate={handleActivate}
+				onDeactivate={handleDeactivate}
+				onClear={() => setSelected(new Set())}
+			/>
+
+			{/* Table */}
+			<div className="bg-white rounded-xl border border-[#B5D4F4] overflow-x-auto">
+				<table className="w-full text-sm">
+					<thead>
+						<tr className="border-b border-[#B5D4F4] bg-[#F4F8FD]">
+							<th className="w-10 px-3 py-2.5 text-left">
+								<input
+									type="checkbox"
+									checked={
+										paginated.length > 0 && selected.size === paginated.length
+									}
+									onChange={toggleAll}
+									className="rounded border-gray-300"
+								/>
+							</th>
+							<th className="px-3 py-2.5 text-left font-medium text-gray-600">
+								Código
+							</th>
+							<th className="px-3 py-2.5 text-left font-medium text-gray-600">
+								Nome
+							</th>
+							<th className="px-3 py-2.5 text-right font-medium text-gray-600">
+								Custo
+							</th>
+							<th className="px-3 py-2.5 text-right font-medium text-gray-600">
+								Preço 1un
+							</th>
+							<th className="px-3 py-2.5 text-right font-medium text-gray-600">
+								Preço 2+
+							</th>
+							<th className="px-3 py-2.5 text-right font-medium text-gray-600">
+								Estoque
+							</th>
+							<th className="px-3 py-2.5 text-center font-medium text-gray-600">
+								Status
+							</th>
+							<th className="px-3 py-2.5 text-right font-medium text-gray-600">
+								Ações
+							</th>
+						</tr>
+					</thead>
+					<tbody>
+						{paginated.length === 0 && (
+							<tr>
+								<td colSpan={9} className="px-3 py-8 text-center text-gray-400">
+									Nenhum produto encontrado.
+								</td>
+							</tr>
+						)}
+						{paginated.map(p => {
+							const status = calcularStatus(
+								p.estoque_disponivel,
+								p.estoque_minimo
+							);
+							return (
+								<tr
+									key={p.modelo_id}
+									className="border-b border-[#B5D4F4] last:border-0 hover:bg-[#F4F8FD] transition-colors"
+								>
+									<td className="px-3 py-2.5">
+										<input
+											type="checkbox"
+											checked={selected.has(p.modelo_id)}
+											onChange={() => toggleOne(p.modelo_id)}
+											className="rounded border-gray-300"
+										/>
+									</td>
+									<td className="px-3 py-2.5 text-gray-500 font-mono text-xs">
+										{p.codigo}
+									</td>
+									<td className="px-3 py-2.5 font-medium text-gray-900">
+										<Link
+											href={`/produtos/${p.modelo_id}`}
+											className="hover:text-[#185FA5] hover:underline"
+										>
+											{p.nome}
+										</Link>
+									</td>
+									<td className="px-3 py-2.5 text-right text-gray-700">
+										{fmt(p.custo_producao)}
+									</td>
+									<td className="px-3 py-2.5 text-right text-gray-700">
+										{fmt(p.preco_1un)}
+									</td>
+									<td className="px-3 py-2.5 text-right text-gray-700">
+										{fmt(p.preco_2mais)}
+									</td>
+									<td className="px-3 py-2.5 text-right text-gray-700">
+										{p.estoque_disponivel}
+									</td>
+									<td className="px-3 py-2.5 text-center">
+										<Badge variant={statusVariant(status)}>{status}</Badge>
+									</td>
+									<td className="px-3 py-2.5 text-right">
+										<div className="flex items-center justify-end gap-1">
+											<Button
+												variant="ghost"
+												size="sm"
+												onClick={() => openEdit(p)}
+											>
+												Editar
+											</Button>
+											<Button
+												variant="ghost"
+												size="sm"
+												onClick={async () => {
+													setLoading(true);
+													try {
+														if (p.ativo) await desativarProdutos([p.modelo_id]);
+														else await ativarProdutos([p.modelo_id]);
+														showToast(
+															p.ativo
+																? "Produto desativado"
+																: "Produto ativado",
+															"success"
+														);
+													} catch {
+														showToast("Erro ao alterar status", "error");
+													} finally {
+														setLoading(false);
+													}
+												}}
+											>
+												{p.ativo ? "Desativar" : "Ativar"}
+											</Button>
+										</div>
+									</td>
+								</tr>
+							);
+						})}
+					</tbody>
+				</table>
+			</div>
+
+			{/* Pagination */}
+			{totalPages > 1 && (
+				<div className="flex items-center justify-between text-sm text-gray-500">
+					<span>
+						{filtered.length} produto(s) · página {page} de {totalPages}
+					</span>
+					<div className="flex gap-2">
+						<Button
+							variant="secondary"
+							size="sm"
+							disabled={page <= 1}
+							onClick={() => setPage(p => p - 1)}
+						>
+							Anterior
+						</Button>
+						<Button
+							variant="secondary"
+							size="sm"
+							disabled={page >= totalPages}
+							onClick={() => setPage(p => p + 1)}
+						>
+							Próxima
+						</Button>
+					</div>
+				</div>
+			)}
+
+			{/* Create/Edit Modal */}
+			<ProdutoModal
+				open={modalOpen}
+				onClose={() => setModalOpen(false)}
+				produto={editando}
+			/>
+
+			{/* Confirm Delete Modal */}
+			<Modal
+				open={confirmDeleteOpen}
+				onClose={() => setConfirmDeleteOpen(false)}
+				title="Confirmar exclusão"
+				footer={
+					<>
+						<Button variant="ghost" onClick={() => setConfirmDeleteOpen(false)}>
+							Cancelar
+						</Button>
+						<Button variant="danger" loading={loading} onClick={handleDelete}>
+							Deletar {selected.size} produto(s)
+						</Button>
+					</>
+				}
+			>
+				<p className="text-sm text-gray-700">
+					Tem certeza que deseja remover{" "}
+					<strong>{selected.size} produto(s)</strong>? Esta ação pode ser
+					desfeita reativando os produtos.
+				</p>
+			</Modal>
+		</div>
+	);
+}

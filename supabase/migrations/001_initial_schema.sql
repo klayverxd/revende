@@ -74,7 +74,7 @@ $$ LANGUAGE plpgsql;
 -- modelo
 -- =============================================================
 
-CREATE TABLE modelo (
+CREATE TABLE IF NOT EXISTS modelo (
   modelo_id        UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
   codigo           TEXT,
   nome             TEXT          NOT NULL,
@@ -87,7 +87,7 @@ CREATE TABLE modelo (
   updated_at       TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE TRIGGER trg_modelo_updated_at
+CREATE OR REPLACE TRIGGER trg_modelo_updated_at
   BEFORE UPDATE ON modelo
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
@@ -95,7 +95,7 @@ CREATE TRIGGER trg_modelo_updated_at
 -- modelo_preco
 -- =============================================================
 
-CREATE TABLE modelo_preco (
+CREATE TABLE IF NOT EXISTS modelo_preco (
   preco_id          UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
   modelo_id         UUID          NOT NULL REFERENCES modelo(modelo_id),
   rotulo            TEXT          NOT NULL,
@@ -108,9 +108,9 @@ CREATE TABLE modelo_preco (
   updated_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_modelo_preco_modelo_id ON modelo_preco(modelo_id);
+CREATE INDEX IF NOT EXISTS idx_modelo_preco_modelo_id ON modelo_preco(modelo_id);
 
-CREATE TRIGGER trg_modelo_preco_updated_at
+CREATE OR REPLACE TRIGGER trg_modelo_preco_updated_at
   BEFORE UPDATE ON modelo_preco
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
@@ -118,7 +118,7 @@ CREATE TRIGGER trg_modelo_preco_updated_at
 -- revendedor
 -- =============================================================
 
-CREATE TABLE revendedor (
+CREATE TABLE IF NOT EXISTS revendedor (
   revendedor_id  UUID                  PRIMARY KEY DEFAULT uuid_generate_v4(),
   nome           TEXT                  NOT NULL,
   telefone       TEXT,
@@ -133,7 +133,7 @@ CREATE TABLE revendedor (
   updated_at     TIMESTAMPTZ           NOT NULL DEFAULT NOW()
 );
 
-CREATE TRIGGER trg_revendedor_updated_at
+CREATE OR REPLACE TRIGGER trg_revendedor_updated_at
   BEFORE UPDATE ON revendedor
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
@@ -141,7 +141,7 @@ CREATE TRIGGER trg_revendedor_updated_at
 -- revendedor_modelo_preco
 -- =============================================================
 
-CREATE TABLE revendedor_modelo_preco (
+CREATE TABLE IF NOT EXISTS revendedor_modelo_preco (
   rev_preco_id      UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
   revendedor_id     UUID          NOT NULL REFERENCES revendedor(revendedor_id),
   modelo_id         UUID          NOT NULL REFERENCES modelo(modelo_id),
@@ -156,10 +156,10 @@ CREATE TABLE revendedor_modelo_preco (
   updated_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_rev_modelo_preco_revendedor ON revendedor_modelo_preco(revendedor_id);
-CREATE INDEX idx_rev_modelo_preco_modelo     ON revendedor_modelo_preco(modelo_id);
+CREATE INDEX IF NOT EXISTS idx_rev_modelo_preco_revendedor ON revendedor_modelo_preco(revendedor_id);
+CREATE INDEX IF NOT EXISTS idx_rev_modelo_preco_modelo     ON revendedor_modelo_preco(modelo_id);
 
-CREATE TRIGGER trg_rev_modelo_preco_updated_at
+CREATE OR REPLACE TRIGGER trg_rev_modelo_preco_updated_at
   BEFORE UPDATE ON revendedor_modelo_preco
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
@@ -167,7 +167,7 @@ CREATE TRIGGER trg_rev_modelo_preco_updated_at
 -- envio
 -- =============================================================
 
-CREATE TABLE envio (
+CREATE TABLE IF NOT EXISTS envio (
   envio_id       UUID                PRIMARY KEY DEFAULT uuid_generate_v4(),
   revendedor_id  UUID                NOT NULL REFERENCES revendedor(revendedor_id),
   data_envio     DATE                NOT NULL DEFAULT CURRENT_DATE,
@@ -178,10 +178,10 @@ CREATE TABLE envio (
   updated_at     TIMESTAMPTZ         NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_envio_revendedor_id ON envio(revendedor_id);
-CREATE INDEX idx_envio_status        ON envio(status);
+CREATE INDEX IF NOT EXISTS idx_envio_revendedor_id ON envio(revendedor_id);
+CREATE INDEX IF NOT EXISTS idx_envio_status        ON envio(status);
 
-CREATE TRIGGER trg_envio_updated_at
+CREATE OR REPLACE TRIGGER trg_envio_updated_at
   BEFORE UPDATE ON envio
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
@@ -190,7 +190,7 @@ CREATE TRIGGER trg_envio_updated_at
 -- Snapshots são imutáveis — alterações de preço não retroagem.
 -- =============================================================
 
-CREATE TABLE envio_item (
+CREATE TABLE IF NOT EXISTS envio_item (
   envio_item_id      UUID                  PRIMARY KEY DEFAULT uuid_generate_v4(),
   envio_id           UUID                  NOT NULL REFERENCES envio(envio_id),
   modelo_id          UUID                  NOT NULL REFERENCES modelo(modelo_id),
@@ -211,10 +211,10 @@ CREATE TABLE envio_item (
   updated_at         TIMESTAMPTZ           NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_envio_item_envio_id  ON envio_item(envio_id);
-CREATE INDEX idx_envio_item_modelo_id ON envio_item(modelo_id);
+CREATE INDEX IF NOT EXISTS idx_envio_item_envio_id  ON envio_item(envio_id);
+CREATE INDEX IF NOT EXISTS idx_envio_item_modelo_id ON envio_item(modelo_id);
 
-CREATE TRIGGER trg_envio_item_updated_at
+CREATE OR REPLACE TRIGGER trg_envio_item_updated_at
   BEFORE UPDATE ON envio_item
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
@@ -222,7 +222,7 @@ CREATE TRIGGER trg_envio_item_updated_at
 -- acerto
 -- =============================================================
 
-CREATE TABLE acerto (
+CREATE TABLE IF NOT EXISTS acerto (
   acerto_id            UUID                  PRIMARY KEY DEFAULT uuid_generate_v4(),
   revendedor_id        UUID                  NOT NULL REFERENCES revendedor(revendedor_id),
   envio_id             UUID                  NOT NULL REFERENCES envio(envio_id),
@@ -241,10 +241,10 @@ CREATE TABLE acerto (
 
 CREATE UNIQUE INDEX idx_acerto_envio_id_unique ON acerto(envio_id) WHERE deleted_at IS NULL;
 
-CREATE INDEX idx_acerto_revendedor_id ON acerto(revendedor_id);
-CREATE INDEX idx_acerto_status        ON acerto(status);
+CREATE INDEX IF NOT EXISTS idx_acerto_revendedor_id ON acerto(revendedor_id);
+CREATE INDEX IF NOT EXISTS idx_acerto_status        ON acerto(status);
 
-CREATE TRIGGER trg_acerto_updated_at
+CREATE OR REPLACE TRIGGER trg_acerto_updated_at
   BEFORE UPDATE ON acerto
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
@@ -252,7 +252,7 @@ CREATE TRIGGER trg_acerto_updated_at
 -- producao
 -- =============================================================
 
-CREATE TABLE producao (
+CREATE TABLE IF NOT EXISTS producao (
   producao_id    UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
   modelo_id      UUID          NOT NULL REFERENCES modelo(modelo_id),
   quantidade     INTEGER       NOT NULL,
@@ -264,9 +264,9 @@ CREATE TABLE producao (
   updated_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_producao_modelo_id ON producao(modelo_id);
+CREATE INDEX IF NOT EXISTS idx_producao_modelo_id ON producao(modelo_id);
 
-CREATE TRIGGER trg_producao_updated_at
+CREATE OR REPLACE TRIGGER trg_producao_updated_at
   BEFORE UPDATE ON producao
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
@@ -274,7 +274,7 @@ CREATE TRIGGER trg_producao_updated_at
 -- venda_direta
 -- =============================================================
 
-CREATE TABLE venda_direta (
+CREATE TABLE IF NOT EXISTS venda_direta (
   venda_id          UUID                    PRIMARY KEY DEFAULT uuid_generate_v4(),
   data_venda        DATE                    NOT NULL DEFAULT CURRENT_DATE,
   canal             canal_venda_enum        NOT NULL,
@@ -289,9 +289,9 @@ CREATE TABLE venda_direta (
   updated_at        TIMESTAMPTZ             NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_venda_direta_data_venda ON venda_direta(data_venda);
+CREATE INDEX IF NOT EXISTS idx_venda_direta_data_venda ON venda_direta(data_venda);
 
-CREATE TRIGGER trg_venda_direta_updated_at
+CREATE OR REPLACE TRIGGER trg_venda_direta_updated_at
   BEFORE UPDATE ON venda_direta
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
@@ -299,7 +299,7 @@ CREATE TRIGGER trg_venda_direta_updated_at
 -- venda_direta_item
 -- =============================================================
 
-CREATE TABLE venda_direta_item (
+CREATE TABLE IF NOT EXISTS venda_direta_item (
   item_id          UUID                PRIMARY KEY DEFAULT uuid_generate_v4(),
   venda_id         UUID                NOT NULL REFERENCES venda_direta(venda_id),
   modelo_id        UUID                NOT NULL REFERENCES modelo(modelo_id),
@@ -312,10 +312,10 @@ CREATE TABLE venda_direta_item (
   updated_at       TIMESTAMPTZ         NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_venda_direta_item_venda_id  ON venda_direta_item(venda_id);
-CREATE INDEX idx_venda_direta_item_modelo_id ON venda_direta_item(modelo_id);
+CREATE INDEX IF NOT EXISTS idx_venda_direta_item_venda_id  ON venda_direta_item(venda_id);
+CREATE INDEX IF NOT EXISTS idx_venda_direta_item_modelo_id ON venda_direta_item(modelo_id);
 
-CREATE TRIGGER trg_venda_direta_item_updated_at
+CREATE OR REPLACE TRIGGER trg_venda_direta_item_updated_at
   BEFORE UPDATE ON venda_direta_item
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
@@ -323,7 +323,7 @@ CREATE TRIGGER trg_venda_direta_item_updated_at
 -- config_equipamento
 -- =============================================================
 
-CREATE TABLE config_equipamento (
+CREATE TABLE IF NOT EXISTS config_equipamento (
   equipamento_id    UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
   nome              TEXT          NOT NULL,
   potencia_watts    NUMERIC(10,2) NOT NULL,
@@ -334,7 +334,7 @@ CREATE TABLE config_equipamento (
   updated_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE TRIGGER trg_config_equipamento_updated_at
+CREATE OR REPLACE TRIGGER trg_config_equipamento_updated_at
   BEFORE UPDATE ON config_equipamento
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
@@ -342,7 +342,7 @@ CREATE TRIGGER trg_config_equipamento_updated_at
 -- config_materia_prima
 -- =============================================================
 
-CREATE TABLE config_materia_prima (
+CREATE TABLE IF NOT EXISTS config_materia_prima (
   materia_prima_id   UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
   nome               TEXT          NOT NULL,
   preco_por_unidade  NUMERIC(10,4) NOT NULL,
@@ -353,7 +353,7 @@ CREATE TABLE config_materia_prima (
   updated_at         TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE TRIGGER trg_config_materia_prima_updated_at
+CREATE OR REPLACE TRIGGER trg_config_materia_prima_updated_at
   BEFORE UPDATE ON config_materia_prima
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
@@ -361,7 +361,7 @@ CREATE TRIGGER trg_config_materia_prima_updated_at
 -- config_energia  (registro único — usar upsert)
 -- =============================================================
 
-CREATE TABLE config_energia (
+CREATE TABLE IF NOT EXISTS config_energia (
   id           UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
   preco_kwh    NUMERIC(10,4) NOT NULL,
   atualizado_em TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
@@ -369,7 +369,7 @@ CREATE TABLE config_energia (
   updated_at   TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE TRIGGER trg_config_energia_updated_at
+CREATE OR REPLACE TRIGGER trg_config_energia_updated_at
   BEFORE UPDATE ON config_energia
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
@@ -377,7 +377,7 @@ CREATE TRIGGER trg_config_energia_updated_at
 -- calculo_custo
 -- =============================================================
 
-CREATE TABLE calculo_custo (
+CREATE TABLE IF NOT EXISTS calculo_custo (
   calculo_id              UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
   equipamento_id          UUID          REFERENCES config_equipamento(equipamento_id),
   tempo_impressao_min     NUMERIC(10,2) NOT NULL,
@@ -397,9 +397,9 @@ CREATE TABLE calculo_custo (
   updated_at              TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_calculo_custo_modelo_id ON calculo_custo(salvo_em_modelo_id);
+CREATE INDEX IF NOT EXISTS idx_calculo_custo_modelo_id ON calculo_custo(salvo_em_modelo_id);
 
-CREATE TRIGGER trg_calculo_custo_updated_at
+CREATE OR REPLACE TRIGGER trg_calculo_custo_updated_at
   BEFORE UPDATE ON calculo_custo
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 

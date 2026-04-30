@@ -111,3 +111,46 @@ export async function resolverPreco(
 		origem: null,
 	};
 }
+
+export async function resolverPrecoModelo(
+	modeloId: string,
+	quantidade: number
+): Promise<PrecoResolvido> {
+	const supabase = await createClient();
+
+	const { data: precosModelo } = await supabase
+		.from("modelo_preco")
+		.select("quantidade_minima, preco")
+		.eq("modelo_id", modeloId)
+		.eq("ativo", true)
+		.is("deleted_at", null);
+
+	if (precosModelo && precosModelo.length > 0) {
+		const faixas = (
+			precosModelo as Array<{ quantidade_minima: number; preco: number }>
+		).map(f => ({
+			quantidade_minima: f.quantidade_minima,
+			preco: f.preco,
+			valor_minimo: null,
+		}));
+
+		const aplicada = pickFaixaPorQuantidade(faixas, quantidade);
+		const snapshots = pickSnapshot(faixas);
+
+		return {
+			preco: aplicada?.preco ?? null,
+			precoUnitario: snapshots.precoUnitario,
+			preco2mais: snapshots.preco2mais,
+			valorMinimoUnit: null,
+			origem: "MODELO",
+		};
+	}
+
+	return {
+		preco: null,
+		precoUnitario: null,
+		preco2mais: null,
+		valorMinimoUnit: null,
+		origem: null,
+	};
+}

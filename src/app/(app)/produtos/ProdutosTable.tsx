@@ -23,8 +23,8 @@ type StatusEstoque = "OK" | "ATENÇÃO" | "REPOR" | "SEM ESTOQUE";
 
 function calcularStatus(disponivel: number, minimo: number): StatusEstoque {
 	if (disponivel <= 0) return "SEM ESTOQUE";
-	if (disponivel <= minimo) return "REPOR";
-	if (disponivel <= minimo * 1.5) return "ATENÇÃO";
+	if (minimo > 0 && disponivel < minimo) return "REPOR";
+	if (minimo > 0 && disponivel <= minimo * 1.5) return "ATENÇÃO";
 	return "OK";
 }
 

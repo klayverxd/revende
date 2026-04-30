@@ -28,8 +28,8 @@ function calcularStatus(
 	minimo: number
 ): EstoqueCalculadoRow["status"] {
 	if (disponivel <= 0) return "SEM_ESTOQUE";
-	if (disponivel <= minimo) return "REPOR";
-	if (disponivel <= minimo * 1.5) return "ATENCAO";
+	if (minimo > 0 && disponivel < minimo) return "REPOR";
+	if (minimo > 0 && disponivel <= minimo * 1.5) return "ATENCAO";
 	return "OK";
 }
 

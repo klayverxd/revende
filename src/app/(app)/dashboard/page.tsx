@@ -237,7 +237,7 @@ export default async function DashboardPage({
 				disponivel,
 			};
 		})
-		.filter(m => m.disponivel <= m.minimo)
+		.filter(m => m.minimo > 0 && m.disponivel <= m.minimo)
 		.slice(0, 5);
 
 	const hoje = new Date();

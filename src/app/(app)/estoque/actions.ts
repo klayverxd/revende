@@ -149,3 +149,83 @@ export async function buscarEstoque(): Promise<EstoqueCalculadoRow[]> {
 		};
 	});
 }
+
+export async function registrarBaixaConsignacao(
+	envioItemId: string,
+	quantidade: number
+) {
+	if (!envioItemId) throw new Error("Item de consignacao invalido");
+	if (!Number.isFinite(quantidade) || quantidade <= 0) {
+		throw new Error("Quantidade invalida");
+	}
+
+	const supabase = await createClient();
+
+	const { data: item, error: itemError } = await supabase
+		.from("envio_item")
+		.select("envio_item_id, envio_id, qtd_enviada, qtd_vendida, qtd_devolvida")
+		.eq("envio_item_id", envioItemId)
+		.is("deleted_at", null)
+		.single();
+
+	if (itemError || !item) throw new Error("Item de consignacao nao encontrado");
+
+	const { data: envio, error: envioError } = await supabase
+		.from("envio")
+		.select("envio_id, status")
+		.eq("envio_id", item.envio_id as string)
+		.is("deleted_at", null)
+		.single();
+
+	if (envioError || !envio) throw new Error("Envio nao encontrado");
+	if (!["CONFERIDO", "ENCERRADO"].includes(envio.status as string)) {
+		throw new Error(
+			"A baixa individual so pode ser feita em envios conferidos"
+		);
+	}
+
+	const qtdEnviada = (item.qtd_enviada as number) ?? 0;
+	const qtdVendida = (item.qtd_vendida as number | null) ?? 0;
+	const qtdDevolvida = (item.qtd_devolvida as number | null) ?? 0;
+	const disponivelBaixa = qtdEnviada - qtdVendida - qtdDevolvida;
+
+	if (disponivelBaixa <= 0) {
+		throw new Error("Nao ha saldo para baixa neste item");
+	}
+
+	const qtdBaixa = Math.min(Math.floor(quantidade), disponivelBaixa);
+	const novoQtdDevolvida = qtdDevolvida + qtdBaixa;
+
+	const { error: updateItemError } = await supabase
+		.from("envio_item")
+		.update({ qtd_devolvida: novoQtdDevolvida })
+		.eq("envio_item_id", envioItemId);
+
+	if (updateItemError) throw new Error(updateItemError.message);
+
+	const { data: envioItens } = await supabase
+		.from("envio_item")
+		.select("qtd_enviada, qtd_vendida, qtd_devolvida")
+		.eq("envio_id", item.envio_id as string)
+		.is("deleted_at", null);
+
+	const tudoEncerrado = (envioItens ?? []).every(i => {
+		const env = (i.qtd_enviada as number) ?? 0;
+		const vend = (i.qtd_vendida as number | null) ?? 0;
+		const dev = (i.qtd_devolvida as number | null) ?? 0;
+		return vend + dev >= env;
+	});
+
+	if (tudoEncerrado) {
+		const { error: updateEnvioError } = await supabase
+			.from("envio")
+			.update({ status: "ENCERRADO" })
+			.eq("envio_id", item.envio_id as string);
+		if (updateEnvioError) throw new Error(updateEnvioError.message);
+	}
+
+	revalidatePath("/estoque");
+	revalidatePath("/envios");
+	revalidatePath("/financeiro");
+	revalidatePath("/dashboard");
+}

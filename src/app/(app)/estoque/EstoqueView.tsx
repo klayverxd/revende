@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Badge, Button, Select } from "@/components/ui";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Badge, Button, Input, Modal, Select, useToast } from "@/components/ui";
 import ProducaoModal from "./ProducaoModal";
-import { type EstoqueCalculadoRow } from "./actions";
+import { registrarBaixaConsignacao, type EstoqueCalculadoRow } from "./actions";
 
 export interface ModeloOption {
 	modelo_id: string;
@@ -79,12 +80,18 @@ export default function EstoqueView({
 	producoes,
 	consignacao,
 }: Props) {
+	const router = useRouter();
+	const [, startTransition] = useTransition();
+	const { showToast } = useToast();
 	const [aba, setAba] = useState<Aba>("global");
 	const [openModal, setOpenModal] = useState(false);
 	const [revendedorId, setRevendedorId] = useState(
 		revendedores[0]?.revendedor_id ?? ""
 	);
 	const [drawerModeloId, setDrawerModeloId] = useState<string | null>(null);
+	const [baixaItem, setBaixaItem] = useState<MovimentoConsignacao | null>(null);
+	const [qtdBaixa, setQtdBaixa] = useState("1");
+	const [salvandoBaixa, setSalvandoBaixa] = useState(false);
 
 	const revendedorOptions = useMemo(
 		() =>
@@ -164,6 +171,38 @@ export default function EstoqueView({
 			(a, b) => eventDateValue(b.data) - eventDateValue(a.data)
 		);
 	}, [consignacao, drawerModeloId, producoes]);
+
+	async function confirmarBaixa() {
+		if (!baixaItem) return;
+		const vendida = baixaItem.qtd_vendida ?? 0;
+		const devolvida = baixaItem.qtd_devolvida ?? 0;
+		const max = baixaItem.qtd_enviada - vendida - devolvida;
+		const qtd = Math.max(0, Math.floor(Number(qtdBaixa)));
+
+		if (qtd <= 0) {
+			showToast("Informe uma quantidade valida", "error");
+			return;
+		}
+		if (qtd > max) {
+			showToast("Quantidade maior que o saldo em consignacao", "error");
+			return;
+		}
+
+		setSalvandoBaixa(true);
+		try {
+			await registrarBaixaConsignacao(baixaItem.envio_item_id, qtd);
+			showToast("Baixa registrada com sucesso", "success");
+			setBaixaItem(null);
+			startTransition(() => router.refresh());
+		} catch (err) {
+			showToast(
+				err instanceof Error ? err.message : "Erro ao registrar baixa",
+				"error"
+			);
+		} finally {
+			setSalvandoBaixa(false);
+		}
+	}
 
 	return (
 		<>
@@ -311,13 +350,16 @@ export default function EstoqueView({
 									<th className="px-3 py-2.5 text-left font-medium text-gray-600">
 										Data do envio
 									</th>
+									<th className="px-3 py-2.5 text-right font-medium text-gray-600">
+										Acoes
+									</th>
 								</tr>
 							</thead>
 							<tbody>
 								{porRevendedor.length === 0 && (
 									<tr>
 										<td
-											colSpan={6}
+											colSpan={7}
 											className="px-3 py-10 text-center text-gray-400"
 										>
 											Sem movimentacoes para o revendedor selecionado.
@@ -357,6 +399,22 @@ export default function EstoqueView({
 											<td className="px-3 py-2.5 text-gray-700">
 												{fmtDate(row.data_envio)}
 											</td>
+											<td className="px-3 py-2.5 text-right">
+												{consignado > 0 && row.status_envio !== "ABERTO" ? (
+													<Button
+														variant="ghost"
+														size="sm"
+														onClick={() => {
+															setBaixaItem(row);
+															setQtdBaixa("1");
+														}}
+													>
+														Registrar baixa
+													</Button>
+												) : (
+													<span className="text-xs text-gray-500">-</span>
+												)}
+											</td>
 										</tr>
 									);
 								})}
@@ -371,6 +429,57 @@ export default function EstoqueView({
 				onClose={() => setOpenModal(false)}
 				modelos={modelos}
 			/>
+
+			<Modal
+				open={Boolean(baixaItem)}
+				onClose={() => setBaixaItem(null)}
+				title="Baixa individual de consignacao"
+				footer={
+					<>
+						<Button
+							variant="ghost"
+							onClick={() => setBaixaItem(null)}
+							disabled={salvandoBaixa}
+						>
+							Cancelar
+						</Button>
+						<Button onClick={confirmarBaixa} loading={salvandoBaixa}>
+							Confirmar baixa
+						</Button>
+					</>
+				}
+			>
+				{baixaItem && (
+					<div className="flex flex-col gap-3">
+						<p className="text-sm text-gray-700">
+							Produto: <strong>{baixaItem.modelo_nome}</strong>
+						</p>
+						<p className="text-sm text-gray-700">
+							Revendedor: <strong>{baixaItem.revendedor_nome}</strong>
+						</p>
+						<p className="text-xs text-gray-600">
+							Saldo em consignacao:{" "}
+							{baixaItem.qtd_enviada -
+								(baixaItem.qtd_vendida ?? 0) -
+								(baixaItem.qtd_devolvida ?? 0)}{" "}
+							un.
+						</p>
+						<Input
+							label="Quantidade para baixa"
+							type="number"
+							min={1}
+							max={Math.max(
+								0,
+								baixaItem.qtd_enviada -
+									(baixaItem.qtd_vendida ?? 0) -
+									(baixaItem.qtd_devolvida ?? 0)
+							)}
+							value={qtdBaixa}
+							onChange={e => setQtdBaixa(e.target.value)}
+						/>
+					</div>
+				)}
+			</Modal>
 
 			{drawerModeloId && (
 				<div className="fixed inset-0 z-40">

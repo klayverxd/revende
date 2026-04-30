@@ -82,7 +82,7 @@ export default async function NovoEnvioPage() {
 			<div className="flex items-start justify-between gap-3">
 				<div>
 					<h1 className="text-xl font-semibold text-gray-900">Novo envio</h1>
-					<p className="text-sm text-gray-500 mt-0.5">
+					<p className="text-sm text-gray-600 mt-0.5">
 						Fluxo em 3 passos para enviar itens com precificacao automatica.
 					</p>
 				</div>

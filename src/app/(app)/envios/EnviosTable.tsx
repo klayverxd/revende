@@ -84,7 +84,7 @@ export default function EnviosTable({ envios }: Props) {
 							<tr>
 								<td
 									colSpan={5}
-									className="px-3 py-10 text-center text-gray-500"
+									className="px-3 py-10 text-center text-gray-600"
 								>
 									Nenhum envio encontrado.
 								</td>

@@ -26,7 +26,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
 				{label && (
 					<label
 						htmlFor={selectId}
-						className="text-[13px] text-gray-600 font-medium"
+						className="text-[13px] text-gray-700 font-medium"
 					>
 						{label}
 						{rest.required && <span className="text-red-500 ml-1">*</span>}
@@ -58,7 +58,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
 						))}
 					</select>
 					{/* Chevron icon */}
-					<div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-gray-400">
+					<div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-gray-500">
 						<svg
 							width="16"
 							height="16"

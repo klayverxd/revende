@@ -31,7 +31,7 @@ export default async function EnviosPage() {
 			<div className="flex items-start justify-between gap-3">
 				<div>
 					<h1 className="text-xl font-semibold text-gray-900">Envios</h1>
-					<p className="text-sm text-gray-500 mt-0.5">
+					<p className="text-sm text-gray-600 mt-0.5">
 						Controle de envios para revendedores e acompanhamento de status.
 					</p>
 				</div>

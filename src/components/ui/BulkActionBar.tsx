@@ -51,7 +51,7 @@ export default function BulkActionBar({
 				)}
 				<button
 					onClick={onClear}
-					className="h-8 px-3 text-xs rounded-md text-gray-500 hover:bg-white hover:text-gray-700 transition-colors font-medium"
+					className="h-8 px-3 text-xs rounded-md text-gray-600 hover:bg-white hover:text-gray-800 transition-colors font-medium"
 				>
 					Cancelar
 				</button>

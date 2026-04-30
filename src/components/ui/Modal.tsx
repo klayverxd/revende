@@ -54,7 +54,7 @@ export default function Modal({
 						<h2 className="text-base font-semibold text-gray-900">{title}</h2>
 						<button
 							onClick={onClose}
-							className="text-gray-400 hover:text-gray-600 transition-colors rounded p-1 hover:bg-gray-100"
+							className="text-gray-500 hover:text-gray-700 transition-colors rounded p-1 hover:bg-gray-100"
 							aria-label="Fechar"
 						>
 							<svg

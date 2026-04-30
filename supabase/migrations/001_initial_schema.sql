@@ -420,6 +420,7 @@ BEGIN
     ])
   LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+    EXECUTE format('DROP POLICY IF EXISTS "Authenticated full access" ON %I', t);
     EXECUTE format(
       'CREATE POLICY "Authenticated full access" ON %I
        FOR ALL TO authenticated USING (true) WITH CHECK (true)',

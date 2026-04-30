@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useActionState } from "react";
 import { useSearchParams } from "next/navigation";
 import { loginAction } from "./actions";
@@ -9,6 +9,31 @@ import { createClient as createBrowserClient } from "@/lib/supabase/client";
 const initialState = { error: "" };
 
 export default function LoginPage() {
+	return (
+		<Suspense fallback={<LoginPageFallback />}>
+			<LoginPageContent />
+		</Suspense>
+	);
+}
+
+function LoginPageFallback() {
+	return (
+		<div className="min-h-screen flex items-center justify-center bg-[#F4F8FD]">
+			<div className="w-full max-w-sm">
+				<div className="bg-white rounded-2xl shadow-sm border border-[#B5D4F4] px-8 py-10">
+					<div className="mb-8 text-center">
+						<h1 className="text-2xl font-bold text-[#0C447C] tracking-tight">
+							Revendê
+						</h1>
+						<p className="text-sm text-gray-500 mt-1">Carregando...</p>
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+function LoginPageContent() {
 	const [state, formAction, pending] = useActionState(
 		loginAction,
 		initialState

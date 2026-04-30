@@ -86,7 +86,8 @@ export default function ConferenciaForm({
 		const initial: Record<string, ItemState> = {};
 		for (const item of itens) {
 			initial[item.envio_item_id] = {
-				qtdContada: "",
+				// Default assumes all units are still with the reseller until user adjusts.
+				qtdContada: String(item.qtd_enviada),
 				precoCliente: "",
 				promoIndex: null,
 			};

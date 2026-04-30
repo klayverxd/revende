@@ -239,7 +239,7 @@ CREATE TABLE IF NOT EXISTS acerto (
   updated_at           TIMESTAMPTZ           NOT NULL DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX idx_acerto_envio_id_unique ON acerto(envio_id) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_acerto_envio_id_unique ON acerto(envio_id) WHERE deleted_at IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_acerto_revendedor_id ON acerto(revendedor_id);
 CREATE INDEX IF NOT EXISTS idx_acerto_status        ON acerto(status);

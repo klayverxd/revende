@@ -70,7 +70,9 @@ export async function buscarEstoque(): Promise<EstoqueCalculadoRow[]> {
 				.is("deleted_at", null),
 			supabase
 				.from("envio_item")
-				.select("modelo_id, qtd_enviada, qtd_vendida, envio:envio_id(status)")
+				.select(
+					"modelo_id, qtd_enviada, qtd_vendida, qtd_devolvida, envio:envio_id(status)"
+				)
 				.is("deleted_at", null)
 				.not("envio", "is", null),
 		]);
@@ -98,9 +100,13 @@ export async function buscarEstoque(): Promise<EstoqueCalculadoRow[]> {
 			);
 		}
 		if (envio.status === "CONFERIDO" || envio.status === "ENCERRADO") {
+			// Subtrai vendidos + ainda com revendedor (qtd_enviada - qtd_devolvida).
+			// Somente as devoluções físicas retornam ao estoque.
+			const qtdDevolvida = (item.qtd_devolvida as number | null) ?? 0;
 			saidasMap.set(
 				modeloId,
-				(saidasMap.get(modeloId) ?? 0) + (item.qtd_vendida ?? 0)
+				(saidasMap.get(modeloId) ?? 0) +
+					((item.qtd_enviada ?? 0) - qtdDevolvida)
 			);
 		}
 	}

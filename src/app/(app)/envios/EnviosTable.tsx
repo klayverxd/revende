@@ -110,12 +110,25 @@ export default function EnviosTable({ envios }: Props) {
 									</Badge>
 								</td>
 								<td className="px-3 py-2.5 text-right">
-									<a
-										href={`/conferencias/${e.envio_id}`}
-										className="text-[#185FA5] hover:underline text-sm"
-									>
-										Abrir
-									</a>
+									{e.status === "ABERTO" && (
+										<a
+											href={`/conferencias/${e.envio_id}`}
+											className="text-[#185FA5] hover:underline text-sm"
+										>
+											Conferir
+										</a>
+									)}
+									{e.status === "CONFERIDO" && (
+										<a
+											href={`/envios/${e.envio_id}/devolucao`}
+											className="text-[#185FA5] hover:underline text-sm"
+										>
+											Devolução
+										</a>
+									)}
+									{e.status === "ENCERRADO" && (
+										<span className="text-gray-400 text-sm">Encerrado</span>
+									)}
 								</td>
 							</tr>
 						))}

@@ -112,3 +112,79 @@ export async function criarEnvio(
 
 	return { envioId };
 }
+
+export interface DevolucaoItemInput {
+	envioItemId: string;
+	qtdDevolvida: number;
+}
+
+export async function registrarDevolucao(
+	envioId: string,
+	itens: DevolucaoItemInput[]
+): Promise<void> {
+	if (!envioId) throw new Error("Envio inválido");
+	if (!itens.length) throw new Error("Informe as quantidades devolvidas");
+
+	const supabase = await createClient();
+
+	// Busca os itens do envio para validar
+	const { data: envioItens, error: fetchError } = await supabase
+		.from("envio_item")
+		.select("envio_item_id, qtd_enviada, qtd_vendida, qtd_devolvida")
+		.eq("envio_id", envioId)
+		.is("deleted_at", null);
+
+	if (fetchError) throw new Error(fetchError.message);
+
+	const itemMap = new Map(
+		(envioItens ?? []).map(i => [i.envio_item_id as string, i])
+	);
+
+	for (const input of itens) {
+		const dbItem = itemMap.get(input.envioItemId);
+		if (!dbItem) continue;
+
+		const qtdEnviada = (dbItem.qtd_enviada as number) ?? 0;
+		const qtdVendida = (dbItem.qtd_vendida as number | null) ?? 0;
+		const qtdDevolvidaAtual = (dbItem.qtd_devolvida as number | null) ?? 0;
+		const maxDevolvivel = qtdEnviada - qtdVendida - qtdDevolvidaAtual;
+		const qtdNova = Math.min(
+			Math.max(0, Math.floor(input.qtdDevolvida)),
+			maxDevolvivel
+		);
+		const qtdTotalDevolvida = qtdDevolvidaAtual + qtdNova;
+
+		const { error: updateError } = await supabase
+			.from("envio_item")
+			.update({ qtd_devolvida: qtdTotalDevolvida })
+			.eq("envio_item_id", input.envioItemId);
+
+		if (updateError) throw new Error(updateError.message);
+	}
+
+	// Verifica se todos os itens estão fully encerrados (vendido + devolvido = enviado)
+	const { data: updatedItens } = await supabase
+		.from("envio_item")
+		.select("qtd_enviada, qtd_vendida, qtd_devolvida")
+		.eq("envio_id", envioId)
+		.is("deleted_at", null);
+
+	const tudo_encerrado = (updatedItens ?? []).every(i => {
+		const env = (i.qtd_enviada as number) ?? 0;
+		const vend = (i.qtd_vendida as number | null) ?? 0;
+		const dev = (i.qtd_devolvida as number | null) ?? 0;
+		return vend + dev >= env;
+	});
+
+	if (tudo_encerrado) {
+		const { error: envioError } = await supabase
+			.from("envio")
+			.update({ status: "ENCERRADO" })
+			.eq("envio_id", envioId);
+		if (envioError) throw new Error(envioError.message);
+	}
+
+	revalidatePath("/envios");
+	revalidatePath("/estoque");
+	revalidatePath("/financeiro");
+}

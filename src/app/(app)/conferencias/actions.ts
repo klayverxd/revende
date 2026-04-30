@@ -140,7 +140,9 @@ export async function confirmarConferencia(
 		const qtdEnviada = (dbItem.qtd_enviada as number) ?? 0;
 		const qtdContada = clamp(Math.floor(input.qtdContada ?? 0), 0, qtdEnviada);
 		const qtdVendida = qtdEnviada - qtdContada;
-		const qtdDevolvida = qtdContada;
+		// qtdContada = ainda com o revendedor (não devolvido fisicamente).
+		// qtd_devolvida permanece 0 — devolução deve ser registrada manualmente depois.
+		const qtdDevolvida = 0;
 
 		if (modeloAcerto === "COMISSAO") {
 			const valorItem = precoPorFaixa(

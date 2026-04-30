@@ -243,7 +243,7 @@ export default function ConferenciaForm({
 
 								<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 									<Input
-										label="Contado"
+										label="Ainda com revendedor"
 										type="number"
 										placeholder="0"
 										value={st?.qtdContada ?? ""}

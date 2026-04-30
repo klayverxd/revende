@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { ToastProvider } from "@/components/ui";
+import { OfflineIndicator } from "@/components/layout/OfflineIndicator";
 
 export default async function AppLayout({
 	children,
@@ -16,6 +17,7 @@ export default async function AppLayout({
 	return (
 		<ToastProvider>
 			<AppShell user={user}>{children}</AppShell>
+			<OfflineIndicator />
 		</ToastProvider>
 	);
 }

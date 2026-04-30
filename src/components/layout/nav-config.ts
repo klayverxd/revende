@@ -1,58 +1,64 @@
-export type NavItem = { href: string; label: string }
-export type NavGroup = { label: string; items: NavItem[] }
+export type NavItem = { href: string; label: string };
+export type NavGroup = { label: string; items: NavItem[] };
 
 export const navGroups: NavGroup[] = [
-  {
-    label: 'GERAL',
-    items: [{ href: '/dashboard', label: 'Dashboard' }],
-  },
-  {
-    label: 'CADASTROS',
-    items: [
-      { href: '/revendedores', label: 'Revendedores' },
-      { href: '/produtos', label: 'Produtos' },
-    ],
-  },
-  {
-    label: 'OPERAÇÕES',
-    items: [
-      { href: '/envios', label: 'Envios' },
-      { href: '/conferencias', label: 'Conferências' },
-      { href: '/venda-direta', label: 'Venda direta' },
-    ],
-  },
-  {
-    label: 'FINANCEIRO',
-    items: [
-      { href: '/financeiro', label: 'Relatórios' },
-      { href: '/acertos', label: 'Acertos' },
-      { href: '/estoque', label: 'Estoque' },
-    ],
-  },
-  {
-    label: 'CONFIG',
-    items: [{ href: '/calculadora', label: 'Calculadora' }],
-  },
-]
+	{
+		label: "GERAL",
+		items: [{ href: "/dashboard", label: "Dashboard" }],
+	},
+	{
+		label: "CADASTROS",
+		items: [
+			{ href: "/revendedores", label: "Revendedores" },
+			{ href: "/produtos", label: "Produtos" },
+		],
+	},
+	{
+		label: "OPERAÇÕES",
+		items: [
+			{ href: "/envios", label: "Envios" },
+			{ href: "/conferencias", label: "Conferências" },
+			{ href: "/venda-direta", label: "Venda direta" },
+		],
+	},
+	{
+		label: "FINANCEIRO",
+		items: [
+			{ href: "/financeiro", label: "Acertos" },
+			{ href: "/financeiro/fluxo", label: "Fluxo de caixa" },
+			{ href: "/estoque", label: "Estoque" },
+		],
+	},
+	{
+		label: "CONFIG",
+		items: [{ href: "/calculadora", label: "Calculadora" }],
+	},
+];
 
 export const bottomNavItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: 'home' as const },
-  { href: '/envios', label: 'Envios', icon: 'inbox' as const },
-  { href: '/conferencias', label: 'Conferir', icon: 'clipboard' as const },
-  { href: '/estoque', label: 'Estoque', icon: 'cube' as const },
-  { href: '/financeiro', label: 'Financeiro', icon: 'chart' as const },
-]
+	{ href: "/dashboard", label: "Dashboard", icon: "home" as const },
+	{ href: "/envios", label: "Envios", icon: "inbox" as const },
+	{ href: "/conferencias", label: "Conferir", icon: "clipboard" as const },
+	{ href: "/estoque", label: "Estoque", icon: "cube" as const },
+	{ href: "/financeiro", label: "Financeiro", icon: "chart" as const },
+];
 
-export type BottomNavIcon = (typeof bottomNavItems)[number]['icon']
+export type BottomNavIcon = (typeof bottomNavItems)[number]["icon"];
 
 export function getTitleFromPathname(pathname: string): string {
-  const allItems = navGroups.flatMap((g) => g.items)
-  const match = allItems.find(
-    (item) => pathname === item.href || pathname.startsWith(item.href + '/')
-  )
-  return match?.label ?? 'Revendê'
+	const allItems = navGroups.flatMap(g => g.items);
+	const match = allItems.find(
+		item => pathname === item.href || pathname.startsWith(item.href + "/")
+	);
+	return match?.label ?? "Revendê";
 }
 
 export function isNavItemActive(pathname: string, href: string): boolean {
-  return pathname === href || pathname.startsWith(href + '/')
+	if (pathname === href) return true;
+	// Only match sub-paths if no sibling nav item is a more specific match
+	const hasExactSibling = navGroups
+		.flatMap(g => g.items)
+		.some(item => item.href !== href && pathname.startsWith(item.href));
+	if (hasExactSibling) return false;
+	return pathname.startsWith(href + "/");
 }

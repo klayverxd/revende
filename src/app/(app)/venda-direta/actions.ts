@@ -28,6 +28,7 @@ function disponibilidadeBaseMap(
 		modelo_id: string;
 		qtd_enviada: number | null;
 		qtd_vendida: number | null;
+		qtd_devolvida: number | null;
 		envio: unknown;
 	}>,
 	vendasDiretas: Array<{ modelo_id: string; quantidade: number | null }>
@@ -51,9 +52,11 @@ function disponibilidadeBaseMap(
 				(map.get(item.modelo_id) ?? 0) - (item.qtd_enviada ?? 0)
 			);
 		} else if (envio.status === "CONFERIDO" || envio.status === "ENCERRADO") {
+			const qtdDevolvida = item.qtd_devolvida ?? 0;
 			map.set(
 				item.modelo_id,
-				(map.get(item.modelo_id) ?? 0) - (item.qtd_vendida ?? 0)
+				(map.get(item.modelo_id) ?? 0) -
+					((item.qtd_enviada ?? 0) - qtdDevolvida)
 			);
 		}
 	}
@@ -85,7 +88,9 @@ export async function criarVendaDireta(data: CriarVendaDiretaInput) {
 				.is("deleted_at", null),
 			supabase
 				.from("envio_item")
-				.select("modelo_id, qtd_enviada, qtd_vendida, envio:envio_id(status)")
+				.select(
+					"modelo_id, qtd_enviada, qtd_vendida, qtd_devolvida, envio:envio_id(status)"
+				)
 				.is("deleted_at", null)
 				.not("envio", "is", null),
 			supabase
@@ -110,6 +115,7 @@ export async function criarVendaDireta(data: CriarVendaDiretaInput) {
 			modelo_id: string;
 			qtd_enviada: number | null;
 			qtd_vendida: number | null;
+			qtd_devolvida: number | null;
 			envio: unknown;
 		}>,
 		vendasValidas

@@ -108,13 +108,16 @@ export default function VendaDiretaTable({ vendas }: Props) {
 							<th className="px-3 py-2.5 text-right font-medium text-gray-600">
 								Valor
 							</th>
+							<th className="px-3 py-2.5 text-right font-medium text-gray-600">
+								Acoes
+							</th>
 						</tr>
 					</thead>
 					<tbody>
 						{filtered.length === 0 && (
 							<tr>
 								<td
-									colSpan={5}
+									colSpan={6}
 									className="px-3 py-10 text-center text-gray-600"
 								>
 									Nenhuma venda no filtro selecionado.
@@ -138,6 +141,14 @@ export default function VendaDiretaTable({ vendas }: Props) {
 								</td>
 								<td className="px-3 py-2.5 text-right font-semibold text-gray-900">
 									{fmtCurrency(v.valor_total)}
+								</td>
+								<td className="px-3 py-2.5 text-right">
+									<a
+										href={`/venda-direta/${v.venda_id}`}
+										className="text-[#185FA5] hover:underline text-sm"
+									>
+										Detalhes
+									</a>
 								</td>
 							</tr>
 						))}

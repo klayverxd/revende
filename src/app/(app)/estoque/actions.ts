@@ -57,25 +57,33 @@ export async function registrarProducao(data: RegistrarProducaoData) {
 export async function buscarEstoque(): Promise<EstoqueCalculadoRow[]> {
 	const supabase = await createClient();
 
-	const [{ data: modelos }, { data: producoes }, { data: envioItens }] =
-		await Promise.all([
-			supabase
-				.from("modelo")
-				.select("modelo_id, codigo, nome, estoque_minimo")
-				.is("deleted_at", null)
-				.order("nome"),
-			supabase
-				.from("producao")
-				.select("modelo_id, quantidade")
-				.is("deleted_at", null),
-			supabase
-				.from("envio_item")
-				.select(
-					"modelo_id, qtd_enviada, qtd_vendida, qtd_devolvida, envio:envio_id(status)"
-				)
-				.is("deleted_at", null)
-				.not("envio", "is", null),
-		]);
+	const [
+		{ data: modelos },
+		{ data: producoes },
+		{ data: envioItens },
+		{ data: vendasDiretas },
+	] = await Promise.all([
+		supabase
+			.from("modelo")
+			.select("modelo_id, codigo, nome, estoque_minimo")
+			.is("deleted_at", null)
+			.order("nome"),
+		supabase
+			.from("producao")
+			.select("modelo_id, quantidade")
+			.is("deleted_at", null),
+		supabase
+			.from("envio_item")
+			.select(
+				"modelo_id, qtd_enviada, qtd_vendida, qtd_devolvida, envio:envio_id(status)"
+			)
+			.is("deleted_at", null)
+			.not("envio", "is", null),
+		supabase
+			.from("venda_direta_item")
+			.select("modelo_id, quantidade, venda:venda_id(deleted_at)")
+			.not("venda", "is", null),
+	]);
 
 	const entradasMap = new Map<string, number>();
 	const saidasMap = new Map<string, number>();
@@ -109,6 +117,16 @@ export async function buscarEstoque(): Promise<EstoqueCalculadoRow[]> {
 					((item.qtd_enviada ?? 0) - qtdDevolvida)
 			);
 		}
+	}
+
+	for (const v of vendasDiretas ?? []) {
+		const venda = v.venda as unknown as { deleted_at: string | null } | null;
+		if (venda?.deleted_at) continue;
+		const modeloId = v.modelo_id as string;
+		saidasMap.set(
+			modeloId,
+			(saidasMap.get(modeloId) ?? 0) + ((v.quantidade as number | null) ?? 0)
+		);
 	}
 
 	return (modelos ?? []).map(m => {

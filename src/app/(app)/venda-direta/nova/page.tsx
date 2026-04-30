@@ -26,7 +26,9 @@ export default async function NovaVendaDiretaPage() {
 			.is("deleted_at", null),
 		supabase
 			.from("envio_item")
-			.select("modelo_id, qtd_enviada, qtd_vendida, envio:envio_id(status)")
+			.select(
+				"modelo_id, qtd_enviada, qtd_vendida, qtd_devolvida, envio:envio_id(status)"
+			)
 			.is("deleted_at", null)
 			.not("envio", "is", null),
 		supabase
@@ -56,10 +58,11 @@ export default async function NovaVendaDiretaPage() {
 			);
 		}
 		if (envio.status === "CONFERIDO" || envio.status === "ENCERRADO") {
+			const qtdDevolvida = (item.qtd_devolvida as number | null) ?? 0;
 			estoqueMap.set(
 				modeloId,
 				(estoqueMap.get(modeloId) ?? 0) -
-					((item.qtd_vendida as number | null) ?? 0)
+					(((item.qtd_enviada as number | null) ?? 0) - qtdDevolvida)
 			);
 		}
 	}

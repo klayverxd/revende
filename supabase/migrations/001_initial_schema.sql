@@ -9,13 +9,54 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Enums
 -- =============================================================
 
-CREATE TYPE modelo_acerto_enum  AS ENUM ('COMISSAO', 'VALOR_MINIMO');
-CREATE TYPE envio_status_enum   AS ENUM ('ABERTO', 'CONFERIDO', 'ENCERRADO');
-CREATE TYPE preco_origem_enum   AS ENUM ('MODELO', 'REVENDEDOR', 'MANUAL');
-CREATE TYPE modo_valor_enum     AS ENUM ('CALCULADO', 'MANUAL');
-CREATE TYPE acerto_status_enum  AS ENUM ('PENDENTE', 'RECEBIDO');
-CREATE TYPE canal_venda_enum    AS ENUM ('PRESENCIAL', 'WHATSAPP', 'FEIRA', 'EVENTO', 'INSTAGRAM', 'OUTRO');
-CREATE TYPE forma_pagamento_enum AS ENUM ('PIX', 'DINHEIRO', 'CARTAO', 'OUTRO');
+DO $$
+BEGIN
+  CREATE TYPE modelo_acerto_enum AS ENUM ('COMISSAO', 'VALOR_MINIMO');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  CREATE TYPE envio_status_enum AS ENUM ('ABERTO', 'CONFERIDO', 'ENCERRADO');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  CREATE TYPE preco_origem_enum AS ENUM ('MODELO', 'REVENDEDOR', 'MANUAL');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  CREATE TYPE modo_valor_enum AS ENUM ('CALCULADO', 'MANUAL');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  CREATE TYPE acerto_status_enum AS ENUM ('PENDENTE', 'RECEBIDO');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  CREATE TYPE canal_venda_enum AS ENUM ('PRESENCIAL', 'WHATSAPP', 'FEIRA', 'EVENTO', 'INSTAGRAM', 'OUTRO');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  CREATE TYPE forma_pagamento_enum AS ENUM ('PIX', 'DINHEIRO', 'CARTAO', 'OUTRO');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- =============================================================
 -- Trigger function — auto-update updated_at

@@ -9,8 +9,19 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
-	({ label, error, hint, id, className = "", ...rest }, ref) => {
+	({ label, error, hint, id, className = "", type, step, ...rest }, ref) => {
 		const inputId = id ?? label?.toLowerCase().split(/\s+/).join("-");
+
+		// On mobile, type="number" is hard to edit (no spinner, can't select/clear).
+		// Use type="text" + inputMode so the numeric keyboard still appears.
+		const isNumeric = type === "number";
+		const hasDecimal =
+			isNumeric && step !== undefined && String(step).includes(".");
+		const resolvedType = isNumeric ? "text" : type;
+		let resolvedInputMode = rest.inputMode;
+		if (isNumeric) {
+			resolvedInputMode = hasDecimal ? "decimal" : "numeric";
+		}
 
 		return (
 			<div className="flex flex-col gap-1">
@@ -26,6 +37,9 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
 				<input
 					ref={ref}
 					id={inputId}
+					type={resolvedType}
+					step={step}
+					inputMode={resolvedInputMode}
 					className={[
 						"w-full rounded-md border px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 bg-white transition-colors",
 						"focus:outline-none focus:ring-1",

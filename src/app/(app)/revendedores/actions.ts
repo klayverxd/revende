@@ -168,7 +168,6 @@ export async function definirPrecoEmMassa(
 				quantidade_minima: 1,
 				preco: campo === "preco" ? valor : null,
 				valor_minimo: campo === "valor_minimo" ? valor : null,
-				eh_promocao: false,
 				ativo: true,
 			});
 		}
@@ -226,7 +225,6 @@ export async function aplicarValorMinimoPadrao(
 				quantidade_minima: 1,
 				preco: null,
 				valor_minimo: valor,
-				eh_promocao: false,
 				ativo: true,
 			});
 		}

@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import ConferenciaForm, {
 	type ConferenciaItem,
-	type FaixaPromocional,
 	type RevendedorResumo,
 } from "./ConferenciaForm";
 
@@ -33,32 +32,6 @@ export default async function ConferenciaDetalhePage({ params }: PageProps) {
 		.eq("envio_id", envio_id)
 		.is("deleted_at", null);
 
-	const modelosIds = Array.from(
-		new Set((itensRaw ?? []).map(i => i.modelo_id as string))
-	);
-
-	let promosByModelo = new Map<string, FaixaPromocional[]>();
-	if (modelosIds.length > 0) {
-		const { data: promos } = await supabase
-			.from("modelo_preco")
-			.select("modelo_id, preco, rotulo, quantidade_minima")
-			.in("modelo_id", modelosIds)
-			.eq("eh_promocao", true)
-			.eq("ativo", true)
-			.is("deleted_at", null)
-			.order("quantidade_minima", { ascending: true });
-
-		for (const p of promos ?? []) {
-			const modeloId = p.modelo_id as string;
-			if (!promosByModelo.has(modeloId)) promosByModelo.set(modeloId, []);
-			promosByModelo.get(modeloId)?.push({
-				rotulo: (p.rotulo as string) ?? "Promocao",
-				quantidade_minima: (p.quantidade_minima as number) ?? 1,
-				preco: (p.preco as number) ?? 0,
-			});
-		}
-	}
-
 	const rev = envio.revendedor as unknown as {
 		revendedor_id: string;
 		nome: string;
@@ -85,7 +58,6 @@ export default async function ConferenciaDetalhePage({ params }: PageProps) {
 			qtd_enviada: (i.qtd_enviada as number) ?? 0,
 			preco_unitario: (i.preco_unitario as number | null) ?? null,
 			valor_minimo_unit: (i.valor_minimo_unit as number | null) ?? null,
-			promocoes: promosByModelo.get(modeloId) ?? [],
 		};
 	});
 

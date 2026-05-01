@@ -5,12 +5,6 @@ import { useRouter } from "next/navigation";
 import { Badge, Button, Input, useToast } from "@/components/ui";
 import { confirmarConferencia } from "../actions";
 
-export interface FaixaPromocional {
-	rotulo: string;
-	quantidade_minima: number;
-	preco: number;
-}
-
 export interface ConferenciaItem {
 	envio_item_id: string;
 	modelo_id: string;
@@ -19,7 +13,6 @@ export interface ConferenciaItem {
 	qtd_enviada: number;
 	preco_unitario: number | null;
 	valor_minimo_unit: number | null;
-	promocoes: FaixaPromocional[];
 }
 
 export interface RevendedorResumo {
@@ -39,7 +32,6 @@ interface Props {
 interface ItemState {
 	qtdContada: string;
 	precoCliente: string;
-	promoIndex: number | null;
 }
 
 function fmtCurrency(v: number) {
@@ -74,7 +66,6 @@ export default function ConferenciaForm({
 	const { showToast } = useToast();
 	const router = useRouter();
 	const [saving, setSaving] = useState(false);
-	const [openPromoSheet, setOpenPromoSheet] = useState(false);
 	const [usarValorManual, setUsarValorManual] = useState(false);
 	const [valorManual, setValorManual] = useState("");
 
@@ -85,7 +76,6 @@ export default function ConferenciaForm({
 				// Default assumes all units are still with the reseller until user adjusts.
 				qtdContada: String(item.qtd_enviada),
 				precoCliente: "",
-				promoIndex: null,
 			};
 		}
 		return initial;
@@ -114,17 +104,7 @@ export default function ConferenciaForm({
 				const valorUnit = item.valor_minimo_unit ?? 0;
 				totalReceberValorMinimo += qtdVendida * valorUnit;
 			} else {
-				const promoIndex = st?.promoIndex;
-				if (
-					promoIndex !== null &&
-					promoIndex >= 0 &&
-					item.promocoes[promoIndex]
-				) {
-					totalSugeridoComissao +=
-						qtdVendida * item.promocoes[promoIndex].preco;
-				} else {
-					totalSugeridoComissao += precoPadraoComissao(item, qtdVendida);
-				}
+				totalSugeridoComissao += precoPadraoComissao(item, qtdVendida);
 			}
 		}
 
@@ -152,19 +132,10 @@ export default function ConferenciaForm({
 			return;
 		}
 
-		// Se algum item tem promoção selecionada e não foi inserido valor manual,
-		// usa o total sugerido (que já reflete a promoção) como valorManual para
-		// garantir que o backend registre o valor correto.
-		const hasPromoSelected = itens.some(
-			item => state[item.envio_item_id]?.promoIndex !== null
-		);
+		// Se algum item tem valor manual, usa como valorParaBackend
 		let valorParaBackend: number | undefined;
-		if (revendedor.modelo_acerto === "COMISSAO") {
-			if (usarValorManual) {
-				valorParaBackend = Math.max(0, toNumber(valorManual));
-			} else if (hasPromoSelected) {
-				valorParaBackend = resumo.totalSugeridoComissao;
-			}
+		if (revendedor.modelo_acerto === "COMISSAO" && usarValorManual) {
+			valorParaBackend = Math.max(0, toNumber(valorManual));
 		}
 
 		setSaving(true);
@@ -319,20 +290,9 @@ export default function ConferenciaForm({
 							Valor sugerido:{" "}
 							<strong>{fmtCurrency(resumo.totalSugeridoComissao)}</strong>
 						</p>
-						<div className="flex flex-wrap items-center gap-2">
-							<Button
-								variant="secondary"
-								onClick={() => setOpenPromoSheet(true)}
-							>
-								Aplicar promocao
-							</Button>
-							<Button
-								variant="ghost"
-								onClick={() => setUsarValorManual(v => !v)}
-							>
-								Informar valor manualmente
-							</Button>
-						</div>
+						<Button variant="ghost" onClick={() => setUsarValorManual(v => !v)}>
+							Informar valor manualmente
+						</Button>
 						{usarValorManual && (
 							<Input
 								label="Valor manual total"
@@ -349,98 +309,6 @@ export default function ConferenciaForm({
 					</div>
 				)}
 			</div>
-
-			{openPromoSheet && (
-				<div className="fixed inset-0 z-50">
-					<div
-						className="absolute inset-0 bg-black/35"
-						onClick={() => setOpenPromoSheet(false)}
-						aria-hidden="true"
-					/>
-					<div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl border-t border-[#B5D4F4] shadow-xl max-h-[75vh] overflow-y-auto p-4 flex flex-col gap-3">
-						<div className="mx-auto h-1.5 w-12 rounded-full bg-gray-300" />
-						<div className="flex items-center justify-between">
-							<h2 className="text-sm font-semibold text-gray-900">
-								Faixas promocionais
-							</h2>
-							<button
-								type="button"
-								onClick={() => setOpenPromoSheet(false)}
-								className="text-xs text-[#185FA5] hover:underline"
-							>
-								Fechar
-							</button>
-						</div>
-
-						{itens.map(item => (
-							<div
-								key={item.envio_item_id}
-								className="rounded-lg border border-[#B5D4F4] p-3"
-							>
-								<p className="text-sm font-medium text-gray-900 mb-2">
-									{item.modelo_nome}
-								</p>
-								<div className="flex flex-col gap-1">
-									<label className="inline-flex items-center gap-2 text-sm text-gray-700">
-										<input
-											type="radio"
-											name={`promo-${item.envio_item_id}`}
-											checked={state[item.envio_item_id]?.promoIndex === null}
-											onChange={() =>
-												setState(prev => ({
-													...prev,
-													[item.envio_item_id]: {
-														...prev[item.envio_item_id],
-														promoIndex: null,
-													},
-												}))
-											}
-										/>
-										Sem promocao
-									</label>
-									{item.promocoes.length === 0 && (
-										<p className="text-xs text-gray-600 ml-6">
-											Sem faixas promocionais cadastradas.
-										</p>
-									)}
-									{item.promocoes.map((promo, idx) => (
-										<label
-											key={`${item.envio_item_id}-${idx}`}
-											className="inline-flex items-center gap-2 text-sm text-gray-700"
-										>
-											<input
-												type="radio"
-												name={`promo-${item.envio_item_id}`}
-												checked={state[item.envio_item_id]?.promoIndex === idx}
-												onChange={() =>
-													setState(prev => ({
-														...prev,
-														[item.envio_item_id]: {
-															...prev[item.envio_item_id],
-															promoIndex: idx,
-														},
-													}))
-												}
-											/>
-											{promo.rotulo} ({promo.quantidade_minima}+):{" "}
-											{fmtCurrency(promo.preco)}
-										</label>
-									))}
-								</div>
-							</div>
-						))}
-
-						<div className="pt-1">
-							<Button
-								className="w-full"
-								onClick={() => setOpenPromoSheet(false)}
-							>
-								Aplicar promocao
-							</Button>
-						</div>
-					</div>
-				</div>
-			)}
 		</>
 	);
 }

@@ -24,7 +24,7 @@ export async function salvarPrecoRevendedor(
 			rotulo: "Unitário",
 			preco: precoUnit ?? null,
 			valor_minimo: valorMinimo ?? null,
-			eh_promocao: false,
+
 			ativo: true,
 		});
 		if (error) throw new Error(error.message);
@@ -36,7 +36,6 @@ export interface FaixaPrecoData {
 	rotulo: string;
 	quantidade_minima: number;
 	preco: number;
-	eh_promocao?: boolean;
 }
 
 export async function criarFaixaPreco(modeloId: string, data: FaixaPrecoData) {
@@ -46,7 +45,6 @@ export async function criarFaixaPreco(modeloId: string, data: FaixaPrecoData) {
 		rotulo: data.rotulo,
 		quantidade_minima: data.quantidade_minima,
 		preco: data.preco,
-		eh_promocao: data.eh_promocao ?? false,
 		ativo: true,
 	});
 	if (error) throw new Error(error.message);
@@ -103,7 +101,6 @@ export async function criarFaixaPrecoRevendedor(
 		quantidade_minima: data.quantidade_minima,
 		preco: data.preco,
 		valor_minimo: data.valor_minimo ?? null,
-		eh_promocao: data.eh_promocao ?? false,
 		ativo: true,
 	});
 	if (error) throw new Error(error.message);

@@ -52,7 +52,6 @@ export async function criarProduto(data: ProdutoData) {
 			quantidade_minima: 1,
 			rotulo: "Unitário",
 			preco: data.preco_unitario,
-			eh_promocao: false,
 			ativo: true,
 		});
 	}
@@ -83,7 +82,6 @@ export async function atualizarProduto(id: string, data: ProdutoData) {
 			quantidade_minima: 1,
 			rotulo: "Unitário",
 			preco: data.preco_unitario,
-			eh_promocao: false,
 			ativo: true,
 		});
 	}

@@ -21,7 +21,7 @@ export default async function FinanceiroPage() {
 		supabase
 			.from("acerto")
 			.select(
-				"acerto_id, data_recebimento, modelo_acerto, valor_repassado, valor_a_receber, valor_liquido, observacao, revendedor:revendedor_id(nome)"
+				"acerto_id, envio_id, data_recebimento, modelo_acerto, valor_repassado, valor_a_receber, valor_liquido, observacao, revendedor:revendedor_id(nome)"
 			)
 			.eq("status", "RECEBIDO")
 			.is("deleted_at", null)
@@ -77,6 +77,7 @@ export default async function FinanceiroPage() {
 
 	const historico: AcertoHistoricoRow[] = (historicoRaw ?? []).map(a => ({
 		acerto_id: a.acerto_id as string,
+		envio_id: (a.envio_id as string | null) ?? null,
 		data_recebimento: (a.data_recebimento as string | null) ?? null,
 		revendedor_nome: ((a.revendedor as unknown as { nome: string } | null)
 			?.nome ?? "Revendedor") as string,

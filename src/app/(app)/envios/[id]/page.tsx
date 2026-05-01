@@ -21,6 +21,12 @@ function statusVariant(status: string) {
 	return "success" as const;
 }
 
+function statusLabel(status: string) {
+	if (status === "ABERTO") return "Aberto";
+	if (status === "CONFERIDO") return "Conferido";
+	return "Encerrado";
+}
+
 export default async function EnvioDetalhePage({ params }: Props) {
 	const { id } = await params;
 	const supabase = await createClient();
@@ -128,7 +134,9 @@ export default async function EnvioDetalhePage({ params }: Props) {
 				</div>
 				<div className="bg-white rounded-xl border border-[#B5D4F4] px-4 py-3">
 					<p className="text-xs text-gray-500 mb-1">Status</p>
-					<Badge variant={statusVariant(statusEnvio)}>{statusEnvio}</Badge>
+					<Badge variant={statusVariant(statusEnvio)}>
+						{statusLabel(statusEnvio)}
+					</Badge>
 				</div>
 				<div className="bg-white rounded-xl border border-[#B5D4F4] px-4 py-3">
 					<p className="text-xs text-gray-500 mb-1">Itens no envio</p>
@@ -162,7 +170,9 @@ export default async function EnvioDetalhePage({ params }: Props) {
 								Em consignação
 							</th>
 							<th className="px-3 py-2.5 text-right font-medium text-gray-600">
-								Preço unit.
+								{itens.length > 0 && itens[0].modelo_acerto === "VALOR_MINIMO"
+									? "Vlr. mín. unit."
+									: "Preço unit."}
 							</th>
 						</tr>
 					</thead>

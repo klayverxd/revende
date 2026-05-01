@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Badge } from "@/components/ui";
+import { Badge, Button } from "@/components/ui";
 
 interface Props {
 	readonly params: Promise<{ id: string }>;
@@ -33,7 +33,7 @@ export default async function RevendedorVisaoGeralPage({ params }: Props) {
 
 	const { data: revendedor } = await supabase
 		.from("revendedor")
-		.select("revendedor_id, nome, modelo_acerto")
+		.select("revendedor_id, nome, modelo_acerto, telefone, email")
 		.eq("revendedor_id", id)
 		.is("deleted_at", null)
 		.single();
@@ -89,6 +89,9 @@ export default async function RevendedorVisaoGeralPage({ params }: Props) {
 	const giro =
 		totalEnviado > 0 ? Math.round((totalVendido / totalEnviado) * 100) : 0;
 
+	const telefone = (revendedor.telefone as string | null) ?? null;
+	const email = (revendedor.email as string | null) ?? null;
+
 	// Últimos 5 envios
 	const ultimos5 = (enviosRaw ?? []).slice(0, 5);
 
@@ -106,6 +109,25 @@ export default async function RevendedorVisaoGeralPage({ params }: Props) {
 
 	return (
 		<div className="flex flex-col gap-6">
+			{/* Contact + action header */}
+			<div className="flex items-start justify-between gap-3">
+				<div className="flex flex-col gap-0.5">
+					{telefone && (
+						<p className="text-sm text-gray-600">
+							<span className="font-medium">Tel:</span> {telefone}
+						</p>
+					)}
+					{email && (
+						<p className="text-sm text-gray-600">
+							<span className="font-medium">E-mail:</span> {email}
+						</p>
+					)}
+				</div>
+				<Link href={`/envios/novo?revendedor=${id}`}>
+					<Button size="sm">+ Novo envio</Button>
+				</Link>
+			</div>
+
 			{/* KPI Cards */}
 			<div className="grid grid-cols-2 md:grid-cols-5 gap-3">
 				{kpis.map(kpi => (
@@ -159,7 +181,8 @@ export default async function RevendedorVisaoGeralPage({ params }: Props) {
 									</th>
 									<th className="px-4 py-2.5 text-center font-medium text-gray-600">
 										Status
-									</th>
+									</th>{" "}
+									<th className="px-4 py-2.5" />{" "}
 								</tr>
 							</thead>
 							<tbody>
@@ -198,6 +221,13 @@ export default async function RevendedorVisaoGeralPage({ params }: Props) {
 												<Badge variant={statusVariant(envio.status as string)}>
 													{statusLabel(envio.status as string)}
 												</Badge>
+											</td>
+											<td className="px-4 py-2.5 text-right">
+												<Link href={`/envios/${envio.envio_id as string}`}>
+													<Button variant="ghost" size="sm">
+														Ver
+													</Button>
+												</Link>
 											</td>
 										</tr>
 									);

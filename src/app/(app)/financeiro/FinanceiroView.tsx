@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Badge, Button, Input, Modal, useToast } from "@/components/ui";
 import { registrarRecebimento } from "./actions";
 
@@ -23,6 +24,7 @@ export interface AcertoPendenteCard {
 
 export interface AcertoHistoricoRow {
 	acerto_id: string;
+	envio_id: string | null;
 	data_recebimento: string | null;
 	revendedor_nome: string;
 	modelo_acerto: "COMISSAO" | "VALOR_MINIMO";
@@ -202,10 +204,21 @@ export default function FinanceiroView({ pendentes, historico }: Props) {
 										{fmtDate(row.data_recebimento)}
 									</td>
 									<td className="px-3 py-2.5 text-gray-900 font-medium">
-										{row.revendedor_nome}
+										{row.envio_id ? (
+											<Link
+												href={`/envios/${row.envio_id}`}
+												className="text-[#378ADD] hover:underline"
+											>
+												{row.revendedor_nome}
+											</Link>
+										) : (
+											row.revendedor_nome
+										)}
 									</td>
 									<td className="px-3 py-2.5 text-gray-700">
-										{row.modelo_acerto}
+										{row.modelo_acerto === "COMISSAO"
+											? "% Comissão"
+											: "Valor mín."}
 									</td>
 									<td className="px-3 py-2.5 text-right text-gray-900 font-semibold">
 										{fmtCurrency(row.valor)}

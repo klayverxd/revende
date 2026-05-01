@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export interface RowAction {
@@ -19,6 +19,15 @@ interface Props {
 export default function RowActionsMenu({ actions, label }: Props) {
 	const [open, setOpen] = useState(false);
 	const router = useRouter();
+
+	useEffect(() => {
+		if (!open) return;
+		function onKey(e: KeyboardEvent) {
+			if (e.key === "Escape") setOpen(false);
+		}
+		document.addEventListener("keydown", onKey);
+		return () => document.removeEventListener("keydown", onKey);
+	}, [open]);
 
 	function handleAction(action: RowAction) {
 		if (action.disabled) return;
@@ -55,65 +64,50 @@ export default function RowActionsMenu({ actions, label }: Props) {
 			</button>
 
 			{open && (
-				<>
-					{/* Backdrop */}
+				/* Overlay — clique fora fecha */
+				<div
+					className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20"
+					onClick={() => setOpen(false)}
+					aria-hidden="true"
+				>
+					{/* Painel — stopPropagation para não fechar ao clicar dentro */}
 					<div
-						className="fixed inset-0 z-40 bg-black/25"
-						onClick={() => setOpen(false)}
-						aria-hidden="true"
-					/>
-
-					{/* Bottom sheet on mobile, centered modal on desktop */}
-					<div className="fixed inset-x-0 bottom-0 z-50 md:inset-0 md:flex md:items-center md:justify-center md:p-4">
-						<div className="bg-white rounded-t-2xl md:rounded-2xl border border-[#B5D4F4] shadow-xl md:w-72">
-							{/* Handle bar (mobile only) */}
-							<div className="md:hidden w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3" />
-
-							{/* Title */}
-							{label && (
-								<div className="px-5 pt-4 pb-2 border-b border-[#B5D4F4]">
-									<p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-										{label}
-									</p>
-								</div>
-							)}
-
-							{/* Actions */}
-							<ul className="flex flex-col py-2">
-								{actions.map(action => (
-									<li key={action.label}>
-										<button
-											type="button"
-											disabled={action.disabled}
-											onClick={() => handleAction(action)}
-											className={[
-												"w-full text-left px-5 py-3 text-sm font-medium transition-colors",
-												action.disabled
-													? "text-gray-300 cursor-not-allowed"
-													: action.variant === "danger"
-														? "text-red-600 hover:bg-red-50 active:bg-red-100"
-														: "text-gray-800 hover:bg-[#E6F1FB] active:bg-[#d0e8f8]",
-											].join(" ")}
-										>
-											{action.label}
-										</button>
-									</li>
-								))}
-							</ul>
-
-							{/* Cancel */}
-							<div className="border-t border-[#B5D4F4] py-2">
-								<button
-									type="button"
-									onClick={() => setOpen(false)}
-									className="w-full text-left px-5 py-3 text-sm font-medium text-gray-500 hover:bg-gray-50"
-								>
-									Cancelar
-								</button>
+						className="bg-white rounded-xl border border-[#B5D4F4] shadow-lg w-56 overflow-hidden"
+						onClick={e => e.stopPropagation()}
+					>
+						{/* Título opcional */}
+						{label && (
+							<div className="px-4 pt-3 pb-2 border-b border-[#B5D4F4]">
+								<p className="text-xs font-medium text-gray-500 uppercase tracking-wide truncate">
+									{label}
+								</p>
 							</div>
-						</div>
+						)}
+
+						{/* Ações */}
+						<ul className="flex flex-col py-1">
+							{actions.map(action => (
+								<li key={action.label}>
+									<button
+										type="button"
+										disabled={action.disabled}
+										onClick={() => handleAction(action)}
+										className={[
+											"w-full text-left px-4 py-2.5 text-sm font-medium transition-colors",
+											action.disabled
+												? "text-gray-300 cursor-not-allowed"
+												: action.variant === "danger"
+													? "text-red-600 hover:bg-red-50 active:bg-red-100"
+													: "text-gray-800 hover:bg-[#E6F1FB] active:bg-[#d0e8f8]",
+										].join(" ")}
+									>
+										{action.label}
+									</button>
+								</li>
+							))}
+						</ul>
 					</div>
-				</>
+				</div>
 			)}
 		</>
 	);

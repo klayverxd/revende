@@ -241,6 +241,11 @@ export default async function DashboardPage({
 		.slice(0, 5);
 
 	const hoje = new Date();
+	const totalEmConsignacao = (envioItens ?? []).reduce((acc, i) => {
+		const envio = i.envio as unknown as { status: string } | null;
+		if (!envio || envio.status !== "ABERTO") return acc;
+		return acc + ((i.qtd_enviada as number | null) ?? 0);
+	}, 0);
 	const enviosAntigos = (enviosAbertos ?? []).filter(e => {
 		const d = new Date(e.data_envio as string);
 		const dias = Math.floor(
@@ -355,7 +360,7 @@ export default async function DashboardPage({
 				</div>
 			</div>
 
-			<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+			<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
 				<div className="rounded-xl border border-[#B5D4F4] bg-white p-4">
 					<p className="text-xs text-gray-600">Faturamento do mês</p>
 					<p className="text-lg font-semibold text-gray-900 mt-1">
@@ -380,6 +385,12 @@ export default async function DashboardPage({
 						{fmtCurrency(ticketMedio)}
 					</p>
 				</div>
+				<div className="rounded-xl border border-[#B5D4F4] bg-white p-4">
+					<p className="text-xs text-gray-600">Em consignação</p>
+					<p className="text-lg font-semibold text-gray-900 mt-1">
+						{totalEmConsignacao} un.
+					</p>
+				</div>
 			</div>
 
 			<div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
@@ -393,24 +404,26 @@ export default async function DashboardPage({
 					<h2 className="text-sm font-semibold text-gray-900 mb-3">Alertas</h2>
 					<div className="space-y-2">
 						{alertasEstoque.map(a => (
-							<div
+							<Link
 								key={a.nome}
-								className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
+								href="/estoque"
+								className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 block hover:bg-red-100 transition-colors"
 							>
 								Estoque baixo: {a.nome} ({a.disponivel}/{a.minimo})
-							</div>
+							</Link>
 						))}
 						{enviosAntigos.map(e => {
 							const r =
 								(e.revendedor as unknown as { nome: string } | null)?.nome ??
 								"Revendedor";
 							return (
-								<div
+								<Link
 									key={e.envio_id as string}
-									className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+									href={`/envios/${e.envio_id as string}`}
+									className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 block hover:bg-amber-100 transition-colors"
 								>
 									Envio aberto há mais de 7 dias: {r}
-								</div>
+								</Link>
 							);
 						})}
 						{alertasEstoque.length === 0 && enviosAntigos.length === 0 && (

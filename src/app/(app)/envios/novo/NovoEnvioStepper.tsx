@@ -363,6 +363,11 @@ export default function NovoEnvioStepper({ revendedores, produtos }: Props) {
 														{p.codigo ? `${p.codigo} - ` : ""}
 														{p.nome}
 													</p>
+													{p.estoque_disponivel <= 0 && (
+														<span className="inline-block mt-0.5 rounded px-1.5 py-0.5 text-xs font-medium bg-red-50 text-red-700">
+															Sem estoque
+														</span>
+													)}
 												</td>
 												<td className="px-3 py-2 text-right text-gray-700">
 													{p.estoque_disponivel}

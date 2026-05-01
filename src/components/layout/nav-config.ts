@@ -19,14 +19,14 @@ export const navGroups: NavGroup[] = [
 			{ href: "/envios", label: "Envios" },
 			{ href: "/conferencias", label: "Conferências" },
 			{ href: "/venda-direta", label: "Venda direta" },
+			{ href: "/estoque", label: "Estoque" },
 		],
 	},
 	{
 		label: "FINANCEIRO",
 		items: [
-			{ href: "/financeiro", label: "Acertos" },
+			{ href: "/financeiro", label: "Financeiro" },
 			{ href: "/financeiro/fluxo", label: "Fluxo de caixa" },
-			{ href: "/estoque", label: "Estoque" },
 		],
 	},
 	{
@@ -38,7 +38,7 @@ export const navGroups: NavGroup[] = [
 export const bottomNavItems = [
 	{ href: "/dashboard", label: "Dashboard", icon: "home" as const },
 	{ href: "/envios", label: "Envios", icon: "inbox" as const },
-	{ href: "/conferencias", label: "Conferir", icon: "clipboard" as const },
+	{ href: "/venda-direta", label: "Venda direta", icon: "clipboard" as const },
 	{ href: "/estoque", label: "Estoque", icon: "cube" as const },
 	{ href: "/financeiro", label: "Financeiro", icon: "chart" as const },
 ];

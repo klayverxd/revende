@@ -27,35 +27,52 @@ function variantFromStatus(status: EnvioRow["status"]) {
 
 export default function EnviosTable({ envios }: Props) {
 	const [filtro, setFiltro] = useState<"TODOS" | EnvioRow["status"]>("TODOS");
+	const [search, setSearch] = useState("");
 
 	const filtered = useMemo(() => {
-		if (filtro === "TODOS") return envios;
-		return envios.filter(e => e.status === filtro);
-	}, [envios, filtro]);
+		let result =
+			filtro === "TODOS" ? envios : envios.filter(e => e.status === filtro);
+		if (search.trim()) {
+			const term = search.toLowerCase();
+			result = result.filter(e =>
+				e.revendedor_nome.toLowerCase().includes(term)
+			);
+		}
+		return result;
+	}, [envios, filtro, search]);
 
 	return (
 		<div className="flex flex-col gap-4">
-			<div className="inline-flex w-fit rounded-lg border border-[#B5D4F4] bg-white p-1">
-				{[
-					{ key: "TODOS", label: "Todos" },
-					{ key: "ABERTO", label: "Aberto" },
-					{ key: "CONFERIDO", label: "Conferido" },
-					{ key: "ENCERRADO", label: "Encerrado" },
-				].map(f => (
-					<button
-						key={f.key}
-						type="button"
-						onClick={() => setFiltro(f.key as typeof filtro)}
-						className={[
-							"rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-							filtro === f.key
-								? "bg-[#185FA5] text-white"
-								: "text-gray-600 hover:bg-[#E6F1FB]",
-						].join(" ")}
-					>
-						{f.label}
-					</button>
-				))}
+			<div className="flex flex-wrap items-center gap-2">
+				<div className="inline-flex w-fit rounded-lg border border-[#B5D4F4] bg-white p-1">
+					{[
+						{ key: "TODOS", label: "Todos" },
+						{ key: "ABERTO", label: "Aberto" },
+						{ key: "CONFERIDO", label: "Conferido" },
+						{ key: "ENCERRADO", label: "Encerrado" },
+					].map(f => (
+						<button
+							key={f.key}
+							type="button"
+							onClick={() => setFiltro(f.key as typeof filtro)}
+							className={[
+								"rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+								filtro === f.key
+									? "bg-[#185FA5] text-white"
+									: "text-gray-600 hover:bg-[#E6F1FB]",
+							].join(" ")}
+						>
+							{f.label}
+						</button>
+					))}
+				</div>
+				<input
+					type="search"
+					placeholder="Buscar por revendedor..."
+					value={search}
+					onChange={e => setSearch(e.target.value)}
+					className="h-9 w-56 rounded-md border border-[#B5D4F4] px-3 text-sm text-gray-900 bg-white placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:border-[#185FA5] focus:ring-[#185FA5]"
+				/>
 			</div>
 
 			<div className="bg-white rounded-xl border border-[#B5D4F4] overflow-x-auto">
@@ -106,7 +123,11 @@ export default function EnviosTable({ envios }: Props) {
 								</td>
 								<td className="px-3 py-2.5 text-center">
 									<Badge variant={variantFromStatus(e.status)}>
-										{e.status}
+										{e.status === "ABERTO"
+											? "Aberto"
+											: e.status === "CONFERIDO"
+												? "Conferido"
+												: "Encerrado"}
 									</Badge>
 								</td>
 								<td className="px-3 py-2.5 text-right">
@@ -127,6 +148,10 @@ export default function EnviosTable({ envios }: Props) {
 														{
 															label: "Registrar devolução",
 															href: `/envios/${e.envio_id}/devolucao`,
+														},
+														{
+															label: "Ver acerto",
+															href: `/financeiro`,
 														},
 													]
 												: []),

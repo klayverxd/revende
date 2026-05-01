@@ -10,6 +10,7 @@ export interface VendaDiretaRow {
 	canal: "PRESENCIAL" | "WHATSAPP" | "FEIRA" | "EVENTO" | "INSTAGRAM" | "OUTRO";
 	forma_pagamento: "PIX" | "DINHEIRO" | "CARTAO" | "OUTRO";
 	valor_total: number;
+	cliente_nome: string | null;
 }
 
 interface Props {
@@ -26,6 +27,22 @@ function fmtDate(date: string) {
 function fmtCurrency(v: number) {
 	return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
+
+const CANAL_LABEL: Record<VendaDiretaRow["canal"], string> = {
+	PRESENCIAL: "Presencial",
+	WHATSAPP: "WhatsApp",
+	FEIRA: "Feira",
+	EVENTO: "Evento",
+	INSTAGRAM: "Instagram",
+	OUTRO: "Outro",
+};
+
+const PAGAMENTO_LABEL: Record<VendaDiretaRow["forma_pagamento"], string> = {
+	PIX: "PIX",
+	DINHEIRO: "Dinheiro",
+	CARTAO: "Cartão",
+	OUTRO: "Outro",
+};
 
 function isNoPeriodo(dataVenda: string, periodo: Periodo) {
 	const hoje = new Date();
@@ -118,7 +135,7 @@ export default function VendaDiretaTable({ vendas }: Props) {
 						{filtered.length === 0 && (
 							<tr>
 								<td
-									colSpan={6}
+									colSpan={7}
 									className="px-3 py-10 text-center text-gray-600"
 								>
 									Nenhuma venda no filtro selecionado.
@@ -136,9 +153,14 @@ export default function VendaDiretaTable({ vendas }: Props) {
 								<td className="px-3 py-2.5 text-right text-gray-700">
 									{v.total_itens}
 								</td>
-								<td className="px-3 py-2.5 text-gray-700">{v.canal}</td>
 								<td className="px-3 py-2.5 text-gray-700">
-									{v.forma_pagamento}
+									{v.cliente_nome ?? "—"}
+								</td>
+								<td className="px-3 py-2.5 text-gray-700">
+									{CANAL_LABEL[v.canal]}
+								</td>
+								<td className="px-3 py-2.5 text-gray-700">
+									{PAGAMENTO_LABEL[v.forma_pagamento]}
 								</td>
 								<td className="px-3 py-2.5 text-right font-semibold text-gray-900">
 									{fmtCurrency(v.valor_total)}
@@ -158,6 +180,15 @@ export default function VendaDiretaTable({ vendas }: Props) {
 					</tbody>
 				</table>
 			</div>
+			{filtered.length > 0 && (
+				<p className="text-sm text-gray-600">
+					{filtered.length} venda{filtered.length !== 1 ? "s" : ""} &bull;
+					Total:{" "}
+					<span className="font-semibold text-gray-900">
+						{fmtCurrency(filtered.reduce((acc, v) => acc + v.valor_total, 0))}
+					</span>
+				</p>
+			)}
 		</div>
 	);
 }

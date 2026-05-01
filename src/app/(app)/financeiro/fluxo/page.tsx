@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 
 const MESES = [
@@ -61,7 +62,9 @@ export default async function FluxoPage({
 				.is("deleted_at", null),
 			supabase
 				.from("acerto")
-				.select("data_recebimento, valor_repassado, comissao_calculada")
+				.select(
+					"data_recebimento, valor_repassado, comissao_calculada, valor_a_receber, modelo_acerto"
+				)
 				.eq("status", "RECEBIDO")
 				.gte("data_recebimento", anoStart)
 				.lte("data_recebimento", anoEnd)
@@ -89,7 +92,12 @@ export default async function FluxoPage({
 		const m = mesIndex(a.data_recebimento as string | null);
 		if (m >= 0) {
 			receita[m] += (a.valor_repassado as number | null) ?? 0;
-			acertosPagos[m] += (a.comissao_calculada as number | null) ?? 0;
+			// VALOR_MINIMO: cost = valor_a_receber (agreed minimum); COMISSAO: cost = comissao_calculada
+			const custo =
+				(a.modelo_acerto as string) === "VALOR_MINIMO"
+					? ((a.valor_a_receber as number | null) ?? 0)
+					: ((a.comissao_calculada as number | null) ?? 0);
+			acertosPagos[m] += custo;
 		}
 	}
 
@@ -135,30 +143,35 @@ export default async function FluxoPage({
 					</p>
 				</div>
 				<div className="flex items-center gap-2">
-					<a
+					<Link
+						href="/financeiro"
+						className="px-3 py-1.5 rounded-lg border border-[#B5D4F4] text-sm text-gray-700 hover:bg-[#E6F1FB] transition-colors"
+					>
+						Voltar
+					</Link>
+					<Link
 						href={`?ano=${prevYear}`}
 						className="px-3 py-1.5 rounded-lg border border-[#B5D4F4] text-sm text-[#185FA5] hover:bg-[#E6F1FB] transition-colors"
 					>
 						← {prevYear}
-					</a>
+					</Link>
 					<span className="px-3 py-1.5 rounded-lg bg-[#185FA5] text-white text-sm font-semibold">
 						{ano}
 					</span>
-					<a
+					<Link
 						href={`?ano=${nextYear}`}
 						className="px-3 py-1.5 rounded-lg border border-[#B5D4F4] text-sm text-[#185FA5] hover:bg-[#E6F1FB] transition-colors"
 					>
 						{nextYear} →
-					</a>
+					</Link>
 				</div>
 			</div>
-
-			<div className="bg-white rounded-xl border border-[#B5D4F4] overflow-x-auto">
+			<div className="rounded-xl border border-[#B5D4F4] bg-white overflow-x-auto">
 				<table className="w-full text-sm">
-					<thead>
-						<tr className="border-b border-[#B5D4F4] bg-[#F4F8FD]">
+					<thead className="border-b border-[#B5D4F4]">
+						<tr>
 							<th className="px-3 py-2.5 text-left font-medium text-gray-600">
-								Linha
+								Categoria
 							</th>
 							{MESES.map(m => (
 								<th

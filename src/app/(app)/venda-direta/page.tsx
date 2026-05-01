@@ -9,7 +9,7 @@ export default async function VendaDiretaPage() {
 	const { data: vendasRaw } = await supabase
 		.from("venda_direta")
 		.select(
-			"venda_id, data_venda, canal, forma_pagamento, valor_total, venda_direta_item(item_id)"
+			"venda_id, data_venda, canal, forma_pagamento, valor_total, cliente_nome, venda_direta_item(item_id)"
 		)
 		.is("deleted_at", null)
 		.order("data_venda", { ascending: false });
@@ -33,6 +33,7 @@ export default async function VendaDiretaPage() {
 				| "OUTRO",
 			valor_total: (v.valor_total as number) ?? 0,
 			total_itens: itens?.length ?? 0,
+			cliente_nome: (v.cliente_nome as string | null) ?? null,
 		};
 	});
 

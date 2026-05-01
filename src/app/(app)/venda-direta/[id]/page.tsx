@@ -7,6 +7,28 @@ interface Props {
 	params: Promise<{ id: string }>;
 }
 
+const PRECO_ORIGEM_LABEL: Record<string, string> = {
+	MODELO: "Preço do modelo",
+	REVENDEDOR: "Preço do revendedor",
+	MANUAL: "Manual",
+};
+
+const CANAL_LABEL: Record<string, string> = {
+	PRESENCIAL: "Presencial",
+	WHATSAPP: "WhatsApp",
+	FEIRA: "Feira",
+	EVENTO: "Evento",
+	INSTAGRAM: "Instagram",
+	OUTRO: "Outro",
+};
+
+const PAGAMENTO_LABEL: Record<string, string> = {
+	PIX: "PIX",
+	DINHEIRO: "Dinheiro",
+	CARTAO: "Cartão",
+	OUTRO: "Outro",
+};
+
 function fmtDate(date: string) {
 	return new Date(`${date}T00:00:00`).toLocaleDateString("pt-BR");
 }
@@ -82,13 +104,14 @@ export default async function VendaDiretaDetalhePage({ params }: Props) {
 				<div className="rounded-xl border border-[#B5D4F4] bg-white p-4">
 					<p className="text-xs text-gray-500">Canal</p>
 					<p className="text-sm font-medium text-gray-900 mt-1">
-						{venda.canal as string}
+						{CANAL_LABEL[venda.canal as string] ?? (venda.canal as string)}
 					</p>
 				</div>
 				<div className="rounded-xl border border-[#B5D4F4] bg-white p-4">
 					<p className="text-xs text-gray-500">Pagamento</p>
 					<p className="text-sm font-medium text-gray-900 mt-1">
-						{venda.forma_pagamento as string}
+						{PAGAMENTO_LABEL[venda.forma_pagamento as string] ??
+							(venda.forma_pagamento as string)}
 					</p>
 				</div>
 				<div className="rounded-xl border border-[#B5D4F4] bg-white p-4">
@@ -148,7 +171,7 @@ export default async function VendaDiretaDetalhePage({ params }: Props) {
 									{fmtCurrency(item.preco_unitario)}
 								</td>
 								<td className="px-3 py-2.5 text-gray-700">
-									{item.preco_origem}
+									{PRECO_ORIGEM_LABEL[item.preco_origem] ?? item.preco_origem}
 								</td>
 								<td className="px-3 py-2.5 text-right font-medium text-gray-900">
 									{fmtCurrency(item.subtotal)}

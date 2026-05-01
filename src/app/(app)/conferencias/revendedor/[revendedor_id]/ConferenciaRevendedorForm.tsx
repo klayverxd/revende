@@ -84,26 +84,39 @@ function computeMergedItems(envios: EnvioComItens[]): ItemMerged[] {
 }
 
 /**
- * Distribute "contada" totals back to individual envio_items.
- * Sells oldest stock first: fills vendida from the earliest envio_item forward.
+ * Distribute sold/returned/remaining back to individual envio_items oldest-first.
+ * Sold drains first, then returned, remaining stays in newest items.
  */
-function distribuirContada(
+function distribuirQuantidades(
 	mergedItems: ItemMerged[],
-	mergedState: Record<string, string>
-): Record<string, number> {
-	const result: Record<string, number> = {};
+	contadaState: Record<string, string>,
+	devolvidaState: Record<string, string>
+): Record<string, { qtdContada: number; qtdDevolvida: number }> {
+	const result: Record<string, { qtdContada: number; qtdDevolvida: number }> =
+		{};
 	for (const m of mergedItems) {
 		const contadaTotal = clamp(
-			Math.floor(toNumber(mergedState[m.modelo_id] ?? "0")),
+			Math.floor(toNumber(contadaState[m.modelo_id] ?? "0")),
 			0,
 			m.total_restante
 		);
-		let vendidaRestante = m.total_restante - contadaTotal;
+		const devolvidaTotal = clamp(
+			Math.floor(toNumber(devolvidaState[m.modelo_id] ?? "0")),
+			0,
+			m.total_restante - contadaTotal
+		);
+		let vendidaRestante = m.total_restante - contadaTotal - devolvidaTotal;
+		let devolvidaRestante = devolvidaTotal;
 		for (const item of m.envio_items) {
 			const restante = qtdRestante(item);
 			const vendidaItem = Math.min(restante, vendidaRestante);
 			vendidaRestante -= vendidaItem;
-			result[item.envio_item_id] = restante - vendidaItem;
+			const devolvidaItem = Math.min(restante - vendidaItem, devolvidaRestante);
+			devolvidaRestante -= devolvidaItem;
+			result[item.envio_item_id] = {
+				qtdContada: restante - vendidaItem - devolvidaItem,
+				qtdDevolvida: devolvidaItem,
+			};
 		}
 	}
 	return result;
@@ -131,6 +144,14 @@ export default function ConferenciaRevendedorForm({
 		)
 	);
 
+	// State: modelo_id → "qtd devolvida ao estoque"
+	const [devolvidaState, setDevolvidaState] = useState<Record<string, string>>(
+		() =>
+			Object.fromEntries(
+				computeMergedItems(envios).map(m => [m.modelo_id, "0"])
+			)
+	);
+
 	const allFilled = useMemo(
 		() =>
 			mergedItems
@@ -142,6 +163,7 @@ export default function ConferenciaRevendedorForm({
 	const resumoGlobal = useMemo(() => {
 		let totalVendida = 0;
 		let totalContada = 0;
+		let totalDevolvida = 0;
 		let totalReceberValorMinimo = 0;
 		let totalSugeridoComissao = 0;
 
@@ -151,9 +173,15 @@ export default function ConferenciaRevendedorForm({
 				0,
 				m.total_restante
 			);
-			const vendida = m.total_restante - contada;
+			const devolvida = clamp(
+				Math.floor(toNumber(devolvidaState[m.modelo_id] ?? "0")),
+				0,
+				m.total_restante - contada
+			);
+			const vendida = m.total_restante - contada - devolvida;
 			totalVendida += vendida;
 			totalContada += contada;
+			totalDevolvida += devolvida;
 			if (revendedor.modelo_acerto === "VALOR_MINIMO") {
 				totalReceberValorMinimo += vendida * (m.valor_minimo_unit ?? 0);
 			} else {
@@ -164,42 +192,36 @@ export default function ConferenciaRevendedorForm({
 		return {
 			totalVendida,
 			totalContada,
+			totalDevolvida,
 			hasRemanentes: totalContada > 0,
 			totalReceberValorMinimo,
 			totalSugeridoComissao,
 		};
-	}, [mergedItems, revendedor.modelo_acerto, state]);
+	}, [mergedItems, revendedor.modelo_acerto, state, devolvidaState]);
 
 	function setQtd(modeloId: string, value: string) {
 		setState(prev => ({ ...prev, [modeloId]: value }));
 	}
 
-	async function onConfirmar() {
-		if (!allFilled) {
-			showToast("Preencha todas as quantidades", "error");
-			return;
-		}
-		if (resumoGlobal.totalVendida === 0) {
-			showToast("Informe ao menos uma venda para confirmar", "error");
-			return;
-		}
+	function setDevolvida(modeloId: string, value: string) {
+		setDevolvidaState(prev => ({ ...prev, [modeloId]: value }));
+	}
 
-		const globalManual =
-			revendedor.modelo_acerto === "COMISSAO" && usarValorManual
-				? Math.max(0, toNumber(valorManual))
-				: undefined;
-
-		// Distribute merged contada back to individual envio_items (oldest first)
-		const perItemContada = distribuirContada(mergedItems, state);
-
-		// Compute auto value per envio for proportional manual distribution
+	function buildEnviosInput(
+		globalManual: number | undefined,
+		perItem: Record<string, { qtdContada: number; qtdDevolvida: number }>
+	) {
 		const valorAutoByEnvio: Record<string, number> = {};
 		for (const envio of envios) {
 			let total = 0;
 			for (const item of envio.itens) {
-				const contadaItem =
-					perItemContada[item.envio_item_id] ?? qtdRestante(item);
-				total += (qtdRestante(item) - contadaItem) * (item.preco_unitario ?? 0);
+				const dist = perItem[item.envio_item_id] ?? {
+					qtdContada: qtdRestante(item),
+					qtdDevolvida: 0,
+				};
+				const vendidaItem =
+					qtdRestante(item) - dist.qtdContada - dist.qtdDevolvida;
+				total += vendidaItem * (item.preco_unitario ?? 0);
 			}
 			valorAutoByEnvio[envio.envio_id] = total;
 		}
@@ -208,26 +230,53 @@ export default function ConferenciaRevendedorForm({
 			0
 		);
 
-		const enviosInput = envios.map((envio, idx) => {
-			const itens = envio.itens.map(item => ({
-				envioItemId: item.envio_item_id,
-				qtdContada: perItemContada[item.envio_item_id] ?? qtdRestante(item),
-				precoCliente: null,
-			}));
-
+		return envios.map((envio, idx) => {
+			const itens = envio.itens.map(item => {
+				const dist = perItem[item.envio_item_id] ?? {
+					qtdContada: qtdRestante(item),
+					qtdDevolvida: 0,
+				};
+				return {
+					envioItemId: item.envio_item_id,
+					qtdContada: dist.qtdContada,
+					qtdDevolvida: dist.qtdDevolvida,
+					precoCliente: null,
+				};
+			});
 			let valorManualEnvio: number | undefined;
 			if (globalManual !== undefined) {
 				if (totalAutoComissao > 0) {
-					const proporcao =
-						(valorAutoByEnvio[envio.envio_id] ?? 0) / totalAutoComissao;
-					valorManualEnvio = Number((globalManual * proporcao).toFixed(2));
+					valorManualEnvio = Number(
+						(
+							globalManual *
+							((valorAutoByEnvio[envio.envio_id] ?? 0) / totalAutoComissao)
+						).toFixed(2)
+					);
 				} else if (idx === 0) {
 					valorManualEnvio = globalManual;
 				}
 			}
-
 			return { envioId: envio.envio_id, itens, valorManual: valorManualEnvio };
 		});
+	}
+
+	async function onConfirmar() {
+		if (!allFilled) {
+			showToast("Preencha todas as quantidades", "error");
+			return;
+		}
+		if (resumoGlobal.totalVendida === 0 && resumoGlobal.totalDevolvida === 0) {
+			showToast("Informe ao menos uma venda ou devolucao", "error");
+			return;
+		}
+
+		const globalManual =
+			revendedor.modelo_acerto === "COMISSAO" && usarValorManual
+				? Math.max(0, toNumber(valorManual))
+				: undefined;
+
+		const perItem = distribuirQuantidades(mergedItems, state, devolvidaState);
+		const enviosInput = buildEnviosInput(globalManual, perItem);
 
 		setSaving(true);
 		try {
@@ -239,12 +288,17 @@ export default function ConferenciaRevendedorForm({
 				revendedor.modelo_acerto === "VALOR_MINIMO"
 					? resumoGlobal.totalReceberValorMinimo
 					: (globalManual ?? resumoGlobal.totalSugeridoComissao);
-			showToast(
-				resumoGlobal.hasRemanentes
-					? `Conferencia parcial salva — ${resumoGlobal.totalVendida} un. vendidas`
-					: `Conferencia concluida — ${fmtCurrency(valorFinal)} a receber de ${revendedor.nome}`,
-				"success"
-			);
+			const isPureReturn =
+				resumoGlobal.totalVendida === 0 && resumoGlobal.totalDevolvida > 0;
+			let toastMsg: string;
+			if (isPureReturn) {
+				toastMsg = `${resumoGlobal.totalDevolvida} un. devolvidas ao estoque`;
+			} else if (resumoGlobal.hasRemanentes) {
+				toastMsg = `Conferencia parcial salva — ${resumoGlobal.totalVendida} un. vendidas`;
+			} else {
+				toastMsg = `Conferencia concluida — ${fmtCurrency(valorFinal)} a receber de ${revendedor.nome}`;
+			}
+			showToast(toastMsg, "success");
 			router.push("/conferencias");
 			router.refresh();
 		} catch (err) {
@@ -290,11 +344,17 @@ export default function ConferenciaRevendedorForm({
 			{/* One card per merged model */}
 			{itensPendentes.map(m => {
 				const qtd = state[m.modelo_id] ?? "";
+				const devolvidaStr = devolvidaState[m.modelo_id] ?? "0";
 				const contada =
 					qtd === ""
 						? 0
 						: clamp(Math.floor(toNumber(qtd)), 0, m.total_restante);
-				const vendida = m.total_restante - contada;
+				const devolvida = clamp(
+					Math.floor(toNumber(devolvidaStr)),
+					0,
+					m.total_restante - contada
+				);
+				const vendida = m.total_restante - contada - devolvida;
 
 				return (
 					<div
@@ -337,7 +397,27 @@ export default function ConferenciaRevendedorForm({
 									);
 								}}
 							/>
-							<div className="rounded-md border border-[#B5D4F4] bg-[#F4F8FD] px-3 py-2 flex flex-col justify-center">
+							<Input
+								label="Devolver ao estoque"
+								type="number"
+								placeholder="0"
+								min={0}
+								max={m.total_restante - contada}
+								step={1}
+								value={devolvidaStr}
+								onChange={e => setDevolvida(m.modelo_id, e.target.value)}
+								onBlur={e => {
+									const v =
+										e.target.value === ""
+											? 0
+											: Math.floor(toNumber(e.target.value));
+									setDevolvida(
+										m.modelo_id,
+										String(clamp(v, 0, m.total_restante - contada))
+									);
+								}}
+							/>
+							<div className="rounded-md border border-[#B5D4F4] bg-[#F4F8FD] px-3 py-2 flex flex-col justify-center col-span-2 sm:col-span-1">
 								<span className="text-xs text-gray-700">Vendido</span>
 								<span className="text-lg font-semibold text-[#185FA5]">
 									{vendida} un.
@@ -363,6 +443,8 @@ export default function ConferenciaRevendedorForm({
 					</p>
 					<p className="text-xs text-[#185FA5]">
 						{resumoGlobal.totalVendida} un. vendidas.
+						{resumoGlobal.totalDevolvida > 0 &&
+							` · ${resumoGlobal.totalDevolvida} un. devolvidas.`}
 						{resumoGlobal.hasRemanentes &&
 							` · ${resumoGlobal.totalContada} un. ainda com o revendedor.`}
 					</p>

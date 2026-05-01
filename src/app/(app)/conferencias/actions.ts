@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 export interface ConfirmarConferenciaItemInput {
 	envioItemId: string;
 	qtdContada: number;
+	qtdDevolvida?: number;
 	precoCliente?: number | null;
 }
 
@@ -130,9 +131,14 @@ async function processarUmEnvio(
 		const existingQtdDevolvida = (dbItem.qtd_devolvida as number | null) ?? 0;
 		const qtdRestante = qtdEnviada - existingQtdVendida - existingQtdDevolvida;
 		const qtdContada = clamp(Math.floor(input.qtdContada ?? 0), 0, qtdRestante);
-		const qtdVendidaNova = qtdRestante - qtdContada;
+		const qtdNovaDevolvida = clamp(
+			Math.floor(input.qtdDevolvida ?? 0),
+			0,
+			qtdRestante - qtdContada
+		);
+		const qtdVendidaNova = qtdRestante - qtdContada - qtdNovaDevolvida;
 		const qtdVendidaTotal = existingQtdVendida + qtdVendidaNova;
-		const qtdDevolvida = existingQtdDevolvida;
+		const qtdDevolvida = existingQtdDevolvida + qtdNovaDevolvida;
 		totalRemanentes += qtdContada;
 
 		if (modeloAcerto === "COMISSAO") {

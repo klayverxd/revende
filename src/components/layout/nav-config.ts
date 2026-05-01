@@ -24,10 +24,7 @@ export const navGroups: NavGroup[] = [
 	},
 	{
 		label: "FINANCEIRO",
-		items: [
-			{ href: "/financeiro", label: "Financeiro" },
-			{ href: "/financeiro/fluxo", label: "Fluxo de caixa" },
-		],
+		items: [{ href: "/financeiro/fluxo", label: "Financeiro" }],
 	},
 	{
 		label: "CONFIG",
@@ -40,7 +37,7 @@ export const bottomNavItems = [
 	{ href: "/envios", label: "Envios", icon: "inbox" as const },
 	{ href: "/venda-direta", label: "Venda direta", icon: "clipboard" as const },
 	{ href: "/estoque", label: "Estoque", icon: "cube" as const },
-	{ href: "/financeiro", label: "Financeiro", icon: "chart" as const },
+	{ href: "/financeiro/fluxo", label: "Financeiro", icon: "chart" as const },
 ];
 
 export type BottomNavIcon = (typeof bottomNavItems)[number]["icon"];

@@ -46,6 +46,12 @@ function fmtCurrency(v: number) {
 	return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+function hintMateria(unidade: string | undefined) {
+	if (unidade === "kg") return "ex: 0.120 para 120 g";
+	if (unidade === "litro") return "ex: 0.050 para 50 ml";
+	return undefined;
+}
+
 export default function CalculadoraView({
 	precoKwh,
 	equipamentos,
@@ -69,9 +75,10 @@ export default function CalculadoraView({
 	const [modeloExistente, setModeloExistente] = useState("");
 
 	const equip = equipamentos.find(e => e.equipamento_id === equipamentoId);
-	const tempoHoras = parseFloat(tempoMin.replace(",", ".")) / 60 || 0;
-	const qtd = parseFloat(quantidade.replace(",", ".")) || 0;
-	const falhas = (parseFloat(pctFalhas.replace(",", ".")) || 0) / 100;
+	const selectedMat = materias.find(m => m.materia_prima_id === materiaId);
+	const tempoHoras = Number.parseFloat(tempoMin.replace(",", ".")) / 60 || 0;
+	const qtd = Number.parseFloat(quantidade.replace(",", ".")) || 0;
+	const falhas = (Number.parseFloat(pctFalhas.replace(",", ".")) || 0) / 100;
 
 	const custoMateriasPrimas = useMemo(
 		() => materiasUso.reduce((acc, m) => acc + m.quantidade * m.preco_unit, 0),
@@ -94,7 +101,7 @@ export default function CalculadoraView({
 
 	function adicionarMateria() {
 		const m = materias.find(x => x.materia_prima_id === materiaId);
-		const q = parseFloat(materiaQtd.replace(",", "."));
+		const q = Number.parseFloat(materiaQtd.replace(",", "."));
 		if (!m || !Number.isFinite(q) || q <= 0) {
 			showToast("Selecione matéria-prima e quantidade válida", "error");
 			return;
@@ -203,29 +210,46 @@ export default function CalculadoraView({
 		}
 	}
 
+	function removerMateria(id: string) {
+		setMateriasUso(prev => prev.filter(x => x.materia_prima_id !== id));
+	}
+
 	return (
 		<div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
 			<div className="xl:col-span-2 rounded-xl border border-[#B5D4F4] bg-white p-4 flex flex-col gap-4">
-				<div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-					<Select
-						label="Equipamento"
-						value={equipamentoId}
-						onChange={e => setEquipamentoId(e.target.value)}
-						options={equipamentos.map(e => ({
-							value: e.equipamento_id,
-							label: e.nome,
-						}))}
-					/>
+				<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+					<div className="col-span-2 md:col-span-1">
+						<Select
+							label="Equipamento"
+							value={equipamentoId}
+							onChange={e => setEquipamentoId(e.target.value)}
+							options={equipamentos.map(e => ({
+								value: e.equipamento_id,
+								label: e.nome,
+							}))}
+						/>
+					</div>
 					<Input
-						label="Tempo de impressão (min)"
+						label="Tempo de impressão"
 						type="number"
+						min={1}
+						hint="em minutos — ex: 90"
 						value={tempoMin}
 						onChange={e => setTempoMin(e.target.value)}
+					/>
+					<Input
+						label="Unidades no lote"
+						type="number"
+						min={1}
+						hint="peças que saem nessa remessa"
+						value={quantidade}
+						onChange={e => setQuantidade(e.target.value)}
 					/>
 					<Input
 						label="% de falhas"
 						type="number"
 						step="0.1"
+						hint="peças descartadas por erro"
 						value={pctFalhas}
 						onChange={e => setPctFalhas(e.target.value)}
 					/>
@@ -244,9 +268,14 @@ export default function CalculadoraView({
 						/>
 					</div>
 					<Input
-						label="Quantidade"
+						label={
+							selectedMat
+								? `Quantidade (${selectedMat.unidade_medida})`
+								: "Quantidade"
+						}
 						type="number"
 						step="0.001"
+						hint={hintMateria(selectedMat?.unidade_medida)}
 						value={materiaQtd}
 						onChange={e => setMateriaQtd(e.target.value)}
 					/>
@@ -292,13 +321,7 @@ export default function CalculadoraView({
 										<Button
 											size="sm"
 											variant="ghost"
-											onClick={() =>
-												setMateriasUso(prev =>
-													prev.filter(
-														x => x.materia_prima_id !== m.materia_prima_id
-													)
-												)
-											}
+											onClick={() => removerMateria(m.materia_prima_id)}
 										>
 											Remover
 										</Button>
@@ -309,13 +332,7 @@ export default function CalculadoraView({
 					</table>
 				</div>
 
-				<div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-					<Input
-						label="Quantidade do lote"
-						type="number"
-						value={quantidade}
-						onChange={e => setQuantidade(e.target.value)}
-					/>
+				<div className="flex justify-end">
 					<Button
 						loading={salvando}
 						variant="secondary"

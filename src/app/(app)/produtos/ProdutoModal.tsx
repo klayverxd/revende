@@ -4,10 +4,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Modal } from "@/components/ui";
-import { Button } from "@/components/ui";
-import { Input } from "@/components/ui";
-import { useToast } from "@/components/ui";
+import { Modal, Button, Input, useToast } from "@/components/ui";
 import { criarProduto, atualizarProduto } from "./actions";
 
 const schema = z.object({

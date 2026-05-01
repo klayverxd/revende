@@ -30,23 +30,41 @@ function mesIndex(d: string | null | undefined) {
 	return new Date(d).getMonth();
 }
 
-export default async function FluxoPage() {
+interface SearchParams {
+	ano?: string;
+}
+
+export default async function FluxoPage({
+	searchParams,
+}: {
+	readonly searchParams: Promise<SearchParams>;
+}) {
 	const supabase = await createClient();
+	const sp = await searchParams;
+	const ano = parseInt(sp.ano ?? "", 10) || new Date().getFullYear();
+	const anoStart = `${ano}-01-01`;
+	const anoEnd = `${ano}-12-31`;
 
 	const [{ data: vendas }, { data: producoes }, { data: acertos }] =
 		await Promise.all([
 			supabase
 				.from("venda_direta")
 				.select("data_venda, valor_total")
+				.gte("data_venda", anoStart)
+				.lte("data_venda", anoEnd)
 				.is("deleted_at", null),
 			supabase
 				.from("producao")
 				.select("data_producao, quantidade, custo_unitario")
+				.gte("data_producao", anoStart)
+				.lte("data_producao", anoEnd)
 				.is("deleted_at", null),
 			supabase
 				.from("acerto")
 				.select("data_recebimento, valor_repassado, comissao_calculada")
 				.eq("status", "RECEBIDO")
+				.gte("data_recebimento", anoStart)
+				.lte("data_recebimento", anoEnd)
 				.is("deleted_at", null),
 		]);
 
@@ -102,13 +120,37 @@ export default async function FluxoPage() {
 		},
 	];
 
+	const prevYear = ano - 1;
+	const nextYear = ano + 1;
+
 	return (
 		<div className="flex flex-col gap-6">
-			<div>
-				<h1 className="text-xl font-semibold text-gray-900">Fluxo de caixa</h1>
-				<p className="text-sm text-gray-600 mt-0.5">
-					Visao mensal de receita, custos, acertos e lucro liquido.
-				</p>
+			<div className="flex items-start justify-between gap-3 flex-wrap">
+				<div>
+					<h1 className="text-xl font-semibold text-gray-900">
+						Fluxo de caixa
+					</h1>
+					<p className="text-sm text-gray-600 mt-0.5">
+						Visao mensal de receita, custos, acertos e lucro liquido.
+					</p>
+				</div>
+				<div className="flex items-center gap-2">
+					<a
+						href={`?ano=${prevYear}`}
+						className="px-3 py-1.5 rounded-lg border border-[#B5D4F4] text-sm text-[#185FA5] hover:bg-[#E6F1FB] transition-colors"
+					>
+						← {prevYear}
+					</a>
+					<span className="px-3 py-1.5 rounded-lg bg-[#185FA5] text-white text-sm font-semibold">
+						{ano}
+					</span>
+					<a
+						href={`?ano=${nextYear}`}
+						className="px-3 py-1.5 rounded-lg border border-[#B5D4F4] text-sm text-[#185FA5] hover:bg-[#E6F1FB] transition-colors"
+					>
+						{nextYear} →
+					</a>
+				</div>
 			</div>
 
 			<div className="bg-white rounded-xl border border-[#B5D4F4] overflow-x-auto">

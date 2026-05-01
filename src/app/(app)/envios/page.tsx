@@ -3,16 +3,32 @@ import { createClient } from "@/lib/supabase/server";
 import EnviosTable, { type EnvioRow } from "./EnviosTable";
 import { Button } from "@/components/ui";
 
-export default async function EnviosPage() {
-	const supabase = await createClient();
+interface SearchParams {
+	revendedor?: string;
+}
 
-	const { data: enviosRaw } = await supabase
+export default async function EnviosPage({
+	searchParams,
+}: {
+	readonly searchParams: Promise<SearchParams>;
+}) {
+	const supabase = await createClient();
+	const sp = await searchParams;
+	const revendedorId = sp.revendedor;
+
+	let query = supabase
 		.from("envio")
 		.select(
 			"envio_id, revendedor_id, data_envio, status, revendedor:revendedor_id(nome), envio_item(envio_item_id)"
 		)
 		.is("deleted_at", null)
 		.order("data_envio", { ascending: false });
+
+	if (revendedorId) {
+		query = query.eq("revendedor_id", revendedorId);
+	}
+
+	const { data: enviosRaw } = await query;
 
 	const envios: EnvioRow[] = (enviosRaw ?? []).map(e => {
 		const rev = e.revendedor as unknown as { nome: string } | null;
@@ -32,12 +48,23 @@ export default async function EnviosPage() {
 				<div>
 					<h1 className="text-xl font-semibold text-gray-900">Envios</h1>
 					<p className="text-sm text-gray-600 mt-0.5">
-						Controle de envios para revendedores e acompanhamento de status.
+						{revendedorId
+							? "Envios filtrados por revendedor."
+							: "Controle de envios para revendedores e acompanhamento de status."}
 					</p>
 				</div>
-				<Link href="/envios/novo">
-					<Button size="sm">+ Novo envio</Button>
-				</Link>
+				<div className="flex items-center gap-2">
+					{revendedorId && (
+						<Link href="/envios">
+							<Button size="sm" variant="ghost">
+								Ver todos
+							</Button>
+						</Link>
+					)}
+					<Link href="/envios/novo">
+						<Button size="sm">+ Novo envio</Button>
+					</Link>
+				</div>
 			</div>
 			<EnviosTable envios={envios} />
 		</div>

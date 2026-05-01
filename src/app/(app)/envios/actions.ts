@@ -28,6 +28,13 @@ export async function criarEnvio(
 	if (!revendedorId) throw new Error("Revendedor obrigatorio");
 	if (!itens.length) throw new Error("Adicione ao menos um item");
 
+	// Validar preços negativos
+	for (const item of itens) {
+		if (item.preco !== null && item.preco !== undefined && item.preco < 0) {
+			throw new Error("Preços não podem ser negativos");
+		}
+	}
+
 	const supabase = await createClient();
 
 	const { data: revendedor, error: revError } = await supabase
@@ -53,6 +60,7 @@ export async function criarEnvio(
 	if (envioError) throw new Error(envioError.message);
 	const envioId = createdEnvio.envio_id as string;
 
+	const payloads = [];
 	for (const item of itens) {
 		if (!item.modeloId) continue;
 		if (!Number.isFinite(item.quantidade) || item.quantidade <= 0) continue;
@@ -68,7 +76,7 @@ export async function criarEnvio(
 			| "COMISSAO"
 			| "VALOR_MINIMO";
 
-		const payload = {
+		payloads.push({
 			envio_id: envioId,
 			modelo_id: item.modeloId,
 			modelo_acerto: modeloAcerto,
@@ -98,11 +106,13 @@ export async function criarEnvio(
 			valor_a_receber: null,
 			preco_cliente: null,
 			modo_valor: "CALCULADO" as const,
-		};
+		});
+	}
 
+	if (payloads.length > 0) {
 		const { error: itemError } = await supabase
 			.from("envio_item")
-			.insert(payload);
+			.insert(payloads);
 		if (itemError) throw new Error(itemError.message);
 	}
 

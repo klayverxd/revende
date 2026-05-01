@@ -156,6 +156,21 @@ export default function ConferenciaForm({
 			return;
 		}
 
+		// Se algum item tem promoção selecionada e não foi inserido valor manual,
+		// usa o total sugerido (que já reflete a promoção) como valorManual para
+		// garantir que o backend registre o valor correto.
+		const hasPromoSelected = itens.some(
+			item => state[item.envio_item_id]?.promoIndex !== null
+		);
+		let valorParaBackend: number | undefined;
+		if (revendedor.modelo_acerto === "COMISSAO") {
+			if (usarValorManual) {
+				valorParaBackend = Math.max(0, toNumber(valorManual));
+			} else if (hasPromoSelected) {
+				valorParaBackend = resumo.totalSugeridoComissao;
+			}
+		}
+
 		setSaving(true);
 		try {
 			await confirmarConferencia(
@@ -171,9 +186,7 @@ export default function ConferenciaForm({
 						? toNumber(state[item.envio_item_id].precoCliente)
 						: null,
 				})),
-				revendedor.modelo_acerto === "COMISSAO" && usarValorManual
-					? Math.max(0, toNumber(valorManual))
-					: undefined
+				valorParaBackend
 			);
 
 			showToast(

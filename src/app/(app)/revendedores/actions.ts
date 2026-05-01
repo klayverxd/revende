@@ -21,6 +21,12 @@ export async function criarRevendedor(
 ): Promise<{ revendedor_id: string }> {
 	const supabase = await createClient();
 
+	if ((data.comissao_fixa ?? 0) < 0)
+		throw new Error("Comissão fixa não pode ser negativa");
+	const pct = data.comissao_pct ?? 0;
+	if (pct < 0 || pct > 1)
+		throw new Error("Comissão percentual deve ser entre 0% e 100%");
+
 	const { data: created, error } = await supabase
 		.from("revendedor")
 		.insert({
@@ -44,6 +50,12 @@ export async function criarRevendedor(
 
 export async function atualizarRevendedor(id: string, data: RevendedorData) {
 	const supabase = await createClient();
+
+	if ((data.comissao_fixa ?? 0) < 0)
+		throw new Error("Comissão fixa não pode ser negativa");
+	const pct = data.comissao_pct ?? 0;
+	if (pct < 0 || pct > 1)
+		throw new Error("Comissão percentual deve ser entre 0% e 100%");
 
 	const { error } = await supabase
 		.from("revendedor")

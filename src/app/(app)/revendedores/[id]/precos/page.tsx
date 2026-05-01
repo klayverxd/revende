@@ -33,7 +33,7 @@ export default async function RevendedorPrecosPage({ params }: Props) {
 				.order("nome"),
 			supabase
 				.from("modelo_preco")
-				.select("modelo_id, preco, valor_minimo, quantidade_minima")
+				.select("modelo_id, preco, quantidade_minima")
 				.eq("ativo", true)
 				.eq("quantidade_minima", 1),
 			supabase
@@ -45,14 +45,10 @@ export default async function RevendedorPrecosPage({ params }: Props) {
 		]);
 
 	// Build effective price per modelo
-	const padrao = new Map<
-		string,
-		{ preco: number | null; valor_minimo: number | null }
-	>();
+	const padrao = new Map<string, { preco: number | null }>();
 	for (const mp of modeloPrecos ?? []) {
 		padrao.set(mp.modelo_id as string, {
 			preco: mp.preco as number | null,
-			valor_minimo: mp.valor_minimo as number | null,
 		});
 	}
 
@@ -76,7 +72,7 @@ export default async function RevendedorPrecosPage({ params }: Props) {
 			codigo: m.codigo as string,
 			nome: m.nome as string,
 			preco_efetivo: p?.preco ?? d?.preco ?? null,
-			valor_minimo_efetivo: p?.valor_minimo ?? d?.valor_minimo ?? null,
+			valor_minimo_efetivo: p?.valor_minimo ?? null,
 			origem: isPersonalizado ? "PERSONALIZADO" : "PADRÃO",
 		};
 	});

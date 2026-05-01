@@ -9,6 +9,7 @@ export interface ProdutoData {
 	descricao?: string;
 	custo_producao?: number | null;
 	estoque_minimo?: number;
+	preco_unitario?: number | null;
 }
 
 async function gerarCodigo(): Promise<string> {
@@ -30,16 +31,32 @@ export async function criarProduto(data: ProdutoData) {
 	const supabase = await createClient();
 	const codigo = data.codigo?.trim() || (await gerarCodigo());
 
-	const { error } = await supabase.from("modelo").insert({
-		nome: data.nome,
-		codigo,
-		descricao: data.descricao ?? null,
-		custo_producao: data.custo_producao ?? null,
-		estoque_minimo: data.estoque_minimo ?? 0,
-		ativo: true,
-	});
+	const { data: novoModelo, error } = await supabase
+		.from("modelo")
+		.insert({
+			nome: data.nome,
+			codigo,
+			descricao: data.descricao ?? null,
+			custo_producao: data.custo_producao ?? null,
+			estoque_minimo: data.estoque_minimo ?? 0,
+			ativo: true,
+		})
+		.select("modelo_id")
+		.single();
 
 	if (error) throw new Error(error.message);
+
+	if (data.preco_unitario != null && novoModelo) {
+		await supabase.from("modelo_preco").insert({
+			modelo_id: novoModelo.modelo_id,
+			quantidade_minima: 1,
+			rotulo: "Unitário",
+			preco: data.preco_unitario,
+			eh_promocao: false,
+			ativo: true,
+		});
+	}
+
 	revalidatePath("/produtos");
 }
 
@@ -58,7 +75,21 @@ export async function atualizarProduto(id: string, data: ProdutoData) {
 		.eq("modelo_id", id);
 
 	if (error) throw new Error(error.message);
+
+	await supabase.from("modelo_preco").delete().eq("modelo_id", id);
+	if (data.preco_unitario != null) {
+		await supabase.from("modelo_preco").insert({
+			modelo_id: id,
+			quantidade_minima: 1,
+			rotulo: "Unitário",
+			preco: data.preco_unitario,
+			eh_promocao: false,
+			ativo: true,
+		});
+	}
+
 	revalidatePath("/produtos");
+	revalidatePath(`/produtos/${id}`);
 }
 
 export async function deletarProdutos(ids: string[]) {

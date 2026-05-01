@@ -22,7 +22,6 @@ export interface ProdutoRow {
 	ativo: boolean;
 	// preços resolvidos pelo servidor
 	preco_1un: number | null;
-	preco_2mais: number | null;
 	estoque_disponivel: number;
 }
 
@@ -104,6 +103,7 @@ export default function ProdutosTable({ produtos }: ProdutosTableProps) {
 			codigo: p.codigo,
 			custo_producao: p.custo_producao,
 			estoque_minimo: p.estoque_minimo,
+			preco_unitario: p.preco_1un,
 		});
 		setModalOpen(true);
 	}
@@ -204,9 +204,6 @@ export default function ProdutosTable({ produtos }: ProdutosTableProps) {
 								Preço 1un
 							</th>
 							<th className="px-3 py-2.5 text-right font-medium text-gray-600">
-								Preço 2+
-							</th>
-							<th className="px-3 py-2.5 text-right font-medium text-gray-600">
 								Estoque
 							</th>
 							<th className="px-3 py-2.5 text-center font-medium text-gray-600">
@@ -220,7 +217,7 @@ export default function ProdutosTable({ produtos }: ProdutosTableProps) {
 					<tbody>
 						{paginated.length === 0 && (
 							<tr>
-								<td colSpan={9} className="px-3 py-8 text-center text-gray-400">
+								<td colSpan={8} className="px-3 py-8 text-center text-gray-400">
 									Nenhum produto encontrado.
 								</td>
 							</tr>
@@ -259,9 +256,6 @@ export default function ProdutosTable({ produtos }: ProdutosTableProps) {
 									</td>
 									<td className="px-3 py-2.5 text-right text-gray-700">
 										{fmt(p.preco_1un)}
-									</td>
-									<td className="px-3 py-2.5 text-right text-gray-700">
-										{fmt(p.preco_2mais)}
 									</td>
 									<td className="px-3 py-2.5 text-right text-gray-700">
 										{p.estoque_disponivel}

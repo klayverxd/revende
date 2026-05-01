@@ -112,8 +112,7 @@ export default function NovoEnvioStepper({ revendedores, produtos }: Props) {
 		try {
 			const preco = await resolverPrecoEnvio(
 				revendedor.revendedor_id,
-				produto.modelo_id,
-				1
+				produto.modelo_id
 			);
 
 			setItens(prev => [
@@ -162,8 +161,7 @@ export default function NovoEnvioStepper({ revendedores, produtos }: Props) {
 		try {
 			const resolvido = await resolverPrecoEnvio(
 				revendedor.revendedor_id,
-				modeloId,
-				quantidade
+				modeloId
 			);
 			if (resolvido.preco !== null) {
 				setItens(prev =>

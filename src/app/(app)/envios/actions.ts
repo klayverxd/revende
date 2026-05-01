@@ -13,10 +13,9 @@ export interface CriarEnvioItemInput {
 
 export async function resolverPrecoEnvio(
 	revendedorId: string,
-	modeloId: string,
-	quantidade: number
+	modeloId: string
 ) {
-	return resolverPreco(modeloId, revendedorId, quantidade);
+	return resolverPreco(modeloId, revendedorId);
 }
 
 export async function criarEnvio(
@@ -65,11 +64,7 @@ export async function criarEnvio(
 		if (!item.modeloId) continue;
 		if (!Number.isFinite(item.quantidade) || item.quantidade <= 0) continue;
 
-		const resolvido = await resolverPreco(
-			item.modeloId,
-			revendedorId,
-			item.quantidade
-		);
+		const resolvido = await resolverPreco(item.modeloId, revendedorId);
 		const origem = item.origem ?? resolvido.origem ?? "MANUAL";
 		const precoFinal = item.preco ?? resolvido.preco;
 		const modeloAcerto = revendedor.modelo_acerto as
@@ -87,12 +82,7 @@ export async function criarEnvio(
 						? precoFinal
 						: resolvido.precoUnitario
 					: null,
-			preco_2mais:
-				modeloAcerto === "COMISSAO"
-					? origem === "MANUAL"
-						? precoFinal
-						: resolvido.preco2mais
-					: null,
+			preco_2mais: null,
 			valor_minimo_unit:
 				modeloAcerto === "VALOR_MINIMO"
 					? origem === "MANUAL"

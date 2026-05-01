@@ -45,22 +45,15 @@ export default async function PrecosRevendedorPage({ params }: Props) {
 	const precosPorRevendedor: Record<string, FaixaRevendedor> = {};
 	for (const f of raw ?? []) {
 		const revId = f.revendedor_id as string;
-		const qty = f.quantidade_minima as number;
 		if (!precosPorRevendedor[revId]) {
 			precosPorRevendedor[revId] = {
 				precoUnit: null,
-				preco2mais: null,
 				valorMinimo: null,
 			};
 		}
-		if (qty === 1) {
-			precosPorRevendedor[revId].precoUnit = (f.preco as number | null) ?? null;
-			precosPorRevendedor[revId].valorMinimo =
-				(f.valor_minimo as number | null) ?? null;
-		} else if (qty >= 2 && precosPorRevendedor[revId].preco2mais === null) {
-			precosPorRevendedor[revId].preco2mais =
-				(f.preco as number | null) ?? null;
-		}
+		precosPorRevendedor[revId].precoUnit = (f.preco as number | null) ?? null;
+		precosPorRevendedor[revId].valorMinimo =
+			(f.valor_minimo as number | null) ?? null;
 	}
 
 	return (

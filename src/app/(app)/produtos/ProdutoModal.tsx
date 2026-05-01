@@ -13,6 +13,7 @@ const schema = z.object({
 	descricao: z.string().optional(),
 	custo_producao: z.string().optional(),
 	estoque_minimo: z.string().optional(),
+	preco_unitario: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -24,6 +25,7 @@ export interface ProdutoParaEditar {
 	descricao?: string | null;
 	custo_producao?: number | null;
 	estoque_minimo?: number | null;
+	preco_unitario?: number | null;
 }
 
 interface ProdutoModalProps {
@@ -59,6 +61,7 @@ export default function ProdutoModal({
 							descricao: produto.descricao ?? "",
 							custo_producao: produto.custo_producao?.toString() ?? "",
 							estoque_minimo: produto.estoque_minimo?.toString() ?? "0",
+							preco_unitario: produto.preco_unitario?.toString() ?? "",
 						}
 					: {
 							nome: "",
@@ -66,6 +69,7 @@ export default function ProdutoModal({
 							descricao: "",
 							custo_producao: "",
 							estoque_minimo: "0",
+							preco_unitario: "",
 						}
 			);
 		}
@@ -83,6 +87,9 @@ export default function ProdutoModal({
 				estoque_minimo: values.estoque_minimo
 					? parseInt(values.estoque_minimo, 10)
 					: 0,
+				preco_unitario: values.preco_unitario
+					? parseFloat(values.preco_unitario.replace(",", "."))
+					: null,
 			};
 			if (isEdit && produto) {
 				await atualizarProduto(produto.modelo_id, data);
@@ -165,6 +172,14 @@ export default function ProdutoModal({
 						{...register("estoque_minimo")}
 					/>
 				</div>
+				<Input
+					label="Preço unitário (R$)"
+					placeholder="Ex: 10,00"
+					type="text"
+					inputMode="decimal"
+					error={errors.preco_unitario?.message}
+					{...register("preco_unitario")}
+				/>
 			</form>
 		</Modal>
 	);

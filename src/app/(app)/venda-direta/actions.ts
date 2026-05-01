@@ -68,11 +68,8 @@ function disponibilidadeBaseMap(
 	return map;
 }
 
-export async function resolverPrecoVendaDireta(
-	modeloId: string,
-	quantidade: number
-) {
-	return resolverPrecoModelo(modeloId, quantidade);
+export async function resolverPrecoVendaDireta(modelId: string) {
+	return resolverPrecoModelo(modelId);
 }
 
 export async function criarVendaDireta(data: CriarVendaDiretaInput) {
@@ -139,7 +136,7 @@ export async function criarVendaDireta(data: CriarVendaDiretaInput) {
 	}> = [];
 
 	for (const item of data.itens) {
-		const resolved = await resolverPrecoModelo(item.modeloId, item.quantidade);
+		const resolved = await resolverPrecoModelo(item.modeloId);
 		const origem = (item.origem ?? (resolved.origem ? "MODELO" : "MANUAL")) as
 			| "MODELO"
 			| "MANUAL";

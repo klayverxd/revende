@@ -18,7 +18,6 @@ export interface ConferenciaItem {
 	modelo_codigo: string | null;
 	qtd_enviada: number;
 	preco_unitario: number | null;
-	preco_2mais: number | null;
 	valor_minimo_unit: number | null;
 	promocoes: FaixaPromocional[];
 }
@@ -62,9 +61,6 @@ function clamp(v: number, min: number, max: number) {
 
 function precoPadraoComissao(item: ConferenciaItem, qtdVendida: number) {
 	if (qtdVendida <= 0) return 0;
-	if (qtdVendida >= 2 && Number.isFinite(item.preco_2mais)) {
-		return qtdVendida * (item.preco_2mais ?? 0);
-	}
 	return qtdVendida * (item.preco_unitario ?? 0);
 }
 

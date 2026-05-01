@@ -91,7 +91,7 @@ export default function NovaVendaDiretaForm({ produtos }: Props) {
 
 		setLoadingPriceId(produto.modelo_id);
 		try {
-			const preco = await resolverPrecoVendaDireta(produto.modelo_id, 1);
+			const preco = await resolverPrecoVendaDireta(produto.modelo_id);
 			setItens(prev => [
 				...prev,
 				{
@@ -122,7 +122,7 @@ export default function NovaVendaDiretaForm({ produtos }: Props) {
 		if (!item || item.origem === "MANUAL") return;
 
 		try {
-			const resolvido = await resolverPrecoVendaDireta(modeloId, quantidade);
+			const resolvido = await resolverPrecoVendaDireta(modeloId);
 			if (resolvido.preco !== null) {
 				setItens(prev =>
 					prev.map(i =>

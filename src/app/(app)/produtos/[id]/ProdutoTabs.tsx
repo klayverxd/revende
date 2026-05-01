@@ -12,7 +12,6 @@ export default function ProdutoTabs({ modeloId }: Props) {
 
 	const tabs = [
 		{ label: "Dados gerais", href: `/produtos/${modeloId}` },
-		{ label: "Preços padrão", href: `/produtos/${modeloId}/precos` },
 		{
 			label: "Preços por revendedor",
 			href: `/produtos/${modeloId}/precos/revendedor`,

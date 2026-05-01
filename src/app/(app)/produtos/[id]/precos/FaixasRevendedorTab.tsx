@@ -6,7 +6,6 @@ import { salvarPrecoRevendedor } from "./actions";
 
 export interface FaixaRevendedor {
 	precoUnit: number | null;
-	preco2mais: number | null;
 	valorMinimo: number | null;
 }
 
@@ -45,7 +44,6 @@ export default function FaixasRevendedorTab({
 	const { showToast } = useToast();
 	const [selectedId, setSelectedId] = useState("");
 	const [unit, setUnit] = useState("");
-	const [dois, setDois] = useState("");
 	const [valMin, setValMin] = useState("");
 	const [saving, setSaving] = useState(false);
 
@@ -60,7 +58,6 @@ export default function FaixasRevendedorTab({
 		setSelectedId(id);
 		const atual = precosPorRevendedor[id] ?? null;
 		setUnit(numStr(atual?.precoUnit ?? null));
-		setDois(numStr(atual?.preco2mais ?? null));
 		setValMin(numStr(atual?.valorMinimo ?? null));
 	}
 
@@ -69,9 +66,8 @@ export default function FaixasRevendedorTab({
 		setSaving(true);
 		try {
 			const pu = isComissao ? parseVal(unit) : null;
-			const p2 = isComissao ? parseVal(dois) : null;
 			const vm = !isComissao ? parseVal(valMin) : null;
-			await salvarPrecoRevendedor(selectedId, modeloId, pu, p2, vm);
+			await salvarPrecoRevendedor(selectedId, modeloId, pu, vm);
 			showToast("Preço personalizado salvo", "success");
 		} catch {
 			showToast("Erro ao salvar", "error");
@@ -84,9 +80,8 @@ export default function FaixasRevendedorTab({
 		if (!selectedId) return;
 		setSaving(true);
 		try {
-			await salvarPrecoRevendedor(selectedId, modeloId, null, null, null);
+			await salvarPrecoRevendedor(selectedId, modeloId, null, null);
 			setUnit("");
-			setDois("");
 			setValMin("");
 			showToast("Personalização removida — usando preços padrão", "success");
 		} catch {
@@ -141,39 +136,20 @@ export default function FaixasRevendedorTab({
 					)}
 
 					{isComissao ? (
-						<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-							<div>
-								<Input
-									label="Preço unitário (R$)"
-									type="number"
-									step="0.01"
-									min={0}
-									placeholder={
-										existente?.precoUnit != null
-											? numStr(existente.precoUnit)
-											: "Padrão do produto"
-									}
-									value={unit}
-									onChange={e => setUnit(e.target.value)}
-								/>
-								{!temPersonalizacao && existente?.precoUnit == null && (
-									<p className="text-xs text-gray-400 mt-1">
-										Usando preço padrão
-									</p>
-								)}
-							</div>
-							<div>
-								<Input
-									label="Preço — 2 ou mais (R$)"
-									type="number"
-									step="0.01"
-									min={0}
-									placeholder="Padrão do produto"
-									value={dois}
-									onChange={e => setDois(e.target.value)}
-								/>
-								<p className="text-xs text-gray-400 mt-1">Opcional</p>
-							</div>
+						<div className="max-w-xs">
+							<Input
+								label="Preço unitário (R$)"
+								type="number"
+								step="0.01"
+								min={0}
+								placeholder={
+									existente?.precoUnit != null
+										? numStr(existente.precoUnit)
+										: "Padrão do produto"
+								}
+								value={unit}
+								onChange={e => setUnit(e.target.value)}
+							/>
 						</div>
 					) : (
 						<div className="max-w-xs">
@@ -196,16 +172,9 @@ export default function FaixasRevendedorTab({
 					{temPersonalizacao && (
 						<div className="rounded-lg bg-[#F4F8FD] border border-[#B5D4F4] px-4 py-3 text-sm text-gray-700 flex gap-6 flex-wrap">
 							{isComissao ? (
-								<>
-									<span>
-										Unitário:{" "}
-										<strong>{fmt(existente?.precoUnit ?? null)}</strong>
-									</span>
-									<span>
-										2 ou mais:{" "}
-										<strong>{fmt(existente?.preco2mais ?? null)}</strong>
-									</span>
-								</>
+								<span>
+									Unitário: <strong>{fmt(existente?.precoUnit ?? null)}</strong>
+								</span>
 							) : (
 								<span>
 									Valor mínimo/un:{" "}

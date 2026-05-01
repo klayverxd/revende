@@ -28,7 +28,7 @@ export default async function ConferenciaDetalhePage({ params }: PageProps) {
 	const { data: itensRaw } = await supabase
 		.from("envio_item")
 		.select(
-			"envio_item_id, modelo_id, qtd_enviada, preco_unitario, preco_2mais, valor_minimo_unit, modelo:modelo_id(nome, codigo)"
+			"envio_item_id, modelo_id, qtd_enviada, preco_unitario, valor_minimo_unit, modelo:modelo_id(nome, codigo)"
 		)
 		.eq("envio_id", envio_id)
 		.is("deleted_at", null);
@@ -84,7 +84,6 @@ export default async function ConferenciaDetalhePage({ params }: PageProps) {
 			modelo_codigo: modelo?.codigo ?? null,
 			qtd_enviada: (i.qtd_enviada as number) ?? 0,
 			preco_unitario: (i.preco_unitario as number | null) ?? null,
-			preco_2mais: (i.preco_2mais as number | null) ?? null,
 			valor_minimo_unit: (i.valor_minimo_unit as number | null) ?? null,
 			promocoes: promosByModelo.get(modeloId) ?? [],
 		};

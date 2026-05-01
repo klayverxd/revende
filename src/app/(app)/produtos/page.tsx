@@ -25,20 +25,11 @@ export default async function ProdutosPage() {
 		estoqueMap[row.modelo_id] = row.disponivel;
 	}
 
-	// Resolve preço 1un e 2+ por modelo (menor qtd_minima e segunda faixa)
-	const precoMap: Record<
-		string,
-		{ preco_1un: number | null; preco_2mais: number | null }
-	> = {};
-
+	// Resolve preço unitário por modelo
+	const precoMap: Record<string, number | null> = {};
 	for (const p of precos ?? []) {
-		const id = p.modelo_id;
-		if (!precoMap[id]) precoMap[id] = { preco_1un: null, preco_2mais: null };
-
 		if (p.quantidade_minima === 1) {
-			precoMap[id].preco_1un = p.preco;
-		} else if (p.quantidade_minima === 2) {
-			precoMap[id].preco_2mais = p.preco;
+			precoMap[p.modelo_id] = p.preco;
 		}
 	}
 
@@ -49,8 +40,7 @@ export default async function ProdutosPage() {
 		custo_producao: m.custo_producao,
 		estoque_minimo: m.estoque_minimo ?? 0,
 		ativo: m.ativo,
-		preco_1un: precoMap[m.modelo_id]?.preco_1un ?? null,
-		preco_2mais: precoMap[m.modelo_id]?.preco_2mais ?? null,
+		preco_1un: precoMap[m.modelo_id] ?? null,
 		estoque_disponivel: estoqueMap[m.modelo_id] ?? 0,
 	}));
 

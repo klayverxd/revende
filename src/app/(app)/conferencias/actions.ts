@@ -13,15 +13,8 @@ function clamp(value: number, min: number, max: number) {
 	return Math.max(min, Math.min(max, value));
 }
 
-function precoPorFaixa(
-	qtdVendida: number,
-	precoUnitario: number | null,
-	preco2mais: number | null
-) {
+function precoPorFaixa(qtdVendida: number, precoUnitario: number | null) {
 	if (qtdVendida <= 0) return 0;
-	if (qtdVendida >= 2 && Number.isFinite(preco2mais)) {
-		return qtdVendida * (preco2mais ?? 0);
-	}
 	return qtdVendida * (precoUnitario ?? 0);
 }
 
@@ -104,7 +97,7 @@ export async function confirmarConferencia(
 	const { data: envioItens, error: itensError } = await supabase
 		.from("envio_item")
 		.select(
-			"envio_item_id, qtd_enviada, preco_unitario, preco_2mais, valor_minimo_unit, modelo_acerto"
+			"envio_item_id, qtd_enviada, preco_unitario, valor_minimo_unit, modelo_acerto"
 		)
 		.eq("envio_id", envioId)
 		.is("deleted_at", null);
@@ -147,8 +140,7 @@ export async function confirmarConferencia(
 		if (modeloAcerto === "COMISSAO") {
 			const valorItem = precoPorFaixa(
 				qtdVendida,
-				(dbItem.preco_unitario as number | null) ?? null,
-				(dbItem.preco_2mais as number | null) ?? null
+				(dbItem.preco_unitario as number | null) ?? null
 			);
 			totalCalculadoComissao += valorItem;
 			updates.push({

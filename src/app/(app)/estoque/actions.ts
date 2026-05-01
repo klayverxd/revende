@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/server";
 export interface RegistrarProducaoData {
 	modelo_id: string;
 	quantidade: number;
-	custo_unitario?: number | null;
 	data_producao?: string;
 	observacao?: string;
 }
@@ -43,7 +42,6 @@ export async function registrarProducao(data: RegistrarProducaoData) {
 	const { error } = await supabase.from("producao").insert({
 		modelo_id: data.modelo_id,
 		quantidade: data.quantidade,
-		custo_unitario: data.custo_unitario ?? null,
 		data_producao: data.data_producao ?? new Date().toISOString().slice(0, 10),
 		observacao: data.observacao?.trim() || null,
 	});

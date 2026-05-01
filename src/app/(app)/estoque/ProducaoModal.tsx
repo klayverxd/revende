@@ -11,7 +11,6 @@ import { registrarProducao } from "./actions";
 const schema = z.object({
 	modelo_id: z.string().min(1, "Selecione um produto"),
 	quantidade: z.string().min(1, "Quantidade obrigatoria"),
-	custo_unitario: z.string().optional(),
 	data_producao: z.string().min(1, "Data obrigatoria"),
 	observacao: z.string().optional(),
 });
@@ -52,8 +51,6 @@ export default function ProducaoModal({ open, onClose, modelos }: Props) {
 	const {
 		register,
 		handleSubmit,
-		watch,
-		setValue,
 		reset,
 		formState: { errors },
 	} = useForm<FormValues>({
@@ -61,40 +58,23 @@ export default function ProducaoModal({ open, onClose, modelos }: Props) {
 		defaultValues: {
 			modelo_id: "",
 			quantidade: "",
-			custo_unitario: "",
 			data_producao: hojeISO(),
 			observacao: "",
 		},
 	});
-
-	const modeloId = watch("modelo_id");
-
-	useEffect(() => {
-		if (!open) return;
-		if (!modeloId) return;
-		const selected = modelos.find(m => m.modelo_id === modeloId);
-		if (!selected) return;
-		if (selected.custo_producao !== null) {
-			setValue("custo_unitario", String(selected.custo_producao));
-		}
-	}, [open, modeloId, modelos, setValue]);
 
 	useEffect(() => {
 		if (!open) return;
 		reset({
 			modelo_id: "",
 			quantidade: "",
-			custo_unitario: "",
 			data_producao: hojeISO(),
 			observacao: "",
 		});
 	}, [open, reset]);
 
 	const onSubmit = handleSubmit(async values => {
-		const quantidade = parseInt(values.quantidade, 10);
-		const custo = values.custo_unitario
-			? parseFloat(values.custo_unitario.replace(",", "."))
-			: null;
+		const quantidade = Number.parseInt(values.quantidade, 10);
 
 		if (!Number.isFinite(quantidade) || quantidade <= 0) {
 			showToast("Quantidade invalida", "error");
@@ -106,7 +86,6 @@ export default function ProducaoModal({ open, onClose, modelos }: Props) {
 			await registrarProducao({
 				modelo_id: values.modelo_id,
 				quantidade,
-				custo_unitario: Number.isFinite(custo as number) ? custo : null,
 				data_producao: values.data_producao,
 				observacao: values.observacao || undefined,
 			});
@@ -159,14 +138,6 @@ export default function ProducaoModal({ open, onClose, modelos }: Props) {
 					min={1}
 					error={errors.quantidade?.message}
 					{...register("quantidade")}
-				/>
-				<Input
-					label="Custo unitario (R$)"
-					type="number"
-					step="0.01"
-					min={0}
-					hint="Opcional. Pre-preenchido com o custo do produto."
-					{...register("custo_unitario")}
 				/>
 				<Input
 					label="Data da producao"

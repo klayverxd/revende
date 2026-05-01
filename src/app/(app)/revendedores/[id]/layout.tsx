@@ -30,7 +30,7 @@ export default async function RevendedorLayout({ params, children }: Props) {
 					</h1>
 					<p className="text-sm text-gray-500 mt-0.5">
 						{revendedor.modelo_acerto === "VALOR_MINIMO"
-							? "Modelo: Valor mínimo"
+							? "Modelo: Valor por produto"
 							: "Modelo: Comissão"}{" "}
 						·{" "}
 						<span

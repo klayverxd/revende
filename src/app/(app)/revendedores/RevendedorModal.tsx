@@ -275,7 +275,7 @@ export default function RevendedorModal({ open, onClose, revendedor }: Props) {
 									: "bg-white text-gray-600 hover:bg-[#E6F1FB]"
 							}`}
 						>
-							Valor mínimo
+							Valor por produto
 						</button>
 					</div>
 
@@ -314,7 +314,7 @@ export default function RevendedorModal({ open, onClose, revendedor }: Props) {
 					) : (
 						<div className="flex flex-col gap-3">
 							<Input
-								label="Valor mínimo padrão por unidade (R$)"
+								label="Valor por produto padrão por unidade (R$)"
 								type="number"
 								step="0.01"
 								min={0}

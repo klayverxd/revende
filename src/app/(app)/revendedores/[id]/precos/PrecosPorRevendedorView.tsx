@@ -76,8 +76,9 @@ export default function PrecosPorRevendedorView({
 	}
 
 	const campoLabel =
-		modeloAcerto === "VALOR_MINIMO" ? "Valor mínimo (R$)" : "Preço (R$)";
-	const colLabel = modeloAcerto === "VALOR_MINIMO" ? "Valor mínimo" : "Preço";
+		modeloAcerto === "VALOR_MINIMO" ? "Valor por produto (R$)" : "Preço (R$)";
+	const colLabel =
+		modeloAcerto === "VALOR_MINIMO" ? "Valor por produto" : "Preço";
 
 	return (
 		<div className="flex flex-col gap-4">

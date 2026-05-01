@@ -257,7 +257,7 @@ export default function RevendedoresTable({ revendedores }: Props) {
 											}
 										>
 											{r.modelo_acerto === "VALOR_MINIMO"
-												? "Valor mínimo"
+												? "Valor por produto"
 												: "Comissão"}
 										</Badge>
 									</td>

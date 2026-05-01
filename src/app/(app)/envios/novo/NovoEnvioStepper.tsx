@@ -70,7 +70,7 @@ export default function NovoEnvioStepper({ revendedores, produtos }: Props) {
 		() =>
 			revendedores.map(r => ({
 				value: r.revendedor_id,
-				label: `${r.nome} (${r.modelo_acerto === "VALOR_MINIMO" ? "Valor minimo" : "Comissao"})`,
+				label: `${r.nome} (${r.modelo_acerto === "VALOR_MINIMO" ? "Valor por produto" : "Comissao"})`,
 			})),
 		[revendedores]
 	);

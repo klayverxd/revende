@@ -114,7 +114,7 @@ export default function FaixasRevendedorTab({
 						<div className="flex items-center gap-2 text-sm text-gray-600">
 							Modelo de acerto:
 							<Badge variant={isComissao ? "neutral" : "info"}>
-								{isComissao ? "Comissão" : "Valor mínimo"}
+								{isComissao ? "Comissão" : "Valor por produto"}
 							</Badge>
 						</div>
 						{temPersonalizacao && (
@@ -154,7 +154,7 @@ export default function FaixasRevendedorTab({
 					) : (
 						<div className="max-w-xs">
 							<Input
-								label="Valor mínimo por unidade (R$)"
+								label="Valor por produto por unidade (R$)"
 								type="number"
 								step="0.01"
 								min={0}
@@ -177,7 +177,7 @@ export default function FaixasRevendedorTab({
 								</span>
 							) : (
 								<span>
-									Valor mínimo/un:{" "}
+									Valor por produto/un:{" "}
 									<strong>{fmt(existente?.valorMinimo ?? null)}</strong>
 								</span>
 							)}

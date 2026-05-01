@@ -219,7 +219,7 @@ export default function ConferenciasView({
 								>
 									{card.modelo_acerto === "COMISSAO"
 										? "% Comissao"
-										: "Valor minimo"}
+										: "Valor por produto"}
 								</Badge>
 							</div>
 							<p className="text-sm text-gray-700">
@@ -290,7 +290,7 @@ export default function ConferenciasView({
 									<td className="px-3 py-2.5 text-gray-700">
 										{row.modelo_acerto === "COMISSAO"
 											? "% Comissão"
-											: "Valor mín."}
+											: "V. por produto"}
 									</td>
 									<td className="px-3 py-2.5 text-right text-gray-900 font-semibold">
 										{fmtCurrency(row.valor)}

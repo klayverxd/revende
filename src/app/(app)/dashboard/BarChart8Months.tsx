@@ -27,23 +27,35 @@ function fmtCurrency(v: number) {
 	});
 }
 
+function fmtYAxis(v: number) {
+	if (v >= 1000) {
+		const k = v / 1000;
+		return `R$\u00a0${Number.isInteger(k) ? k : k.toFixed(1)}k`;
+	}
+	return `R$\u00a0${v}`;
+}
+
 export default function BarChart8Months({ data }: Props) {
 	return (
 		<div className="h-72 w-full">
 			<ResponsiveContainer width="100%" height="100%">
-				<BarChart data={data} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
+				<BarChart data={data} margin={{ left: 4, right: 8, top: 8, bottom: 0 }}>
 					<CartesianGrid strokeDasharray="3 3" stroke="#d8e7f7" />
 					<XAxis
 						dataKey="mes"
 						stroke="#4b5563"
 						tickLine={false}
 						axisLine={false}
+						tick={{ fontSize: 12 }}
 					/>
 					<YAxis
 						stroke="#4b5563"
 						tickLine={false}
 						axisLine={false}
-						tickFormatter={v => `R$ ${Math.round(v / 1000)}k`}
+						allowDecimals={false}
+						width={72}
+						tick={{ fontSize: 12 }}
+						tickFormatter={fmtYAxis}
 					/>
 					<Tooltip formatter={v => [fmtCurrency(Number(v ?? 0)), "Receita"]} />
 					<Bar dataKey="receita" fill="#185FA5" radius={[6, 6, 0, 0]} />

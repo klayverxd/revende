@@ -243,8 +243,17 @@ export default async function DashboardPage({
 	const hoje = new Date();
 	const totalEmConsignacao = (envioItens ?? []).reduce((acc, i) => {
 		const envio = i.envio as unknown as { status: string } | null;
-		if (!envio || envio.status !== "ABERTO") return acc;
-		return acc + ((i.qtd_enviada as number | null) ?? 0);
+		if (!envio) return acc;
+		if (envio.status === "ABERTO") {
+			return acc + ((i.qtd_enviada as number | null) ?? 0);
+		}
+		if (envio.status === "CONFERIDO") {
+			const qtdEnviada = (i.qtd_enviada as number | null) ?? 0;
+			const qtdVendida = (i.qtd_vendida as number | null) ?? 0;
+			const qtdDevolvida = (i.qtd_devolvida as number | null) ?? 0;
+			return acc + Math.max(0, qtdEnviada - qtdVendida - qtdDevolvida);
+		}
+		return acc;
 	}, 0);
 	const enviosAntigos = (enviosAbertos ?? []).filter(e => {
 		const d = new Date(e.data_envio as string);

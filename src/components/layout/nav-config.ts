@@ -28,7 +28,10 @@ export const navGroups: NavGroup[] = [
 	},
 	{
 		label: "CONFIG",
-		items: [{ href: "/calculadora", label: "Calculadora" }],
+		items: [
+			{ href: "/calculadora", label: "Calculadora" },
+			{ href: "/configuracoes", label: "Configurações" },
+		],
 	},
 ];
 

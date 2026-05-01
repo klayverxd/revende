@@ -3,6 +3,86 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
+/** Salva os dois preços padrão do produto (unitário e 2+). */
+export async function salvarPrecoProduto(
+	modeloId: string,
+	precoUnit: number | null,
+	preco2mais: number | null
+) {
+	const supabase = await createClient();
+	await supabase.from("modelo_preco").delete().eq("modelo_id", modeloId);
+	const rows = [];
+	if (precoUnit !== null)
+		rows.push({
+			modelo_id: modeloId,
+			quantidade_minima: 1,
+			rotulo: "Unitário",
+			preco: precoUnit,
+			eh_promocao: false,
+			ativo: true,
+		});
+	if (preco2mais !== null)
+		rows.push({
+			modelo_id: modeloId,
+			quantidade_minima: 2,
+			rotulo: "2 ou mais",
+			preco: preco2mais,
+			eh_promocao: false,
+			ativo: true,
+		});
+	if (rows.length > 0) {
+		const { error } = await supabase.from("modelo_preco").insert(rows);
+		if (error) throw new Error(error.message);
+	}
+	revalidatePath(`/produtos/${modeloId}/precos`);
+}
+
+/** Salva preços personalizados para um revendedor. Passa null para remover. */
+export async function salvarPrecoRevendedor(
+	revendedorId: string,
+	modeloId: string,
+	precoUnit: number | null,
+	preco2mais: number | null,
+	valorMinimo: number | null
+) {
+	const supabase = await createClient();
+	await supabase
+		.from("revendedor_modelo_preco")
+		.delete()
+		.eq("revendedor_id", revendedorId)
+		.eq("modelo_id", modeloId);
+	const rows = [];
+	if (precoUnit !== null || valorMinimo !== null)
+		rows.push({
+			revendedor_id: revendedorId,
+			modelo_id: modeloId,
+			quantidade_minima: 1,
+			rotulo: "Unitário",
+			preco: precoUnit ?? null,
+			valor_minimo: valorMinimo ?? null,
+			eh_promocao: false,
+			ativo: true,
+		});
+	if (preco2mais !== null)
+		rows.push({
+			revendedor_id: revendedorId,
+			modelo_id: modeloId,
+			quantidade_minima: 2,
+			rotulo: "2 ou mais",
+			preco: preco2mais ?? null,
+			valor_minimo: null,
+			eh_promocao: false,
+			ativo: true,
+		});
+	if (rows.length > 0) {
+		const { error } = await supabase
+			.from("revendedor_modelo_preco")
+			.insert(rows);
+		if (error) throw new Error(error.message);
+	}
+	revalidatePath(`/produtos/${modeloId}/precos`);
+}
+
 export interface FaixaPrecoData {
 	rotulo: string;
 	quantidade_minima: number;

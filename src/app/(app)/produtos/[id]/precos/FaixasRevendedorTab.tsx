@@ -1,20 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { Badge, Button, Modal, Input, Select, useToast } from "@/components/ui";
-import { criarFaixaPrecoRevendedor, deletarFaixasRevendedor } from "./actions";
+import { Badge, Button, Input, Select, useToast } from "@/components/ui";
+import { salvarPrecoRevendedor } from "./actions";
 
 export interface FaixaRevendedor {
-	rev_preco_id: string;
-	rotulo: string;
-	quantidade_minima: number;
-	preco: number | null;
-	valor_minimo: number | null;
-	eh_promocao: boolean;
-	ativo: boolean;
+	precoUnit: number | null;
+	preco2mais: number | null;
+	valorMinimo: number | null;
 }
 
 export interface RevendedorOpcao {
@@ -26,75 +19,78 @@ export interface RevendedorOpcao {
 interface Props {
 	readonly modeloId: string;
 	readonly revendedores: RevendedorOpcao[];
-	readonly faixasPorRevendedor: Record<string, FaixaRevendedor[]>;
+	readonly precosPorRevendedor: Record<string, FaixaRevendedor>;
 }
 
-const schema = z.object({
-	rotulo: z.string().min(1, "Rótulo obrigatório"),
-	quantidade_minima: z.string().min(1),
-	preco: z.string().optional(),
-	valor_minimo: z.string().optional(),
-	eh_promocao: z.boolean().optional(),
-});
-type FormValues = z.infer<typeof schema>;
+function numStr(v: number | null) {
+	return v !== null ? v.toString() : "";
+}
+
+function parseVal(s: string): number | null {
+	if (!s.trim()) return null;
+	const n = parseFloat(s.replace(",", "."));
+	return isNaN(n) ? null : n;
+}
 
 function fmt(v: number | null) {
-	if (v == null) return "—";
+	if (v === null) return "—";
 	return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 export default function FaixasRevendedorTab({
 	modeloId,
 	revendedores,
-	faixasPorRevendedor,
+	precosPorRevendedor,
 }: Props) {
 	const { showToast } = useToast();
-	const [selectedId, setSelectedId] = useState<string>("");
-	const [modalOpen, setModalOpen] = useState(false);
+	const [selectedId, setSelectedId] = useState("");
+	const [unit, setUnit] = useState("");
+	const [dois, setDois] = useState("");
+	const [valMin, setValMin] = useState("");
 	const [saving, setSaving] = useState(false);
 
 	const selected = revendedores.find(r => r.revendedor_id === selectedId);
-	const faixas = selectedId ? (faixasPorRevendedor[selectedId] ?? []) : [];
 	const isComissao = selected?.modelo_acerto === "COMISSAO";
+	const existente = selectedId
+		? (precosPorRevendedor[selectedId] ?? null)
+		: null;
+	const temPersonalizacao = Boolean(existente);
 
-	const {
-		register,
-		handleSubmit,
-		reset,
-		formState: { errors, isSubmitting },
-	} = useForm<FormValues>({
-		resolver: zodResolver(schema),
-		defaultValues: { eh_promocao: false, quantidade_minima: "1" },
-	});
+	function handleSelect(id: string) {
+		setSelectedId(id);
+		const atual = precosPorRevendedor[id] ?? null;
+		setUnit(numStr(atual?.precoUnit ?? null));
+		setDois(numStr(atual?.preco2mais ?? null));
+		setValMin(numStr(atual?.valorMinimo ?? null));
+	}
 
-	const onSubmit = handleSubmit(async values => {
-		if (!selectedId) return;
-		try {
-			await criarFaixaPrecoRevendedor(selectedId, modeloId, {
-				rotulo: values.rotulo,
-				quantidade_minima: parseInt(values.quantidade_minima, 10),
-				preco: values.preco ? parseFloat(values.preco.replace(",", ".")) : 0,
-				valor_minimo: values.valor_minimo
-					? parseFloat(values.valor_minimo.replace(",", "."))
-					: undefined,
-				eh_promocao: values.eh_promocao ?? false,
-			});
-			showToast("Faixa criada", "success");
-			reset();
-			setModalOpen(false);
-		} catch {
-			showToast("Erro ao criar faixa", "error");
-		}
-	});
-
-	async function handleReset() {
+	async function handleSave() {
 		if (!selectedId) return;
 		setSaving(true);
 		try {
-			await deletarFaixasRevendedor(selectedId, modeloId);
+			const pu = isComissao ? parseVal(unit) : null;
+			const p2 = isComissao ? parseVal(dois) : null;
+			const vm = !isComissao ? parseVal(valMin) : null;
+			await salvarPrecoRevendedor(selectedId, modeloId, pu, p2, vm);
+			showToast("Preço personalizado salvo", "success");
+		} catch {
+			showToast("Erro ao salvar", "error");
+		} finally {
+			setSaving(false);
+		}
+	}
+
+	async function handleRemover() {
+		if (!selectedId) return;
+		setSaving(true);
+		try {
+			await salvarPrecoRevendedor(selectedId, modeloId, null, null, null);
+			setUnit("");
+			setDois("");
+			setValMin("");
 			showToast("Personalização removida — usando preços padrão", "success");
 		} catch {
-			showToast("Erro ao resetar", "error");
+			showToast("Erro ao remover", "error");
 		} finally {
 			setSaving(false);
 		}
@@ -106,7 +102,6 @@ export default function FaixasRevendedorTab({
 				Preços por revendedor
 			</h2>
 
-			{/* Seletor */}
 			<Select
 				label="Revendedor"
 				options={revendedores.map(r => ({
@@ -115,167 +110,118 @@ export default function FaixasRevendedorTab({
 				}))}
 				placeholder="Selecione um revendedor..."
 				value={selectedId}
-				onChange={e => setSelectedId(e.target.value)}
+				onChange={e => handleSelect(e.target.value)}
 			/>
 
-			{selectedId && (
-				<div className="flex flex-col gap-4">
+			{selected && (
+				<div className="bg-white rounded-xl border border-[#B5D4F4] p-5 flex flex-col gap-5">
 					<div className="flex items-center justify-between">
-						<div className="flex items-center gap-2">
-							<span className="text-sm text-gray-600">Modelo de acerto:</span>
+						<div className="flex items-center gap-2 text-sm text-gray-600">
+							Modelo de acerto:
 							<Badge variant={isComissao ? "neutral" : "info"}>
 								{isComissao ? "Comissão" : "Valor mínimo"}
 							</Badge>
 						</div>
-						<div className="flex items-center gap-2">
-							{faixas.length > 0 && (
-								<Button
-									variant="danger"
-									size="sm"
-									onClick={handleReset}
-									loading={saving}
-								>
-									Resetar para padrão
-								</Button>
-							)}
-							<Button
-								variant="primary"
-								size="sm"
-								onClick={() => setModalOpen(true)}
+						{temPersonalizacao && (
+							<button
+								type="button"
+								onClick={handleRemover}
+								disabled={saving}
+								className="text-xs text-red-600 hover:underline disabled:opacity-50"
 							>
-								+ Personalizar
-							</Button>
-						</div>
-					</div>
-
-					{faixas.length === 0 ? (
-						<div className="bg-[#E6F1FB] border border-[#B5D4F4] rounded-lg px-4 py-3 text-sm text-[#185FA5]">
-							Usando preços padrão do modelo para este revendedor.
-						</div>
-					) : (
-						<div className="bg-white rounded-xl border border-[#B5D4F4] overflow-x-auto">
-							<table className="w-full text-sm">
-								<thead>
-									<tr className="border-b border-[#B5D4F4] bg-[#F4F8FD]">
-										<th className="px-4 py-2.5 text-left font-medium text-gray-600">
-											Rótulo
-										</th>
-										<th className="px-4 py-2.5 text-right font-medium text-gray-600">
-											Qtd mínima
-										</th>
-										<th className="px-4 py-2.5 text-right font-medium text-gray-600">
-											{isComissao ? "Preço (R$)" : "Valor mínimo (R$)"}
-										</th>
-										<th className="px-4 py-2.5 text-center font-medium text-gray-600">
-											Tipo
-										</th>
-									</tr>
-								</thead>
-								<tbody>
-									{faixas.map(f => (
-										<tr
-											key={f.rev_preco_id}
-											className="border-b border-[#B5D4F4] last:border-0 hover:bg-[#F4F8FD] transition-colors"
-										>
-											<td className="px-4 py-2.5 text-gray-900">{f.rotulo}</td>
-											<td className="px-4 py-2.5 text-right text-gray-700">
-												{f.quantidade_minima}
-											</td>
-											<td className="px-4 py-2.5 text-right text-gray-700">
-												{isComissao ? fmt(f.preco) : fmt(f.valor_minimo)}
-											</td>
-											<td className="px-4 py-2.5 text-center">
-												<Badge variant={f.eh_promocao ? "warning" : "info"}>
-													{f.eh_promocao ? "Promoção" : "Padrão"}
-												</Badge>
-											</td>
-										</tr>
-									))}
-								</tbody>
-							</table>
-						</div>
-					)}
-				</div>
-			)}
-
-			<Modal
-				open={modalOpen}
-				onClose={() => {
-					setModalOpen(false);
-					reset();
-				}}
-				title={`Personalizar preço — ${selected?.nome ?? ""}`}
-				footer={
-					<>
-						<Button
-							variant="ghost"
-							onClick={() => {
-								setModalOpen(false);
-								reset();
-							}}
-						>
-							Cancelar
-						</Button>
-						<Button
-							variant="primary"
-							type="submit"
-							form="rev-faixa-form"
-							loading={isSubmitting}
-						>
-							Criar faixa
-						</Button>
-					</>
-				}
-			>
-				<form
-					id="rev-faixa-form"
-					onSubmit={onSubmit}
-					className="flex flex-col gap-4"
-				>
-					<Input
-						label="Rótulo"
-						required
-						error={errors.rotulo?.message}
-						{...register("rotulo")}
-					/>
-					<div className="grid grid-cols-2 gap-3">
-						<Input
-							label="Quantidade mínima"
-							type="number"
-							min={1}
-							error={errors.quantidade_minima?.message}
-							{...register("quantidade_minima")}
-						/>
-						{isComissao ? (
-							<Input
-								label="Preço (R$)"
-								type="number"
-								step="0.01"
-								min={0}
-								error={errors.preco?.message}
-								{...register("preco")}
-							/>
-						) : (
-							<Input
-								label="Valor mínimo (R$)"
-								type="number"
-								step="0.01"
-								min={0}
-								error={errors.valor_minimo?.message}
-								{...register("valor_minimo")}
-							/>
+								Remover personalização
+							</button>
 						)}
 					</div>
-					<label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-						<input
-							type="checkbox"
-							className="rounded border-gray-300"
-							{...register("eh_promocao")}
-						/>
-						É uma promoção
-					</label>
-				</form>
-			</Modal>
+
+					{!temPersonalizacao && (
+						<div className="rounded-lg border border-[#B5D4F4] bg-[#E6F1FB] px-4 py-3 text-sm text-[#185FA5]">
+							Usando preços padrão do produto para este revendedor.
+						</div>
+					)}
+
+					{isComissao ? (
+						<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+							<div>
+								<Input
+									label="Preço unitário (R$)"
+									type="number"
+									step="0.01"
+									min={0}
+									placeholder={
+										existente?.precoUnit != null
+											? numStr(existente.precoUnit)
+											: "Padrão do produto"
+									}
+									value={unit}
+									onChange={e => setUnit(e.target.value)}
+								/>
+								{!temPersonalizacao && existente?.precoUnit == null && (
+									<p className="text-xs text-gray-400 mt-1">
+										Usando preço padrão
+									</p>
+								)}
+							</div>
+							<div>
+								<Input
+									label="Preço — 2 ou mais (R$)"
+									type="number"
+									step="0.01"
+									min={0}
+									placeholder="Padrão do produto"
+									value={dois}
+									onChange={e => setDois(e.target.value)}
+								/>
+								<p className="text-xs text-gray-400 mt-1">Opcional</p>
+							</div>
+						</div>
+					) : (
+						<div className="max-w-xs">
+							<Input
+								label="Valor mínimo por unidade (R$)"
+								type="number"
+								step="0.01"
+								min={0}
+								placeholder="Ex: 5,00"
+								value={valMin}
+								onChange={e => setValMin(e.target.value)}
+							/>
+							<p className="text-xs text-gray-400 mt-1">
+								Valor que o revendedor deve repassar por unidade vendida.
+							</p>
+						</div>
+					)}
+
+					{/* Resumo dos valores efetivos */}
+					{temPersonalizacao && (
+						<div className="rounded-lg bg-[#F4F8FD] border border-[#B5D4F4] px-4 py-3 text-sm text-gray-700 flex gap-6 flex-wrap">
+							{isComissao ? (
+								<>
+									<span>
+										Unitário:{" "}
+										<strong>{fmt(existente?.precoUnit ?? null)}</strong>
+									</span>
+									<span>
+										2 ou mais:{" "}
+										<strong>{fmt(existente?.preco2mais ?? null)}</strong>
+									</span>
+								</>
+							) : (
+								<span>
+									Valor mínimo/un:{" "}
+									<strong>{fmt(existente?.valorMinimo ?? null)}</strong>
+								</span>
+							)}
+						</div>
+					)}
+
+					<div>
+						<Button variant="primary" onClick={handleSave} loading={saving}>
+							Salvar preço personalizado
+						</Button>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }

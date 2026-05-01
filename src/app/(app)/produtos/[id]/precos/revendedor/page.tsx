@@ -31,9 +31,7 @@ export default async function PrecosRevendedorPage({ params }: Props) {
 			.order("nome"),
 		supabase
 			.from("revendedor_modelo_preco")
-			.select(
-				"rev_preco_id, revendedor_id, rotulo, quantidade_minima, preco, valor_minimo, eh_promocao, ativo"
-			)
+			.select("revendedor_id, quantidade_minima, preco, valor_minimo")
 			.eq("modelo_id", id)
 			.order("quantidade_minima", { ascending: true }),
 	]);
@@ -44,26 +42,32 @@ export default async function PrecosRevendedorPage({ params }: Props) {
 		modelo_acerto: r.modelo_acerto as string,
 	}));
 
-	const faixasPorRevendedor: Record<string, FaixaRevendedor[]> = {};
+	const precosPorRevendedor: Record<string, FaixaRevendedor> = {};
 	for (const f of raw ?? []) {
 		const revId = f.revendedor_id as string;
-		if (!faixasPorRevendedor[revId]) faixasPorRevendedor[revId] = [];
-		faixasPorRevendedor[revId].push({
-			rev_preco_id: f.rev_preco_id as string,
-			rotulo: f.rotulo as string,
-			quantidade_minima: f.quantidade_minima as number,
-			preco: f.preco as number | null,
-			valor_minimo: f.valor_minimo as number | null,
-			eh_promocao: f.eh_promocao as boolean,
-			ativo: f.ativo as boolean,
-		});
+		const qty = f.quantidade_minima as number;
+		if (!precosPorRevendedor[revId]) {
+			precosPorRevendedor[revId] = {
+				precoUnit: null,
+				preco2mais: null,
+				valorMinimo: null,
+			};
+		}
+		if (qty === 1) {
+			precosPorRevendedor[revId].precoUnit = (f.preco as number | null) ?? null;
+			precosPorRevendedor[revId].valorMinimo =
+				(f.valor_minimo as number | null) ?? null;
+		} else if (qty >= 2 && precosPorRevendedor[revId].preco2mais === null) {
+			precosPorRevendedor[revId].preco2mais =
+				(f.preco as number | null) ?? null;
+		}
 	}
 
 	return (
 		<FaixasRevendedorTab
 			modeloId={id}
 			revendedores={revendedores}
-			faixasPorRevendedor={faixasPorRevendedor}
+			precosPorRevendedor={precosPorRevendedor}
 		/>
 	);
 }

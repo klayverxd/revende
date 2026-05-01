@@ -5,12 +5,14 @@ import Link from "next/link";
 import { Badge, Button, Input, Modal, useToast } from "@/components/ui";
 import { registrarRecebimento } from "../financeiro/actions";
 
-export interface EnvioAberto {
-	envio_id: string;
-	data_envio: string;
+export interface RevendedorConferencia {
+	revendedor_id: string;
 	revendedor_nome: string;
-	num_itens: number;
-	dias_aberto: number;
+	modelo_acerto: "COMISSAO" | "VALOR_MINIMO";
+	num_envios: number;
+	total_itens: number;
+	dias_mais_antigo: number;
+	envios: Array<{ envio_id: string; data_envio: string; num_itens: number }>;
 }
 
 export interface AcertoPendenteCard {
@@ -41,7 +43,7 @@ export interface AcertoHistoricoRow {
 }
 
 interface Props {
-	readonly enviosAbertos: EnvioAberto[];
+	readonly revendedoresComEnvios: RevendedorConferencia[];
 	readonly pendentes: AcertoPendenteCard[];
 	readonly historico: AcertoHistoricoRow[];
 }
@@ -58,7 +60,7 @@ function fmtDate(d: string | null) {
 type Tab = "CONFERIR" | "PENDENTES" | "HISTORICO";
 
 export default function ConferenciasView({
-	enviosAbertos,
+	revendedoresComEnvios,
 	pendentes,
 	historico,
 }: Props) {
@@ -114,7 +116,11 @@ export default function ConferenciasView({
 	}
 
 	const tabs: { key: Tab; label: string; count: number | null }[] = [
-		{ key: "CONFERIR", label: "Para conferir", count: enviosAbertos.length },
+		{
+			key: "CONFERIR",
+			label: "Para conferir",
+			count: revendedoresComEnvios.length,
+		},
 		{
 			key: "PENDENTES",
 			label: "Recebimento pendente",
@@ -157,34 +163,54 @@ export default function ConferenciasView({
 
 			{tab === "CONFERIR" && (
 				<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-					{enviosAbertos.length === 0 && (
+					{revendedoresComEnvios.length === 0 && (
 						<div className="rounded-xl border border-[#B5D4F4] bg-white p-6 text-center text-gray-600 text-sm">
 							Nenhum envio aberto para conferencia.
 						</div>
 					)}
-					{enviosAbertos.map(e => (
+					{revendedoresComEnvios.map(r => (
 						<Link
-							key={e.envio_id}
-							href={`/conferencias/${e.envio_id}`}
+							key={r.revendedor_id}
+							href={`/conferencias/revendedor/${r.revendedor_id}`}
 							className="rounded-xl border border-[#B5D4F4] bg-white p-4 flex flex-col gap-2 hover:bg-[#F4F8FD] transition-colors"
 						>
 							<div className="flex items-start justify-between gap-2">
 								<div>
 									<p className="text-sm font-semibold text-gray-900">
-										{e.revendedor_nome}
+										{r.revendedor_nome}
 									</p>
 									<p className="text-xs text-gray-700 mt-0.5">
-										Envio: {fmtDate(e.data_envio)}
+										{r.num_envios === 1
+											? `1 envio · ${r.total_itens} item(ns)`
+											: `${r.num_envios} envios · ${r.total_itens} item(ns) no total`}
 									</p>
 								</div>
-								{e.dias_aberto > 30 ? (
-									<Badge variant="danger">{e.dias_aberto} dias</Badge>
+								{r.dias_mais_antigo > 30 ? (
+									<Badge variant="danger">{r.dias_mais_antigo} dias</Badge>
 								) : (
-									<Badge variant="warning">{e.dias_aberto} dias</Badge>
+									<Badge variant="warning">{r.dias_mais_antigo} dias</Badge>
 								)}
 							</div>
-							<div className="text-sm text-gray-700">
-								{e.num_itens} item(ns) · toque para conferir
+							<div className="flex items-center justify-between">
+								<div className="flex flex-wrap gap-1">
+									{r.envios.map(e => (
+										<span
+											key={e.envio_id}
+											className="text-xs bg-[#E6F1FB] text-[#185FA5] rounded px-2 py-0.5"
+										>
+											{fmtDate(e.data_envio)}
+										</span>
+									))}
+								</div>
+								<Badge
+									variant={
+										r.modelo_acerto === "VALOR_MINIMO" ? "success" : "info"
+									}
+								>
+									{r.modelo_acerto === "VALOR_MINIMO"
+										? "Valor mínimo"
+										: "Comissão"}
+								</Badge>
 							</div>
 						</Link>
 					))}

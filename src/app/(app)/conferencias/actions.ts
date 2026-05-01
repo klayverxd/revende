@@ -70,16 +70,13 @@ async function salvarAcertoPorEnvio(
 	if (insertError) throw new Error(insertError.message);
 }
 
-export async function confirmarConferencia(
+// ─── Internal core — processa um envio já validado ────────────────────────
+async function processarUmEnvio(
+	supabase: Awaited<ReturnType<typeof createClient>>,
 	envioId: string,
 	itens: ConfirmarConferenciaItemInput[],
 	valorManual?: number
 ) {
-	if (!envioId) throw new Error("Envio invalido");
-	if (!itens.length) throw new Error("Informe as quantidades contadas");
-
-	const supabase = await createClient();
-
 	const { data: envio, error: envioError } = await supabase
 		.from("envio")
 		.select(
@@ -91,7 +88,7 @@ export async function confirmarConferencia(
 
 	if (envioError || !envio) throw new Error("Envio nao encontrado");
 	if ((envio.status as string) !== "ABERTO") {
-		throw new Error("Apenas envios ABERTOS podem ser conferidos");
+		throw new Error(`Envio ${envioId} nao esta ABERTO`);
 	}
 
 	const { data: envioItens, error: itensError } = await supabase
@@ -103,12 +100,10 @@ export async function confirmarConferencia(
 		.is("deleted_at", null);
 
 	if (itensError) throw new Error(itensError.message);
-	if (!envioItens || envioItens.length === 0) {
+	if (!envioItens || envioItens.length === 0)
 		throw new Error("Envio sem itens");
-	}
 
 	const itemInputMap = new Map(itens.map(i => [i.envioItemId, i]));
-
 	const modeloAcerto = envioItens[0].modelo_acerto as
 		| "COMISSAO"
 		| "VALOR_MINIMO";
@@ -127,16 +122,13 @@ export async function confirmarConferencia(
 
 	for (const dbItem of envioItens) {
 		const input = itemInputMap.get(dbItem.envio_item_id as string);
-		if (!input) {
+		if (!input)
 			throw new Error("Todos os itens do envio precisam ser conferidos");
-		}
 
 		const qtdEnviada = (dbItem.qtd_enviada as number) ?? 0;
 		const existingQtdVendida = (dbItem.qtd_vendida as number | null) ?? 0;
 		const existingQtdDevolvida = (dbItem.qtd_devolvida as number | null) ?? 0;
-		// qtdRestante = items still unaccounted for (not yet sold or returned)
 		const qtdRestante = qtdEnviada - existingQtdVendida - existingQtdDevolvida;
-		// qtdContada = items still with reseller out of the remaining
 		const qtdContada = clamp(Math.floor(input.qtdContada ?? 0), 0, qtdRestante);
 		const qtdVendidaNova = qtdRestante - qtdContada;
 		const qtdVendidaTotal = existingQtdVendida + qtdVendidaNova;
@@ -213,7 +205,6 @@ export async function confirmarConferencia(
 				modo_valor: up.modo_valor,
 			})
 			.eq("envio_item_id", up.envio_item_id);
-
 		if (error) throw new Error(error.message);
 	}
 
@@ -227,7 +218,6 @@ export async function confirmarConferencia(
 		const comissaoCalculada =
 			comissaoFixa + totalCalculadoComissao * comissaoPct;
 		const valorLiquido = totalCalculadoComissao - comissaoCalculada;
-
 		await salvarAcertoPorEnvio(supabase, envioId, {
 			revendedor_id: envio.revendedor_id as string,
 			modelo_acerto: "COMISSAO",
@@ -253,9 +243,54 @@ export async function confirmarConferencia(
 		.update({ status: newStatus })
 		.eq("envio_id", envioId);
 	if (statusError) throw new Error(statusError.message);
+}
+
+export async function confirmarConferencia(
+	envioId: string,
+	itens: ConfirmarConferenciaItemInput[],
+	valorManual?: number
+) {
+	if (!envioId) throw new Error("Envio invalido");
+	if (!itens.length) throw new Error("Informe as quantidades contadas");
+
+	const supabase = await createClient();
+	await processarUmEnvio(supabase, envioId, itens, valorManual);
 
 	revalidatePath("/conferencias");
 	revalidatePath(`/conferencias/${envioId}`);
+	revalidatePath("/financeiro");
+	revalidatePath("/estoque");
+}
+
+// ─── Confirmar conferência de múltiplos envios de um revendedor ──────────────
+export interface EnvioConferenciaInput {
+	envioId: string;
+	itens: ConfirmarConferenciaItemInput[];
+	/** Valor manual já rateado para este envio (calculado pelo cliente) */
+	valorManual?: number;
+}
+
+export async function confirmarConferenciaRevendedor(
+	revendedorId: string,
+	enviosInput: EnvioConferenciaInput[]
+) {
+	if (!revendedorId) throw new Error("Revendedor invalido");
+	if (!enviosInput.length) throw new Error("Nenhum envio informado");
+
+	const supabase = await createClient();
+
+	for (const envio of enviosInput) {
+		if (!envio.itens.length) continue;
+		await processarUmEnvio(
+			supabase,
+			envio.envioId,
+			envio.itens,
+			envio.valorManual
+		);
+	}
+
+	revalidatePath("/conferencias");
+	revalidatePath(`/conferencias/revendedor/${revendedorId}`);
 	revalidatePath("/financeiro");
 	revalidatePath("/estoque");
 }

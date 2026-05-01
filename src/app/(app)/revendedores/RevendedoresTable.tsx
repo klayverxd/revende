@@ -2,7 +2,14 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { Badge, BulkActionBar, Button, Modal, useToast } from "@/components/ui";
+import {
+	Badge,
+	BulkActionBar,
+	Button,
+	Modal,
+	RowActionsMenu,
+	useToast,
+} from "@/components/ui";
 import RevendedorModal, { type RevendedorParaEditar } from "./RevendedorModal";
 import {
 	deletarRevendedores,
@@ -288,40 +295,42 @@ export default function RevendedoresTable({ revendedores }: Props) {
 										</Badge>
 									</td>
 									<td className="px-3 py-2.5 text-right">
-										<div className="flex items-center justify-end gap-1">
-											<Button
-												variant="ghost"
-												size="sm"
-												onClick={() => openEdit(r)}
-											>
-												Editar
-											</Button>
-											<Button
-												variant="ghost"
-												size="sm"
-												disabled={loading}
-												onClick={async () => {
-													setLoading(true);
-													try {
-														if (r.ativo)
-															await desativarRevendedores([r.revendedor_id]);
-														else await ativarRevendedores([r.revendedor_id]);
-														showToast(
-															r.ativo
-																? "Revendedor desativado"
-																: "Revendedor ativado",
-															"success"
-														);
-													} catch {
-														showToast("Erro ao alterar status", "error");
-													} finally {
-														setLoading(false);
-													}
-												}}
-											>
-												{r.ativo ? "Desativar" : "Ativar"}
-											</Button>
-										</div>
+										<RowActionsMenu
+											label={r.nome}
+											actions={[
+												{ label: "Editar", onClick: () => openEdit(r) },
+												{
+													label: "Ver perfil",
+													href: `/revendedores/${r.revendedor_id}`,
+												},
+												{
+													label: "Ver preços",
+													href: `/revendedores/${r.revendedor_id}/precos`,
+												},
+												{
+													label: r.ativo ? "Desativar" : "Ativar",
+													variant: r.ativo ? "danger" : "default",
+													onClick: async () => {
+														setLoading(true);
+														try {
+															if (r.ativo)
+																await desativarRevendedores([r.revendedor_id]);
+															else await ativarRevendedores([r.revendedor_id]);
+															showToast(
+																r.ativo
+																	? "Revendedor desativado"
+																	: "Revendedor ativado",
+																"success"
+															);
+														} catch {
+															showToast("Erro ao alterar status", "error");
+														} finally {
+															setLoading(false);
+														}
+													},
+												},
+											]}
+										/>
 									</td>
 								</tr>
 							);

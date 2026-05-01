@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Badge } from "@/components/ui";
+import { Badge, RowActionsMenu } from "@/components/ui";
 
 export interface EnvioRow {
 	envio_id: string;
@@ -110,30 +110,28 @@ export default function EnviosTable({ envios }: Props) {
 									</Badge>
 								</td>
 								<td className="px-3 py-2.5 text-right">
-									<div className="flex items-center justify-end gap-3">
-										<a
-											href={`/envios/${e.envio_id}`}
-											className="text-[#185FA5] hover:underline text-sm"
-										>
-											Detalhes
-										</a>
-										{e.status === "ABERTO" && (
-											<a
-												href={`/conferencias/${e.envio_id}`}
-												className="text-[#185FA5] hover:underline text-sm"
-											>
-												Conferir
-											</a>
-										)}
-										{(e.status === "CONFERIDO" || e.status === "ENCERRADO") && (
-											<a
-												href={`/envios/${e.envio_id}/devolucao`}
-												className="text-[#185FA5] hover:underline text-sm"
-											>
-												Devolução
-											</a>
-										)}
-									</div>
+									<RowActionsMenu
+										label={`Envio ${e.envio_id.slice(0, 8)}`}
+										actions={[
+											{ label: "Ver detalhes", href: `/envios/${e.envio_id}` },
+											...(e.status === "ABERTO"
+												? [
+														{
+															label: "Conferir envio",
+															href: `/conferencias/${e.envio_id}`,
+														},
+													]
+												: []),
+											...(e.status === "CONFERIDO" || e.status === "ENCERRADO"
+												? [
+														{
+															label: "Registrar devolução",
+															href: `/envios/${e.envio_id}/devolucao`,
+														},
+													]
+												: []),
+										]}
+									/>
 								</td>
 							</tr>
 						))}

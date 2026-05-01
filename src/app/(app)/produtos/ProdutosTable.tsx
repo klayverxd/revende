@@ -2,7 +2,14 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { Badge, BulkActionBar, Button, Modal, useToast } from "@/components/ui";
+import {
+	Badge,
+	BulkActionBar,
+	Button,
+	Modal,
+	RowActionsMenu,
+	useToast,
+} from "@/components/ui";
 import ProdutoModal, { type ProdutoParaEditar } from "./ProdutoModal";
 import { deletarProdutos, ativarProdutos, desativarProdutos } from "./actions";
 
@@ -263,38 +270,38 @@ export default function ProdutosTable({ produtos }: ProdutosTableProps) {
 										<Badge variant={statusVariant(status)}>{status}</Badge>
 									</td>
 									<td className="px-3 py-2.5 text-right">
-										<div className="flex items-center justify-end gap-1">
-											<Button
-												variant="ghost"
-												size="sm"
-												onClick={() => openEdit(p)}
-											>
-												Editar
-											</Button>
-											<Button
-												variant="ghost"
-												size="sm"
-												onClick={async () => {
-													setLoading(true);
-													try {
-														if (p.ativo) await desativarProdutos([p.modelo_id]);
-														else await ativarProdutos([p.modelo_id]);
-														showToast(
-															p.ativo
-																? "Produto desativado"
-																: "Produto ativado",
-															"success"
-														);
-													} catch {
-														showToast("Erro ao alterar status", "error");
-													} finally {
-														setLoading(false);
-													}
-												}}
-											>
-												{p.ativo ? "Desativar" : "Ativar"}
-											</Button>
-										</div>
+										<RowActionsMenu
+											label={p.nome}
+											actions={[
+												{ label: "Editar", onClick: () => openEdit(p) },
+												{
+													label: "Ver preços",
+													href: `/produtos/${p.modelo_id}/precos`,
+												},
+												{
+													label: p.ativo ? "Desativar" : "Ativar",
+													variant: p.ativo ? "danger" : "default",
+													onClick: async () => {
+														setLoading(true);
+														try {
+															if (p.ativo)
+																await desativarProdutos([p.modelo_id]);
+															else await ativarProdutos([p.modelo_id]);
+															showToast(
+																p.ativo
+																	? "Produto desativado"
+																	: "Produto ativado",
+																"success"
+															);
+														} catch {
+															showToast("Erro ao alterar status", "error");
+														} finally {
+															setLoading(false);
+														}
+													},
+												},
+											]}
+										/>
 									</td>
 								</tr>
 							);

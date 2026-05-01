@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { RowActionsMenu } from "@/components/ui";
 
 export interface VendaDiretaRow {
 	venda_id: string;
@@ -143,12 +144,14 @@ export default function VendaDiretaTable({ vendas }: Props) {
 									{fmtCurrency(v.valor_total)}
 								</td>
 								<td className="px-3 py-2.5 text-right">
-									<a
-										href={`/venda-direta/${v.venda_id}`}
-										className="text-[#185FA5] hover:underline text-sm"
-									>
-										Detalhes
-									</a>
+									<RowActionsMenu
+										actions={[
+											{
+												label: "Ver detalhes",
+												href: `/venda-direta/${v.venda_id}`,
+											},
+										]}
+									/>
 								</td>
 							</tr>
 						))}

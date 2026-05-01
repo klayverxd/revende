@@ -11,6 +11,8 @@ export interface ConferenciaItem {
 	modelo_nome: string;
 	modelo_codigo: string | null;
 	qtd_enviada: number;
+	qtd_vendida: number;
+	qtd_devolvida: number;
 	preco_unitario: number | null;
 	valor_minimo_unit: number | null;
 }
@@ -73,7 +75,9 @@ export default function ConferenciaForm({
 		const initial: Record<string, ItemState> = {};
 		for (const item of itens) {
 			initial[item.envio_item_id] = {
-				qtdContada: String(item.qtd_enviada),
+				qtdContada: String(
+					item.qtd_enviada - item.qtd_vendida - item.qtd_devolvida
+				),
 				precoCliente: "",
 			};
 		}
@@ -81,34 +85,44 @@ export default function ConferenciaForm({
 	});
 
 	const allFilled = useMemo(() => {
-		return itens.every(item => state[item.envio_item_id]?.qtdContada !== "");
+		return itens
+			.filter(
+				item => item.qtd_enviada - item.qtd_vendida - item.qtd_devolvida > 0
+			)
+			.every(item => state[item.envio_item_id]?.qtdContada !== "");
 	}, [itens, state]);
 
 	const resumo = useMemo(() => {
-		let totalVendida = 0;
+		let totalVendidaNova = 0;
+		let totalRemanentes = 0;
 		let totalReceberValorMinimo = 0;
 		let totalSugeridoComissao = 0;
 
 		for (const item of itens) {
+			const qtdRestante =
+				item.qtd_enviada - item.qtd_vendida - item.qtd_devolvida;
 			const st = state[item.envio_item_id];
 			const qtdContada = clamp(
 				Math.floor(toNumber(st?.qtdContada ?? "0")),
 				0,
-				item.qtd_enviada
+				qtdRestante
 			);
-			const qtdVendida = item.qtd_enviada - qtdContada;
-			totalVendida += qtdVendida;
+			const qtdVendidaNova = qtdRestante - qtdContada;
+			totalVendidaNova += qtdVendidaNova;
+			totalRemanentes += qtdContada;
 
 			if (revendedor.modelo_acerto === "VALOR_MINIMO") {
 				const valorUnit = item.valor_minimo_unit ?? 0;
-				totalReceberValorMinimo += qtdVendida * valorUnit;
+				totalReceberValorMinimo += qtdVendidaNova * valorUnit;
 			} else {
-				totalSugeridoComissao += precoPadraoComissao(item, qtdVendida);
+				totalSugeridoComissao += precoPadraoComissao(item, qtdVendidaNova);
 			}
 		}
 
 		return {
-			totalVendida,
+			totalVendidaNova,
+			totalRemanentes,
+			hasRemanentes: totalRemanentes > 0,
 			totalReceberValorMinimo,
 			totalSugeridoComissao,
 		};
@@ -130,7 +144,10 @@ export default function ConferenciaForm({
 			showToast("Preencha todas as quantidades contadas", "error");
 			return;
 		}
-
+		if (resumo.totalVendidaNova === 0) {
+			showToast("Informe ao menos uma venda para confirmar", "error");
+			return;
+		}
 		let valorParaBackend: number | undefined;
 		if (revendedor.modelo_acerto === "COMISSAO" && usarValorManual) {
 			valorParaBackend = Math.max(0, toNumber(valorManual));
@@ -155,7 +172,9 @@ export default function ConferenciaForm({
 			);
 
 			showToast(
-				`Acerto de ${fmtCurrency(valorConfirmacao)} gerado para ${revendedor.nome}`,
+				resumo.hasRemanentes
+					? `Conferencia parcial salva — ${resumo.totalVendidaNova} un. vendidas`
+					: `Acerto de ${fmtCurrency(valorConfirmacao)} gerado para ${revendedor.nome}`,
 				"success"
 			);
 			router.push("/conferencias");
@@ -290,14 +309,18 @@ export default function ConferenciaForm({
 				{allFilled && revendedor.modelo_acerto === "VALOR_MINIMO" && (
 					<div className="rounded-xl border border-[#B5D4F4] bg-[#E6F1FB] p-4 flex flex-col gap-2">
 						<p className="text-sm text-[#0C447C]">
-							Voce recebera:{" "}
+							A receber nesta conferencia:{" "}
 							<strong>{fmtCurrency(resumo.totalReceberValorMinimo)}</strong>
 						</p>
 						<p className="text-xs text-[#185FA5]">
-							{resumo.totalVendida} un. vendidas x valores minimos por item.
+							{resumo.totalVendidaNova} un. vendidas x valor por produto.
+							{resumo.hasRemanentes &&
+								` · ${resumo.totalRemanentes} un. ainda com o revendedor.`}
 						</p>
 						<Button onClick={onConfirmar} loading={saving}>
-							Confirmar conferencia
+							{resumo.hasRemanentes
+								? "Registrar conferencia parcial"
+								: "Finalizar conferencia"}
 						</Button>
 					</div>
 				)}
@@ -305,9 +328,15 @@ export default function ConferenciaForm({
 				{allFilled && revendedor.modelo_acerto === "COMISSAO" && (
 					<div className="rounded-xl border border-[#B5D4F4] bg-[#E6F1FB] p-4 flex flex-col gap-3">
 						<p className="text-sm text-[#0C447C]">
-							Valor sugerido:{" "}
+							Valor sugerido nesta conferencia:{" "}
 							<strong>{fmtCurrency(resumo.totalSugeridoComissao)}</strong>
 						</p>
+						{resumo.hasRemanentes && (
+							<p className="text-xs text-[#185FA5]">
+								{resumo.totalRemanentes} un. ainda com o revendedor — o acerto
+								sera atualizado a cada conferencia parcial.
+							</p>
+						)}
 						<Button variant="ghost" onClick={() => setUsarValorManual(v => !v)}>
 							Informar valor manualmente
 						</Button>
@@ -327,7 +356,9 @@ export default function ConferenciaForm({
 							/>
 						)}
 						<Button onClick={onConfirmar} loading={saving}>
-							Confirmar
+							{resumo.hasRemanentes
+								? "Registrar conferencia parcial"
+								: "Confirmar conferencia"}
 						</Button>
 					</div>
 				)}

@@ -97,7 +97,7 @@ export async function confirmarConferencia(
 	const { data: envioItens, error: itensError } = await supabase
 		.from("envio_item")
 		.select(
-			"envio_item_id, qtd_enviada, preco_unitario, valor_minimo_unit, modelo_acerto"
+			"envio_item_id, qtd_enviada, qtd_vendida, qtd_devolvida, valor_total_venda, preco_unitario, valor_minimo_unit, modelo_acerto"
 		)
 		.eq("envio_id", envioId)
 		.is("deleted_at", null);
@@ -114,6 +114,7 @@ export async function confirmarConferencia(
 		| "VALOR_MINIMO";
 	let totalCalculadoComissao = 0;
 	let totalValorMinimo = 0;
+	let totalRemanentes = 0;
 	const updates: Array<{
 		envio_item_id: string;
 		qtd_vendida: number;
@@ -131,23 +132,31 @@ export async function confirmarConferencia(
 		}
 
 		const qtdEnviada = (dbItem.qtd_enviada as number) ?? 0;
-		const qtdContada = clamp(Math.floor(input.qtdContada ?? 0), 0, qtdEnviada);
-		const qtdVendida = qtdEnviada - qtdContada;
-		// qtdContada = ainda com o revendedor (não devolvido fisicamente).
-		// qtd_devolvida permanece 0 — devolução deve ser registrada manualmente depois.
-		const qtdDevolvida = 0;
+		const existingQtdVendida = (dbItem.qtd_vendida as number | null) ?? 0;
+		const existingQtdDevolvida = (dbItem.qtd_devolvida as number | null) ?? 0;
+		// qtdRestante = items still unaccounted for (not yet sold or returned)
+		const qtdRestante = qtdEnviada - existingQtdVendida - existingQtdDevolvida;
+		// qtdContada = items still with reseller out of the remaining
+		const qtdContada = clamp(Math.floor(input.qtdContada ?? 0), 0, qtdRestante);
+		const qtdVendidaNova = qtdRestante - qtdContada;
+		const qtdVendidaTotal = existingQtdVendida + qtdVendidaNova;
+		const qtdDevolvida = existingQtdDevolvida;
+		totalRemanentes += qtdContada;
 
 		if (modeloAcerto === "COMISSAO") {
-			const valorItem = precoPorFaixa(
-				qtdVendida,
+			const existingValorVenda =
+				(dbItem.valor_total_venda as number | null) ?? 0;
+			const valorNovo = precoPorFaixa(
+				qtdVendidaNova,
 				(dbItem.preco_unitario as number | null) ?? null
 			);
-			totalCalculadoComissao += valorItem;
+			const valorItemTotal = existingValorVenda + valorNovo;
+			totalCalculadoComissao += valorItemTotal;
 			updates.push({
 				envio_item_id: dbItem.envio_item_id as string,
-				qtd_vendida: qtdVendida,
+				qtd_vendida: qtdVendidaTotal,
 				qtd_devolvida: qtdDevolvida,
-				valor_total_venda: valorItem,
+				valor_total_venda: valorItemTotal,
 				valor_a_receber: null,
 				preco_cliente: Number.isFinite(input.precoCliente as number)
 					? (input.precoCliente as number)
@@ -156,14 +165,14 @@ export async function confirmarConferencia(
 			});
 		} else {
 			const valorMinimoUnit = (dbItem.valor_minimo_unit as number | null) ?? 0;
-			const valorReceberItem = qtdVendida * valorMinimoUnit;
-			totalValorMinimo += valorReceberItem;
+			const valorReceberTotal = qtdVendidaTotal * valorMinimoUnit;
+			totalValorMinimo += valorReceberTotal;
 			updates.push({
 				envio_item_id: dbItem.envio_item_id as string,
-				qtd_vendida: qtdVendida,
+				qtd_vendida: qtdVendidaTotal,
 				qtd_devolvida: qtdDevolvida,
 				valor_total_venda: null,
-				valor_a_receber: valorReceberItem,
+				valor_a_receber: valorReceberTotal,
 				preco_cliente: Number.isFinite(input.precoCliente as number)
 					? (input.precoCliente as number)
 					: null,
@@ -238,9 +247,10 @@ export async function confirmarConferencia(
 		});
 	}
 
+	const newStatus = totalRemanentes === 0 ? "CONFERIDO" : "ABERTO";
 	const { error: statusError } = await supabase
 		.from("envio")
-		.update({ status: "CONFERIDO" })
+		.update({ status: newStatus })
 		.eq("envio_id", envioId);
 	if (statusError) throw new Error(statusError.message);
 

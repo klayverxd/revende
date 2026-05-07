@@ -23,7 +23,7 @@ async function gerarCodigo(): Promise<string> {
 
 	if (!data || data.length === 0) return "M01";
 	const last = data[0].codigo as string;
-	const num = parseInt(last.replace("M", ""), 10);
+	const num = Number.parseInt(last.replace("M", ""), 10);
 	return `M${String(num + 1).padStart(2, "0")}`;
 }
 
@@ -84,6 +84,56 @@ export async function atualizarProduto(id: string, data: ProdutoData) {
 			preco: data.preco_unitario,
 			ativo: true,
 		});
+	}
+
+	revalidatePath("/produtos");
+	revalidatePath(`/produtos/${id}`);
+}
+
+export async function atualizarCustoEPreco(
+	id: string,
+	custo: number | null,
+	preco: number | null
+) {
+	const supabase = await createClient();
+
+	const { error: errModelo } = await supabase
+		.from("modelo")
+		.update({ custo_producao: custo })
+		.eq("modelo_id", id);
+
+	if (errModelo) throw new Error(errModelo.message);
+
+	// Atualiza ou cria a faixa de preço unitária
+	const { data: existente } = await supabase
+		.from("modelo_preco")
+		.select("preco_id")
+		.eq("modelo_id", id)
+		.eq("quantidade_minima", 1)
+		.is("deleted_at", null)
+		.limit(1)
+		.single();
+
+	if (preco != null) {
+		if (existente) {
+			await supabase
+				.from("modelo_preco")
+				.update({ preco, ativo: true })
+				.eq("preco_id", existente.preco_id);
+		} else {
+			await supabase.from("modelo_preco").insert({
+				modelo_id: id,
+				quantidade_minima: 1,
+				rotulo: "Unitário",
+				preco,
+				ativo: true,
+			});
+		}
+	} else if (existente) {
+		await supabase
+			.from("modelo_preco")
+			.update({ ativo: false })
+			.eq("preco_id", existente.preco_id);
 	}
 
 	revalidatePath("/produtos");

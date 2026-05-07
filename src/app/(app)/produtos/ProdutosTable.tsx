@@ -11,7 +11,81 @@ import {
 	useToast,
 } from "@/components/ui";
 import ProdutoModal, { type ProdutoParaEditar } from "./ProdutoModal";
-import { deletarProdutos, ativarProdutos, desativarProdutos } from "./actions";
+import {
+	deletarProdutos,
+	ativarProdutos,
+	desativarProdutos,
+	atualizarCustoEPreco,
+} from "./actions";
+
+function parseMonetary(raw: string): number | null {
+	const n = Number.parseFloat(
+		raw.replaceAll(",", ".").replaceAll(/[^0-9.]/g, "")
+	);
+	return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+interface InlinePriceProps {
+	readonly value: number | null;
+	readonly onSave: (v: number | null) => Promise<void>;
+}
+
+function InlinePrice({ value, onSave }: InlinePriceProps) {
+	const [editing, setEditing] = useState(false);
+	const [draft, setDraft] = useState("");
+	const [saving, setSaving] = useState(false);
+
+	function startEdit() {
+		setDraft(value == null ? "" : value.toFixed(2).replaceAll(".", ","));
+		setEditing(true);
+	}
+
+	async function commit() {
+		const parsed = draft.trim() === "" ? null : parseMonetary(draft);
+		setSaving(true);
+		try {
+			await onSave(parsed);
+		} finally {
+			setSaving(false);
+			setEditing(false);
+		}
+	}
+
+	function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+		if (e.key === "Enter") commit();
+		if (e.key === "Escape") setEditing(false);
+	}
+
+	if (editing) {
+		return (
+			<input
+				autoFocus
+				type="text"
+				value={draft}
+				onChange={e => setDraft(e.target.value)}
+				onBlur={commit}
+				onKeyDown={onKeyDown}
+				disabled={saving}
+				className="w-24 text-right rounded border border-[#185FA5] px-1.5 py-0.5 text-sm focus:outline-none"
+			/>
+		);
+	}
+
+	return (
+		<button
+			type="button"
+			onClick={startEdit}
+			className="text-right w-full tabular-nums text-gray-700 hover:bg-[#E6F1FB] rounded px-1.5 py-0.5 cursor-text"
+			title="Clique para editar"
+		>
+			{value == null ? (
+				<span className="text-gray-400 text-xs">—</span>
+			) : (
+				value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+			)}
+		</button>
+	);
+}
 
 export interface ProdutoRow {
 	modelo_id: string;
@@ -60,6 +134,20 @@ export default function ProdutosTable({ produtos }: ProdutosTableProps) {
 	const [editando, setEditando] = useState<ProdutoParaEditar | null>(null);
 	const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 	const [loading, setLoading] = useState(false);
+
+	function makeSaveFn(p: ProdutoRow, campo: "custo" | "preco") {
+		return async (valor: number | null) => {
+			try {
+				await atualizarCustoEPreco(
+					p.modelo_id,
+					campo === "custo" ? valor : p.custo_producao,
+					campo === "preco" ? valor : p.preco_1un
+				);
+			} catch {
+				showToast("Erro ao salvar", "error");
+			}
+		};
+	}
 
 	const filtered = useMemo(
 		() =>
@@ -251,11 +339,17 @@ export default function ProdutosTable({ produtos }: ProdutosTableProps) {
 											{p.nome}
 										</Link>
 									</td>
-									<td className="px-3 py-2.5 text-right text-gray-700">
-										{fmt(p.custo_producao)}
+									<td className="px-3 py-1.5 text-right">
+										<InlinePrice
+											value={p.custo_producao}
+											onSave={makeSaveFn(p, "custo")}
+										/>
 									</td>
-									<td className="px-3 py-2.5 text-right text-gray-700">
-										{fmt(p.preco_1un)}
+									<td className="px-3 py-1.5 text-right">
+										<InlinePrice
+											value={p.preco_1un}
+											onSave={makeSaveFn(p, "preco")}
+										/>
 									</td>
 									<td className="px-3 py-2.5 text-right text-gray-700">
 										{p.estoque_disponivel}

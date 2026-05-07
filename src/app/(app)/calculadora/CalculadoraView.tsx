@@ -47,9 +47,25 @@ function fmtCurrency(v: number) {
 }
 
 function hintMateria(unidade: string | undefined) {
-	if (unidade === "kg") return "ex: 0.120 para 120 g";
-	if (unidade === "litro") return "ex: 0.050 para 50 ml";
+	if (unidade === "kg") return "em gramas — ex: 120";
+	if (unidade === "litro") return "em ml — ex: 50";
 	return undefined;
+}
+
+function labelMateria(unidade: string | undefined) {
+	if (unidade === "kg") return "Quantidade (g)";
+	if (unidade === "litro") return "Quantidade (ml)";
+	return "Quantidade";
+}
+
+/** Converte o valor digitado pelo usuário para a unidade interna (kg / litro) */
+function converterParaUnidadeInterna(
+	valor: number,
+	unidade: string | undefined
+): number {
+	if (unidade === "kg") return valor / 1000;
+	if (unidade === "litro") return valor / 1000;
+	return valor;
 }
 
 export default function CalculadoraView({
@@ -101,11 +117,12 @@ export default function CalculadoraView({
 
 	function adicionarMateria() {
 		const m = materias.find(x => x.materia_prima_id === materiaId);
-		const q = Number.parseFloat(materiaQtd.replace(",", "."));
-		if (!m || !Number.isFinite(q) || q <= 0) {
+		const qDigitada = Number.parseFloat(materiaQtd.replace(",", "."));
+		if (!m || !Number.isFinite(qDigitada) || qDigitada <= 0) {
 			showToast("Selecione matéria-prima e quantidade válida", "error");
 			return;
 		}
+		const q = converterParaUnidadeInterna(qDigitada, m.unidade_medida);
 		setMateriasUso(prev => {
 			const idx = prev.findIndex(
 				p => p.materia_prima_id === m.materia_prima_id
@@ -268,13 +285,9 @@ export default function CalculadoraView({
 						/>
 					</div>
 					<Input
-						label={
-							selectedMat
-								? `Quantidade (${selectedMat.unidade_medida})`
-								: "Quantidade"
-						}
+						label={labelMateria(selectedMat?.unidade_medida)}
 						type="number"
-						step="0.001"
+						step="1"
 						hint={hintMateria(selectedMat?.unidade_medida)}
 						value={materiaQtd}
 						onChange={e => setMateriaQtd(e.target.value)}
@@ -304,30 +317,39 @@ export default function CalculadoraView({
 									</td>
 								</tr>
 							)}
-							{materiasUso.map(m => (
-								<tr
-									key={m.materia_prima_id}
-									className="border-b border-[#B5D4F4] last:border-0"
-								>
-									<td className="px-3 py-2 text-gray-900">{m.nome}</td>
-									<td className="px-3 py-2 text-right text-gray-700">
-										{m.quantidade}
-									</td>
-									<td className="px-3 py-2 text-gray-700">{m.unidade}</td>
-									<td className="px-3 py-2 text-right text-gray-700">
-										{fmtCurrency(m.quantidade * m.preco_unit)}
-									</td>
-									<td className="px-3 py-2 text-right">
-										<Button
-											size="sm"
-											variant="ghost"
-											onClick={() => removerMateria(m.materia_prima_id)}
-										>
-											Remover
-										</Button>
-									</td>
-								</tr>
-							))}
+							{materiasUso.map(m => {
+								function fmtQtd() {
+									if (m.unidade === "kg")
+										return `${(m.quantidade * 1000).toLocaleString("pt-BR")} g`;
+									if (m.unidade === "litro")
+										return `${(m.quantidade * 1000).toLocaleString("pt-BR")} ml`;
+									return String(m.quantidade);
+								}
+								return (
+									<tr
+										key={m.materia_prima_id}
+										className="border-b border-[#B5D4F4] last:border-0"
+									>
+										<td className="px-3 py-2 text-gray-900">{m.nome}</td>
+										<td className="px-3 py-2 text-right text-gray-700">
+											{fmtQtd()}
+										</td>
+										<td className="px-3 py-2 text-gray-700">{m.unidade}</td>
+										<td className="px-3 py-2 text-right text-gray-700">
+											{fmtCurrency(m.quantidade * m.preco_unit)}
+										</td>
+										<td className="px-3 py-2 text-right">
+											<Button
+												size="sm"
+												variant="ghost"
+												onClick={() => removerMateria(m.materia_prima_id)}
+											>
+												Remover
+											</Button>
+										</td>
+									</tr>
+								);
+							})}
 						</tbody>
 					</table>
 				</div>

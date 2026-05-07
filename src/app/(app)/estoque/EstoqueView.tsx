@@ -92,6 +92,7 @@ export default function EstoqueView({
 	const [baixaItem, setBaixaItem] = useState<MovimentoConsignacao | null>(null);
 	const [qtdBaixa, setQtdBaixa] = useState("1");
 	const [salvandoBaixa, setSalvandoBaixa] = useState(false);
+	const [filtro, setFiltro] = useState("");
 
 	const revendedorOptions = useMemo(
 		() =>
@@ -115,6 +116,20 @@ export default function EstoqueView({
 		() => estoque.find(e => e.modelo_id === drawerModeloId) ?? null,
 		[drawerModeloId, estoque]
 	);
+
+	const filteredEstoque = useMemo(() => {
+		const normalize = (s: string) =>
+			s
+				.normalize("NFD")
+				.replace(/[\u0300-\u036f]/g, "")
+				.toLowerCase();
+		const q = normalize(filtro.trim());
+		if (!q) return estoque;
+		return estoque.filter(
+			r =>
+				normalize(r.nome).includes(q) || normalize(r.codigo ?? "").includes(q)
+		);
+	}, [estoque, filtro]);
 
 	const timeline = useMemo(() => {
 		if (!drawerModeloId) return [];
@@ -239,84 +254,97 @@ export default function EstoqueView({
 			</div>
 
 			{aba === "global" ? (
-				<div className="bg-white rounded-xl border border-[#B5D4F4] overflow-x-auto">
-					<table className="w-full text-sm">
-						<thead>
-							<tr className="border-b border-[#B5D4F4] bg-[#F4F8FD]">
-								<th className="px-3 py-2.5 text-left font-medium text-gray-600">
-									Codigo
-								</th>
-								<th className="px-3 py-2.5 text-left font-medium text-gray-600">
-									Produto
-								</th>
-								<th className="px-3 py-2.5 text-right font-medium text-gray-600">
-									Estoque inicial
-								</th>
-								<th className="px-3 py-2.5 text-right font-medium text-gray-600">
-									Entradas
-								</th>
-								<th className="px-3 py-2.5 text-right font-medium text-gray-600">
-									Saidas
-								</th>
-								<th className="px-3 py-2.5 text-right font-medium text-gray-600">
-									Minimo
-								</th>
-								<th className="px-3 py-2.5 text-right font-medium text-gray-600">
-									Disponivel
-								</th>
-								<th className="px-3 py-2.5 text-center font-medium text-gray-600">
-									Status
-								</th>
-							</tr>
-						</thead>
-						<tbody>
-							{estoque.length === 0 && (
-								<tr>
-									<td
-										colSpan={8}
-										className="px-3 py-10 text-center text-gray-400"
+				<>
+					<div className="bg-white rounded-xl border border-[#B5D4F4] px-3 py-2">
+						<input
+							type="search"
+							value={filtro}
+							onChange={e => setFiltro(e.target.value)}
+							placeholder="Filtrar por nome ou codigo..."
+							className="w-full text-sm rounded-md border border-[#B5D4F4] px-3 py-1.5 focus:outline-none focus:ring-1 focus:border-[#185FA5] focus:ring-[#185FA5]"
+						/>
+					</div>
+					<div className="bg-white rounded-xl border border-[#B5D4F4] overflow-x-auto">
+						<table className="w-full text-sm">
+							<thead>
+								<tr className="border-b border-[#B5D4F4] bg-[#F4F8FD]">
+									<th className="px-3 py-2.5 text-left font-medium text-gray-600">
+										Codigo
+									</th>
+									<th className="px-3 py-2.5 text-left font-medium text-gray-600">
+										Produto
+									</th>
+									<th className="px-3 py-2.5 text-right font-medium text-gray-600">
+										Estoque inicial
+									</th>
+									<th className="px-3 py-2.5 text-right font-medium text-gray-600">
+										Entradas
+									</th>
+									<th className="px-3 py-2.5 text-right font-medium text-gray-600">
+										Saidas
+									</th>
+									<th className="px-3 py-2.5 text-right font-medium text-gray-600">
+										Minimo
+									</th>
+									<th className="px-3 py-2.5 text-right font-medium text-gray-600">
+										Disponivel
+									</th>
+									<th className="px-3 py-2.5 text-center font-medium text-gray-600">
+										Status
+									</th>
+								</tr>
+							</thead>
+							<tbody>
+								{filteredEstoque.length === 0 && (
+									<tr>
+										<td
+											colSpan={8}
+											className="px-3 py-10 text-center text-gray-400"
+										>
+											{filtro
+												? "Nenhum produto encontrado para este filtro."
+												: "Nenhum produto encontrado."}
+										</td>
+									</tr>
+								)}
+								{filteredEstoque.map(row => (
+									<tr
+										key={row.modelo_id}
+										className="border-b border-[#B5D4F4] last:border-0 hover:bg-[#F4F8FD] cursor-pointer"
+										onClick={() => setDrawerModeloId(row.modelo_id)}
 									>
-										Nenhum produto encontrado.
-									</td>
-								</tr>
-							)}
-							{estoque.map(row => (
-								<tr
-									key={row.modelo_id}
-									className="border-b border-[#B5D4F4] last:border-0 hover:bg-[#F4F8FD] cursor-pointer"
-									onClick={() => setDrawerModeloId(row.modelo_id)}
-								>
-									<td className="px-3 py-2.5 text-gray-500 font-mono text-xs">
-										{row.codigo}
-									</td>
-									<td className="px-3 py-2.5 font-medium text-gray-900">
-										{row.nome}
-									</td>
-									<td className="px-3 py-2.5 text-right text-gray-700">
-										{row.estoque_inicial}
-									</td>
-									<td className="px-3 py-2.5 text-right text-gray-700">
-										{row.entradas}
-									</td>
-									<td className="px-3 py-2.5 text-right text-gray-700">
-										{row.saidas}
-									</td>
-									<td className="px-3 py-2.5 text-right text-gray-700">
-										{row.estoque_minimo}
-									</td>
-									<td className="px-3 py-2.5 text-right font-semibold text-gray-900">
-										{row.disponivel}
-									</td>
-									<td className="px-3 py-2.5 text-center">
-										<Badge variant={statusVariant(row.status)}>
-											{statusLabel(row.status)}
-										</Badge>
-									</td>
-								</tr>
-							))}
-						</tbody>
-					</table>
-				</div>
+										<td className="px-3 py-2.5 text-gray-500 font-mono text-xs">
+											{row.codigo}
+										</td>
+										<td className="px-3 py-2.5 font-medium text-gray-900">
+											{row.nome}
+										</td>
+										<td className="px-3 py-2.5 text-right text-gray-700">
+											{row.estoque_inicial}
+										</td>
+										<td className="px-3 py-2.5 text-right text-gray-700">
+											{row.entradas}
+										</td>
+										<td className="px-3 py-2.5 text-right text-gray-700">
+											{row.saidas}
+										</td>
+										<td className="px-3 py-2.5 text-right text-gray-700">
+											{row.estoque_minimo}
+										</td>
+										<td className="px-3 py-2.5 text-right font-semibold text-gray-900">
+											{row.disponivel}
+										</td>
+										<td className="px-3 py-2.5 text-center">
+											<Badge variant={statusVariant(row.status)}>
+												{statusLabel(row.status)}
+											</Badge>
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				</>
 			) : (
 				<div className="flex flex-col gap-3">
 					<div className="max-w-sm">

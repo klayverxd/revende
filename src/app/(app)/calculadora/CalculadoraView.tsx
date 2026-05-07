@@ -78,7 +78,8 @@ export default function CalculadoraView({
 	const [equipamentoId, setEquipamentoId] = useState(
 		equipamentos[0]?.equipamento_id ?? ""
 	);
-	const [tempoMin, setTempoMin] = useState("60");
+	const [tempoHInput, setTempoHInput] = useState("0");
+	const [tempoMInput, setTempoMInput] = useState("0");
 	const [pctFalhas, setPctFalhas] = useState("5");
 	const [quantidade, setQuantidade] = useState("1");
 	const [materiaId, setMateriaId] = useState(
@@ -92,7 +93,9 @@ export default function CalculadoraView({
 
 	const equip = equipamentos.find(e => e.equipamento_id === equipamentoId);
 	const selectedMat = materias.find(m => m.materia_prima_id === materiaId);
-	const tempoHoras = Number.parseFloat(tempoMin.replace(",", ".")) / 60 || 0;
+	const tempoHoras =
+		(Number.parseFloat(tempoHInput.replace(",", ".")) || 0) +
+		(Number.parseFloat(tempoMInput.replace(",", ".")) || 0) / 60;
 	const qtd = Number.parseFloat(quantidade.replace(",", ".")) || 0;
 	const falhas = (Number.parseFloat(pctFalhas.replace(",", ".")) || 0) / 100;
 
@@ -155,7 +158,7 @@ export default function CalculadoraView({
 		try {
 			await salvarCalculo({
 				equipamento_id: equipamentoId,
-				tempo_impressao_min: Number(tempoMin),
+				tempo_impressao_min: Math.round(tempoHoras * 60),
 				materias_primas: materiasUso.map(m => ({
 					materia_prima_id: m.materia_prima_id,
 					quantidade: m.quantidade,
@@ -246,14 +249,32 @@ export default function CalculadoraView({
 							}))}
 						/>
 					</div>
-					<Input
-						label="Tempo de impressão"
-						type="number"
-						min={1}
-						hint="em minutos — ex: 90"
-						value={tempoMin}
-						onChange={e => setTempoMin(e.target.value)}
-					/>
+					<div className="flex flex-col gap-1">
+						<span className="text-[13px] text-gray-700 font-medium">
+							Tempo de impressão
+						</span>
+						<div className="flex items-center gap-1">
+							<input
+								type="text"
+								inputMode="numeric"
+								min={0}
+								value={tempoHInput}
+								onChange={e => setTempoHInput(e.target.value)}
+								className="w-12 rounded-lg border border-[#B5D4F4] px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#378ADD]"
+							/>
+							<span className="text-sm text-gray-600 select-none">h</span>
+							<input
+								type="text"
+								inputMode="numeric"
+								min={0}
+								max={59}
+								value={tempoMInput}
+								onChange={e => setTempoMInput(e.target.value)}
+								className="w-12 rounded-lg border border-[#B5D4F4] px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#378ADD]"
+							/>
+							<span className="text-sm text-gray-600 select-none">min</span>
+						</div>
+					</div>
 					<Input
 						label="Unidades no lote"
 						type="number"

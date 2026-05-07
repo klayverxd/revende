@@ -52,6 +52,84 @@ export async function registrarProducao(data: RegistrarProducaoData) {
 	revalidatePath("/produtos");
 }
 
+export interface CriarProdutoEProducaoData {
+	produto: {
+		nome: string;
+		codigo?: string;
+		custo_producao?: number | null;
+		estoque_minimo?: number;
+	};
+	producao: {
+		quantidade: number;
+		data_producao?: string;
+		observacao?: string;
+	};
+}
+
+export async function criarProdutoERegistrarProducao(
+	data: CriarProdutoEProducaoData
+) {
+	if (!data.produto.nome?.trim())
+		throw new Error("Nome do produto obrigatorio");
+	if (
+		!Number.isFinite(data.producao.quantidade) ||
+		data.producao.quantidade <= 0
+	) {
+		throw new Error("Quantidade invalida");
+	}
+
+	const supabase = await createClient();
+
+	// Gerar código automático se não informado
+	let codigo = data.produto.codigo?.trim() || null;
+	if (!codigo) {
+		const { data: codigos } = await supabase
+			.from("modelo")
+			.select("codigo")
+			.like("codigo", "M%")
+			.order("codigo", { ascending: false })
+			.limit(1);
+		if (!codigos || codigos.length === 0) {
+			codigo = "M01";
+		} else {
+			const num = Number.parseInt(
+				(codigos[0].codigo as string).replace("M", ""),
+				10
+			);
+			codigo = `M${String(num + 1).padStart(2, "0")}`;
+		}
+	}
+
+	const { data: novoModelo, error: errModelo } = await supabase
+		.from("modelo")
+		.insert({
+			nome: data.produto.nome.trim(),
+			codigo,
+			custo_producao: data.produto.custo_producao ?? null,
+			estoque_minimo: data.produto.estoque_minimo ?? 0,
+			ativo: true,
+		})
+		.select("modelo_id")
+		.single();
+
+	if (errModelo || !novoModelo) {
+		throw new Error(errModelo?.message ?? "Erro ao criar produto");
+	}
+
+	const { error: errProd } = await supabase.from("producao").insert({
+		modelo_id: novoModelo.modelo_id,
+		quantidade: data.producao.quantidade,
+		data_producao:
+			data.producao.data_producao ?? new Date().toISOString().slice(0, 10),
+		observacao: data.producao.observacao?.trim() || null,
+	});
+
+	if (errProd) throw new Error(errProd.message);
+
+	revalidatePath("/estoque");
+	revalidatePath("/produtos");
+}
+
 export async function buscarEstoque(): Promise<EstoqueCalculadoRow[]> {
 	const supabase = await createClient();
 

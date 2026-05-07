@@ -6,14 +6,30 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { Button, Input, Modal, Select, useToast } from "@/components/ui";
-import { registrarProducao } from "./actions";
+import { registrarProducao, criarProdutoERegistrarProducao } from "./actions";
 
-const schema = z.object({
-	modelo_id: z.string().min(1, "Selecione um produto"),
-	quantidade: z.string().min(1, "Quantidade obrigatoria"),
-	data_producao: z.string().min(1, "Data obrigatoria"),
-	observacao: z.string().optional(),
-});
+const NOVO_MODELO = "__novo__";
+
+const schema = z
+	.object({
+		modelo_id: z.string().min(1, "Selecione um produto"),
+		quantidade: z.string().min(1, "Quantidade obrigatoria"),
+		data_producao: z.string().min(1, "Data obrigatoria"),
+		observacao: z.string().optional(),
+		novo_nome: z.string().optional(),
+		novo_codigo: z.string().optional(),
+		novo_custo_producao: z.string().optional(),
+		novo_estoque_minimo: z.string().optional(),
+	})
+	.superRefine((val, ctx) => {
+		if (val.modelo_id === NOVO_MODELO && !val.novo_nome?.trim()) {
+			ctx.addIssue({
+				code: "custom",
+				message: "Nome do produto e obrigatorio",
+				path: ["novo_nome"],
+			});
+		}
+	});
 
 type FormValues = z.infer<typeof schema>;
 
@@ -40,11 +56,13 @@ export default function ProducaoModal({ open, onClose, modelos }: Props) {
 	const [loading, setLoading] = useState(false);
 
 	const modeloOptions = useMemo(
-		() =>
-			modelos.map(m => ({
+		() => [
+			{ value: NOVO_MODELO, label: "+ Criar novo produto" },
+			...modelos.map(m => ({
 				value: m.modelo_id,
 				label: m.codigo ? `${m.codigo} - ${m.nome}` : m.nome,
 			})),
+		],
 		[modelos]
 	);
 
@@ -52,6 +70,7 @@ export default function ProducaoModal({ open, onClose, modelos }: Props) {
 		register,
 		handleSubmit,
 		reset,
+		watch,
 		formState: { errors },
 	} = useForm<FormValues>({
 		resolver: zodResolver(schema),
@@ -60,8 +79,15 @@ export default function ProducaoModal({ open, onClose, modelos }: Props) {
 			quantidade: "",
 			data_producao: hojeISO(),
 			observacao: "",
+			novo_nome: "",
+			novo_codigo: "",
+			novo_custo_producao: "",
+			novo_estoque_minimo: "0",
 		},
 	});
+
+	const modeloId = watch("modelo_id");
+	const isNovo = modeloId === NOVO_MODELO;
 
 	useEffect(() => {
 		if (!open) return;
@@ -70,6 +96,10 @@ export default function ProducaoModal({ open, onClose, modelos }: Props) {
 			quantidade: "",
 			data_producao: hojeISO(),
 			observacao: "",
+			novo_nome: "",
+			novo_codigo: "",
+			novo_custo_producao: "",
+			novo_estoque_minimo: "0",
 		});
 	}, [open, reset]);
 
@@ -83,13 +113,34 @@ export default function ProducaoModal({ open, onClose, modelos }: Props) {
 
 		setLoading(true);
 		try {
-			await registrarProducao({
-				modelo_id: values.modelo_id,
-				quantidade,
-				data_producao: values.data_producao,
-				observacao: values.observacao || undefined,
-			});
-			showToast("Producao registrada", "success");
+			if (values.modelo_id === NOVO_MODELO) {
+				await criarProdutoERegistrarProducao({
+					produto: {
+						nome: values.novo_nome!.trim(),
+						codigo: values.novo_codigo || undefined,
+						custo_producao: values.novo_custo_producao
+							? Number.parseFloat(values.novo_custo_producao.replace(",", "."))
+							: null,
+						estoque_minimo: values.novo_estoque_minimo
+							? Number.parseInt(values.novo_estoque_minimo, 10)
+							: 0,
+					},
+					producao: {
+						quantidade,
+						data_producao: values.data_producao,
+						observacao: values.observacao || undefined,
+					},
+				});
+				showToast("Produto criado e producao registrada", "success");
+			} else {
+				await registrarProducao({
+					modelo_id: values.modelo_id,
+					quantidade,
+					data_producao: values.data_producao,
+					observacao: values.observacao || undefined,
+				});
+				showToast("Producao registrada", "success");
+			}
 			onClose();
 			router.refresh();
 		} catch (err) {
@@ -131,6 +182,43 @@ export default function ProducaoModal({ open, onClose, modelos }: Props) {
 					error={errors.modelo_id?.message}
 					{...register("modelo_id")}
 				/>
+
+				{isNovo && (
+					<div className="rounded-md border border-[#B5D4F4] bg-[#E6F1FB] px-3 py-3 flex flex-col gap-3">
+						<p className="text-xs font-semibold text-[#185FA5] uppercase tracking-wide">
+							Novo produto
+						</p>
+						<Input
+							label="Nome"
+							required
+							placeholder="Ex: Chaveiro coracao"
+							error={errors.novo_nome?.message}
+							{...register("novo_nome")}
+						/>
+						<div className="grid grid-cols-2 gap-2">
+							<Input
+								label="Codigo (opcional)"
+								placeholder="Ex: M10"
+								{...register("novo_codigo")}
+							/>
+							<Input
+								label="Estoque minimo"
+								type="number"
+								min={0}
+								{...register("novo_estoque_minimo")}
+							/>
+						</div>
+						<Input
+							label="Custo de producao (R$)"
+							type="number"
+							step="0.01"
+							min={0}
+							placeholder="0,00"
+							{...register("novo_custo_producao")}
+						/>
+					</div>
+				)}
+
 				<Input
 					label="Quantidade"
 					type="number"

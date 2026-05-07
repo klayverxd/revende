@@ -33,7 +33,7 @@ async function gerarCodigo(): Promise<string> {
 		.limit(1);
 	if (!data || data.length === 0) return "M01";
 	const last = data[0].codigo as string;
-	const num = parseInt(last.replace("M", ""), 10);
+	const num = Number.parseInt(last.replace("M", ""), 10);
 	return `M${String(num + 1).padStart(2, "0")}`;
 }
 
@@ -66,28 +66,69 @@ export async function salvarPrecoKwh(precoKwh: number) {
 	revalidatePath("/calculadora/config");
 }
 
+export async function salvarPctFalhas(pctFalhas: number) {
+	if (!Number.isFinite(pctFalhas) || pctFalhas < 0 || pctFalhas > 100)
+		throw new Error("Percentual de falhas inválido");
+	const supabase = await createClient();
+	const valor = pctFalhas / 100;
+	const { data: atual } = await supabase
+		.from("config_energia")
+		.select("id")
+		.order("updated_at", { ascending: false })
+		.limit(1)
+		.maybeSingle();
+
+	if (atual?.id) {
+		const { error } = await supabase
+			.from("config_energia")
+			.update({ pct_falhas: valor, atualizado_em: new Date().toISOString() })
+			.eq("id", atual.id);
+		if (error) throw new Error(error.message);
+	} else {
+		const { error } = await supabase.from("config_energia").insert({
+			preco_kwh: 0,
+			pct_falhas: valor,
+			atualizado_em: new Date().toISOString(),
+		});
+		if (error) throw new Error(error.message);
+	}
+
+	revalidatePath("/calculadora");
+	revalidatePath("/calculadora/config");
+}
+
 export async function salvarEquipamento(input: {
 	equipamento_id?: string;
 	nome: string;
-	potencia_watts: number;
-	depreciacao_hora: number;
+	potencia_kw: number;
+	valor_maquina: number;
+	tempo_meses: number;
+	horas_por_dia: number;
+	dias_por_mes: number;
 }) {
 	const supabase = await createClient();
+	const horasTotais =
+		input.horas_por_dia * input.dias_por_mes * input.tempo_meses;
+	const depreciacao_hora =
+		horasTotais > 0 ? input.valor_maquina / horasTotais : 0;
+	const dados = {
+		nome: input.nome,
+		potencia_watts: input.potencia_kw * 1000,
+		depreciacao_hora,
+		valor_maquina: input.valor_maquina,
+		tempo_meses: input.tempo_meses,
+		horas_por_dia: input.horas_por_dia,
+		dias_por_mes: input.dias_por_mes,
+	};
 	if (input.equipamento_id) {
 		const { error } = await supabase
 			.from("config_equipamento")
-			.update({
-				nome: input.nome,
-				potencia_watts: input.potencia_watts,
-				depreciacao_hora: input.depreciacao_hora,
-			})
+			.update(dados)
 			.eq("equipamento_id", input.equipamento_id);
 		if (error) throw new Error(error.message);
 	} else {
 		const { error } = await supabase.from("config_equipamento").insert({
-			nome: input.nome,
-			potencia_watts: input.potencia_watts,
-			depreciacao_hora: input.depreciacao_hora,
+			...dados,
 			ativa: true,
 		});
 		if (error) throw new Error(error.message);
@@ -207,4 +248,39 @@ export async function atualizarCustoProduto(
 		.eq("modelo_id", modeloId);
 	if (error) throw new Error(error.message);
 	revalidatePath("/produtos");
+}
+
+export async function salvarCustoExtra(input: {
+	custo_extra_id?: string;
+	nome: string;
+	valor: number;
+}) {
+	const supabase = await createClient();
+	if (input.custo_extra_id) {
+		const { error } = await supabase
+			.from("config_custo_extra")
+			.update({ nome: input.nome, valor: input.valor })
+			.eq("custo_extra_id", input.custo_extra_id);
+		if (error) throw new Error(error.message);
+	} else {
+		const { error } = await supabase.from("config_custo_extra").insert({
+			nome: input.nome,
+			valor: input.valor,
+			ativo: true,
+		});
+		if (error) throw new Error(error.message);
+	}
+	revalidatePath("/calculadora/config");
+	revalidatePath("/calculadora");
+}
+
+export async function toggleCustoExtra(custoExtraId: string, ativo: boolean) {
+	const supabase = await createClient();
+	const { error } = await supabase
+		.from("config_custo_extra")
+		.update({ ativo })
+		.eq("custo_extra_id", custoExtraId);
+	if (error) throw new Error(error.message);
+	revalidatePath("/calculadora/config");
+	revalidatePath("/calculadora");
 }

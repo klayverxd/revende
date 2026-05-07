@@ -5,6 +5,7 @@ import CalculadoraView, {
 	type EquipamentoAtivo,
 	type MateriaPrimaAtiva,
 	type ModeloOption,
+	type CustoExtraAtivo,
 } from "./CalculadoraView";
 
 export default async function CalculadoraPage() {
@@ -15,10 +16,11 @@ export default async function CalculadoraPage() {
 		{ data: equipamentos },
 		{ data: materias },
 		{ data: modelos },
+		{ data: custosExtras },
 	] = await Promise.all([
 		supabase
 			.from("config_energia")
-			.select("preco_kwh")
+			.select("preco_kwh, pct_falhas")
 			.order("updated_at", { ascending: false })
 			.limit(1)
 			.maybeSingle(),
@@ -37,6 +39,12 @@ export default async function CalculadoraPage() {
 		supabase
 			.from("modelo")
 			.select("modelo_id, nome, codigo")
+			.is("deleted_at", null)
+			.order("nome"),
+		supabase
+			.from("config_custo_extra")
+			.select("custo_extra_id, nome, valor")
+			.eq("ativo", true)
 			.is("deleted_at", null)
 			.order("nome"),
 	]);
@@ -61,9 +69,11 @@ export default async function CalculadoraPage() {
 
 			<CalculadoraView
 				precoKwh={(energia?.preco_kwh as number | null) ?? 0}
+				pctFalhasPadrao={(energia?.pct_falhas as number | null) ?? 0.05}
 				equipamentos={(equipamentos ?? []) as unknown as EquipamentoAtivo[]}
 				materias={(materias ?? []) as unknown as MateriaPrimaAtiva[]}
 				modelos={(modelos ?? []) as unknown as ModeloOption[]}
+				custosExtras={(custosExtras ?? []) as unknown as CustoExtraAtivo[]}
 			/>
 		</div>
 	);

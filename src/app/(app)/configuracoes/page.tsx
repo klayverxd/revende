@@ -36,7 +36,8 @@ export default async function ConfiguracoesPage() {
 		status: r.status as "CONFERIDO" | "ENCERRADO",
 		data_envio: r.data_envio as string,
 		updated_at: r.updated_at as string,
-		revendedor_nome: (r.revendedor as { nome: string } | null)?.nome ?? "—",
+		revendedor_nome:
+			(r.revendedor as unknown as { nome: string } | null)?.nome ?? "—",
 	}));
 
 	const acertos: AcertoRecebidoRecente[] = (acertosRaw ?? []).map(r => ({
@@ -44,7 +45,8 @@ export default async function ConfiguracoesPage() {
 		data_recebimento: r.data_recebimento as string | null,
 		valor_repassado: r.valor_repassado as number | null,
 		updated_at: r.updated_at as string,
-		revendedor_nome: (r.revendedor as { nome: string } | null)?.nome ?? "—",
+		revendedor_nome:
+			(r.revendedor as unknown as { nome: string } | null)?.nome ?? "—",
 	}));
 
 	return <ConfiguracoesView conferencias={conferencias} acertos={acertos} />;

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -13,8 +13,8 @@ const NOVO_MODELO = "__novo__";
 const schema = z
 	.object({
 		modelo_id: z.string().min(1, "Selecione um produto"),
-		quantidade: z.string().min(1, "Quantidade obrigatoria"),
-		data_producao: z.string().min(1, "Data obrigatoria"),
+		quantidade: z.string().min(1, "Quantidade obrigatória"),
+		data_producao: z.string().min(1, "Data obrigatória"),
 		observacao: z.string().optional(),
 		novo_nome: z.string().optional(),
 		novo_codigo: z.string().optional(),
@@ -25,7 +25,7 @@ const schema = z
 		if (val.modelo_id === NOVO_MODELO && !val.novo_nome?.trim()) {
 			ctx.addIssue({
 				code: "custom",
-				message: "Nome do produto e obrigatorio",
+				message: "Nome do produto é obrigatório",
 				path: ["novo_nome"],
 			});
 		}
@@ -107,7 +107,7 @@ export default function ProducaoModal({ open, onClose, modelos }: Props) {
 		const quantidade = Number.parseInt(values.quantidade, 10);
 
 		if (!Number.isFinite(quantidade) || quantidade <= 0) {
-			showToast("Quantidade invalida", "error");
+			showToast("Quantidade inválida", "error");
 			return;
 		}
 
@@ -131,7 +131,7 @@ export default function ProducaoModal({ open, onClose, modelos }: Props) {
 						observacao: values.observacao || undefined,
 					},
 				});
-				showToast("Produto criado e producao registrada", "success");
+				showToast("Produto criado e produção registrada", "success");
 			} else {
 				await registrarProducao({
 					modelo_id: values.modelo_id,
@@ -139,13 +139,13 @@ export default function ProducaoModal({ open, onClose, modelos }: Props) {
 					data_producao: values.data_producao,
 					observacao: values.observacao || undefined,
 				});
-				showToast("Producao registrada", "success");
+				showToast("Produção registrada", "success");
 			}
 			onClose();
 			router.refresh();
 		} catch (err) {
 			showToast(
-				err instanceof Error ? err.message : "Erro ao registrar producao",
+				err instanceof Error ? err.message : "Erro ao registrar produção",
 				"error"
 			);
 		} finally {
@@ -157,7 +157,7 @@ export default function ProducaoModal({ open, onClose, modelos }: Props) {
 		<Modal
 			open={open}
 			onClose={onClose}
-			title="Registrar producao"
+			title="Registrar produção"
 			footer={
 				<>
 					<Button variant="ghost" onClick={onClose}>
@@ -191,25 +191,25 @@ export default function ProducaoModal({ open, onClose, modelos }: Props) {
 						<Input
 							label="Nome"
 							required
-							placeholder="Ex: Chaveiro coracao"
+							placeholder="Ex: Chaveiro coração"
 							error={errors.novo_nome?.message}
 							{...register("novo_nome")}
 						/>
 						<div className="grid grid-cols-2 gap-2">
 							<Input
-								label="Codigo (opcional)"
+								label="Código (opcional)"
 								placeholder="Ex: M10"
 								{...register("novo_codigo")}
 							/>
 							<Input
-								label="Estoque minimo"
+								label="Estoque mínimo"
 								type="number"
 								min={0}
 								{...register("novo_estoque_minimo")}
 							/>
 						</div>
 						<Input
-							label="Custo de producao (R$)"
+							label="Custo de produção (R$)"
 							type="number"
 							step="0.01"
 							min={0}
@@ -228,7 +228,7 @@ export default function ProducaoModal({ open, onClose, modelos }: Props) {
 					{...register("quantidade")}
 				/>
 				<Input
-					label="Data da producao"
+					label="Data da produção"
 					type="date"
 					required
 					error={errors.data_producao?.message}
@@ -239,13 +239,13 @@ export default function ProducaoModal({ open, onClose, modelos }: Props) {
 						className="text-[13px] text-gray-600 font-medium"
 						htmlFor="obs"
 					>
-						Observacao
+						Observação
 					</label>
 					<textarea
 						id="obs"
 						rows={3}
 						className="w-full rounded-md border border-[#B5D4F4] px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:border-[#185FA5] focus:ring-[#185FA5]"
-						placeholder="Detalhes da producao (opcional)"
+						placeholder="Detalhes da produção (opcional)"
 						{...register("observacao")}
 					/>
 				</div>

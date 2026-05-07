@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -58,7 +58,7 @@ function fmtDate(date: string) {
 }
 
 function statusLabel(status: StatusLabel) {
-	if (status === "ATENCAO") return "ATENCAO";
+	if (status === "ATENCAO") return "ATENÇÃO";
 	if (status === "SEM_ESTOQUE") return "SEM ESTOQUE";
 	return status;
 }
@@ -148,7 +148,7 @@ export default function EstoqueView({
 				id: `p-${p.producao_id}`,
 				tipo: "producao",
 				data: p.data_producao,
-				titulo: "Producao",
+				titulo: "Produção",
 				detalhe: `Entrada de ${p.quantidade} un.`,
 			});
 		}
@@ -167,7 +167,7 @@ export default function EstoqueView({
 					id: `v-${c.envio_item_id}`,
 					tipo: "venda",
 					data: c.data_envio,
-					titulo: "Conferencia",
+					titulo: "Conferência",
 					detalhe: `${c.qtd_vendida} un. vendidas`,
 				});
 			}
@@ -176,7 +176,7 @@ export default function EstoqueView({
 					id: `d-${c.envio_item_id}`,
 					tipo: "devolucao",
 					data: c.data_envio,
-					titulo: "Devolucao",
+					titulo: "Devolução",
 					detalhe: `${c.qtd_devolvida} un. devolvidas`,
 				});
 			}
@@ -195,11 +195,11 @@ export default function EstoqueView({
 		const qtd = Math.max(0, Math.floor(Number(qtdBaixa)));
 
 		if (qtd <= 0) {
-			showToast("Informe uma quantidade valida", "error");
+			showToast("Informe uma quantidade válida", "error");
 			return;
 		}
 		if (qtd > max) {
-			showToast("Quantidade maior que o saldo em consignacao", "error");
+			showToast("Quantidade maior que o saldo em consignação", "error");
 			return;
 		}
 
@@ -233,7 +233,7 @@ export default function EstoqueView({
 								: "text-gray-600 hover:bg-[#E6F1FB]",
 						].join(" ")}
 					>
-						Visao global
+						Visão global
 					</button>
 					<button
 						type="button"
@@ -249,7 +249,7 @@ export default function EstoqueView({
 					</button>
 				</div>
 				<Button size="sm" onClick={() => setOpenModal(true)}>
-					+ Registrar producao
+					+ Registrar produção
 				</Button>
 			</div>
 
@@ -260,7 +260,7 @@ export default function EstoqueView({
 							type="search"
 							value={filtro}
 							onChange={e => setFiltro(e.target.value)}
-							placeholder="Filtrar por nome ou codigo..."
+							placeholder="Filtrar por nome ou código..."
 							className="w-full text-sm rounded-md border border-[#B5D4F4] px-3 py-1.5 focus:outline-none focus:ring-1 focus:border-[#185FA5] focus:ring-[#185FA5]"
 						/>
 					</div>
@@ -269,7 +269,7 @@ export default function EstoqueView({
 							<thead>
 								<tr className="border-b border-[#B5D4F4] bg-[#F4F8FD]">
 									<th className="px-3 py-2.5 text-left font-medium text-gray-600">
-										Codigo
+										Código
 									</th>
 									<th className="px-3 py-2.5 text-left font-medium text-gray-600">
 										Produto
@@ -281,13 +281,13 @@ export default function EstoqueView({
 										Entradas
 									</th>
 									<th className="px-3 py-2.5 text-right font-medium text-gray-600">
-										Saidas
+										Saídas
 									</th>
 									<th className="px-3 py-2.5 text-right font-medium text-gray-600">
-										Minimo
+										Mínimo
 									</th>
 									<th className="px-3 py-2.5 text-right font-medium text-gray-600">
-										Disponivel
+										Disponível
 									</th>
 									<th className="px-3 py-2.5 text-center font-medium text-gray-600">
 										Status
@@ -373,13 +373,13 @@ export default function EstoqueView({
 										Qtd devolvida
 									</th>
 									<th className="px-3 py-2.5 text-right font-medium text-gray-600">
-										Em consignacao
+										Em consignação
 									</th>
 									<th className="px-3 py-2.5 text-left font-medium text-gray-600">
 										Data do envio
 									</th>
 									<th className="px-3 py-2.5 text-right font-medium text-gray-600">
-										Acoes
+										Ações
 									</th>
 								</tr>
 							</thead>
@@ -390,7 +390,7 @@ export default function EstoqueView({
 											colSpan={7}
 											className="px-3 py-10 text-center text-gray-400"
 										>
-											Sem movimentacoes para o revendedor selecionado.
+											Sem movimentações para o revendedor selecionado.
 										</td>
 									</tr>
 								)}
@@ -461,7 +461,7 @@ export default function EstoqueView({
 			<Modal
 				open={Boolean(baixaItem)}
 				onClose={() => setBaixaItem(null)}
-				title="Baixa individual de consignacao"
+				title="Baixa individual de consignação"
 				footer={
 					<>
 						<Button
@@ -486,7 +486,7 @@ export default function EstoqueView({
 							Revendedor: <strong>{baixaItem.revendedor_nome}</strong>
 						</p>
 						<p className="text-xs text-gray-600">
-							Saldo em consignacao:{" "}
+							Saldo em consignação:{" "}
 							{baixaItem.qtd_enviada -
 								(baixaItem.qtd_vendida ?? 0) -
 								(baixaItem.qtd_devolvida ?? 0)}{" "}
@@ -520,7 +520,7 @@ export default function EstoqueView({
 						<div className="px-4 py-3 border-b border-[#B5D4F4] flex items-center justify-between">
 							<div>
 								<h2 className="text-base font-semibold text-gray-900">
-									Historico de movimentacoes
+									Histórico de movimentações
 								</h2>
 								<p className="text-xs text-gray-500 mt-0.5">
 									{modeloSelecionado?.nome ?? "Produto"} · saldo atual{" "}
@@ -548,7 +548,7 @@ export default function EstoqueView({
 						<div className="flex-1 overflow-y-auto p-4">
 							{timeline.length === 0 ? (
 								<p className="text-sm text-gray-500">
-									Nenhuma movimentacao para este produto.
+									Nenhuma movimentação para este produto.
 								</p>
 							) : (
 								<ul className="flex flex-col gap-2">

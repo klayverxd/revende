@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Button, Input, Select, useToast } from "@/components/ui";
-import { salvarComoNovoProduto, atualizarCustoProduto } from "./actions";
+import {
+	salvarComoNovoProduto,
+	atualizarCustoProduto,
+	type CalculoSnapshot,
+} from "./actions";
 
 export interface EquipamentoAtivo {
 	equipamento_id: string;
@@ -40,6 +44,18 @@ interface Props {
 }
 
 const LS_KEY = "calculadora_state";
+const LOAD_KEY = "calculadora_load";
+
+interface LoadState {
+	equipamento_id: string;
+	tempo_impressao_min: number;
+	num_placas: number;
+	quantidade_total: number;
+	materia_prima_id: string;
+	materia_qtd_internal: number;
+	custo_extra_id: string | null;
+	custo_extra_unitario: number;
+}
 
 interface PersistedState {
 	equipamentoId: string;
@@ -121,6 +137,45 @@ export default function CalculadoraView({
 	const [modeloExistente, setModeloExistente] = useState("");
 	const [lucroCustom, setLucroCustom] = useState("");
 
+	// Carrega calculo gravado de outro local (ex: página de produto)
+	useEffect(() => {
+		if (globalThis.window === undefined) return;
+		const raw = localStorage.getItem(LOAD_KEY);
+		if (!raw) return;
+		localStorage.removeItem(LOAD_KEY);
+		try {
+			const load = JSON.parse(raw) as LoadState;
+			if (load.equipamento_id) setEquipamentoId(load.equipamento_id);
+			const h = Math.floor(load.tempo_impressao_min / 60);
+			const m = Math.round(load.tempo_impressao_min % 60);
+			setTempoHInput(String(h));
+			setTempoMInput(String(m));
+			const placas = Math.max(1, load.num_placas);
+			setnumPlacas(String(placas));
+			const qtdPorPlaca =
+				load.quantidade_total > 0 ? load.quantidade_total / placas : 1;
+			setQuantidade(String(qtdPorPlaca));
+			if (load.materia_prima_id) {
+				setMateriaId(load.materia_prima_id);
+				const mat = materias.find(
+					m => m.materia_prima_id === load.materia_prima_id
+				);
+				const displayQtd =
+					mat?.unidade_medida === "kg" || mat?.unidade_medida === "litro"
+						? load.materia_qtd_internal * 1000
+						: load.materia_qtd_internal;
+				setMateriaQtd(String(Number(displayQtd.toFixed(4))));
+			}
+			if (load.custo_extra_id) {
+				setCustoExtraId(load.custo_extra_id);
+				setCustoExtraVal(String(Number(load.custo_extra_unitario.toFixed(4))));
+			}
+		} catch {
+			// ignora parse error
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
+
 	// Persiste estado no localStorage sempre que mudar
 	useEffect(() => {
 		const state: PersistedState = {
@@ -187,11 +242,30 @@ export default function CalculadoraView({
 			showToast("Informe o nome do novo produto", "error");
 			return;
 		}
+		const calculo: CalculoSnapshot = {
+			equipamento_id: equipamentoId,
+			tempo_impressao_min: tempoHoras * 60,
+			materias_primas: materiaId
+				? [{ materia_prima_id: materiaId, quantidade: qtdMateriaInterna }]
+				: [],
+			pct_falhas: falhas,
+			custo_energia: Number(custoEnergia.toFixed(4)),
+			custo_materias_primas: Number(custoMateriasPrimas.toFixed(4)),
+			custo_depreciacao: Number(custoDepreciacao.toFixed(4)),
+			custo_falhas: Number(custoFalhas.toFixed(4)),
+			custo_extra: Number((custoExtraPlaca * placas).toFixed(4)),
+			custo_total: Number(custoTotalGeral.toFixed(4)),
+			quantidade: qtdTotal,
+			num_placas: placas,
+			custo_unitario: Number(custoUnitario.toFixed(4)),
+			custo_extra_id: custoExtraId || null,
+		};
 		setSalvando(true);
 		try {
 			await salvarComoNovoProduto({
 				nome: novoNome.trim(),
 				custo_producao: Number(custoUnitario.toFixed(4)),
+				calculo,
 			});
 			setNovoNome("");
 			showToast("Produto criado com custo atualizado", "success");
@@ -210,11 +284,30 @@ export default function CalculadoraView({
 			showToast("Selecione um produto", "error");
 			return;
 		}
+		const calculo: CalculoSnapshot = {
+			equipamento_id: equipamentoId,
+			tempo_impressao_min: tempoHoras * 60,
+			materias_primas: materiaId
+				? [{ materia_prima_id: materiaId, quantidade: qtdMateriaInterna }]
+				: [],
+			pct_falhas: falhas,
+			custo_energia: Number(custoEnergia.toFixed(4)),
+			custo_materias_primas: Number(custoMateriasPrimas.toFixed(4)),
+			custo_depreciacao: Number(custoDepreciacao.toFixed(4)),
+			custo_falhas: Number(custoFalhas.toFixed(4)),
+			custo_extra: Number((custoExtraPlaca * placas).toFixed(4)),
+			custo_total: Number(custoTotalGeral.toFixed(4)),
+			quantidade: qtdTotal,
+			num_placas: placas,
+			custo_unitario: Number(custoUnitario.toFixed(4)),
+			custo_extra_id: custoExtraId || null,
+		};
 		setSalvando(true);
 		try {
 			await atualizarCustoProduto(
 				modeloExistente,
-				Number(custoUnitario.toFixed(4))
+				Number(custoUnitario.toFixed(4)),
+				calculo
 			);
 			showToast("Custo do produto atualizado", "success");
 		} catch (err) {

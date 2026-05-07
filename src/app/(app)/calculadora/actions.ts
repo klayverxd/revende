@@ -17,11 +17,16 @@ export interface SalvarCalculoInput {
 	custo_materias_primas: number;
 	custo_depreciacao: number;
 	custo_falhas: number;
+	custo_extra: number;
 	custo_total: number;
 	quantidade: number;
+	num_placas: number;
 	custo_unitario: number;
 	salvo_em_modelo_id?: string | null;
+	custo_extra_id?: string | null;
 }
+
+export type CalculoSnapshot = Omit<SalvarCalculoInput, "salvo_em_modelo_id">;
 
 async function gerarCodigo(): Promise<string> {
 	const supabase = await createClient();
@@ -203,10 +208,13 @@ export async function salvarCalculo(input: SalvarCalculoInput) {
 		custo_materias_primas: input.custo_materias_primas,
 		custo_depreciacao: input.custo_depreciacao,
 		custo_falhas: input.custo_falhas,
+		custo_extra: input.custo_extra,
 		custo_total: input.custo_total,
 		quantidade: input.quantidade,
+		num_placas: input.num_placas,
 		custo_unitario: input.custo_unitario,
 		salvo_em_modelo_id: input.salvo_em_modelo_id ?? null,
+		custo_extra_id: input.custo_extra_id ?? null,
 	});
 	if (error) throw new Error(error.message);
 	revalidatePath("/calculadora");
@@ -217,6 +225,7 @@ export async function salvarComoNovoProduto(input: {
 	codigo?: string;
 	descricao?: string;
 	custo_producao: number;
+	calculo?: CalculoSnapshot;
 }) {
 	const supabase = await createClient();
 	const codigo = input.codigo?.trim() || (await gerarCodigo());
@@ -233,13 +242,21 @@ export async function salvarComoNovoProduto(input: {
 		.select("modelo_id")
 		.single();
 	if (error) throw new Error(error.message);
+	if (input.calculo) {
+		await supabase.from("calculo_custo").insert({
+			...input.calculo,
+			salvo_em_modelo_id: data.modelo_id,
+		});
+	}
 	revalidatePath("/produtos");
+	revalidatePath("/calculadora");
 	return { modelo_id: data.modelo_id as string };
 }
 
 export async function atualizarCustoProduto(
 	modeloId: string,
-	custoProducao: number
+	custoProducao: number,
+	calculo?: CalculoSnapshot
 ) {
 	const supabase = await createClient();
 	const { error } = await supabase
@@ -247,7 +264,14 @@ export async function atualizarCustoProduto(
 		.update({ custo_producao: custoProducao })
 		.eq("modelo_id", modeloId);
 	if (error) throw new Error(error.message);
+	if (calculo) {
+		await supabase.from("calculo_custo").insert({
+			...calculo,
+			salvo_em_modelo_id: modeloId,
+		});
+	}
 	revalidatePath("/produtos");
+	revalidatePath("/calculadora");
 }
 
 export async function salvarCustoExtra(input: {

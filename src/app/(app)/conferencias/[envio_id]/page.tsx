@@ -1,9 +1,5 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import ConferenciaForm, {
-	type ConferenciaItem,
-	type RevendedorResumo,
-} from "./ConferenciaForm";
 
 interface PageProps {
 	params: Promise<{ envio_id: string }>;
@@ -15,61 +11,12 @@ export default async function ConferenciaDetalhePage({ params }: PageProps) {
 
 	const { data: envio } = await supabase
 		.from("envio")
-		.select(
-			"envio_id, data_envio, status, revendedor:revendedor_id(revendedor_id, nome, modelo_acerto)"
-		)
+		.select("revendedor_id")
 		.eq("envio_id", envio_id)
 		.is("deleted_at", null)
 		.single();
 
 	if (!envio) notFound();
 
-	const { data: itensRaw } = await supabase
-		.from("envio_item")
-		.select(
-			"envio_item_id, modelo_id, qtd_enviada, qtd_vendida, qtd_devolvida, preco_unitario, valor_minimo_unit, modelo:modelo_id(nome, codigo)"
-		)
-		.eq("envio_id", envio_id)
-		.is("deleted_at", null);
-
-	const rev = envio.revendedor as unknown as {
-		revendedor_id: string;
-		nome: string;
-		modelo_acerto: "COMISSAO" | "VALOR_MINIMO";
-	};
-
-	const revendedor: RevendedorResumo = {
-		revendedor_id: rev.revendedor_id,
-		nome: rev.nome,
-		modelo_acerto: rev.modelo_acerto,
-	};
-
-	const itens: ConferenciaItem[] = (itensRaw ?? []).map(i => {
-		const modelo = i.modelo as unknown as {
-			nome: string;
-			codigo: string | null;
-		} | null;
-		const modeloId = i.modelo_id as string;
-		return {
-			envio_item_id: i.envio_item_id as string,
-			modelo_id: modeloId,
-			modelo_nome: modelo?.nome ?? "Produto",
-			modelo_codigo: modelo?.codigo ?? null,
-			qtd_enviada: (i.qtd_enviada as number) ?? 0,
-			qtd_vendida: (i.qtd_vendida as number | null) ?? 0,
-			qtd_devolvida: (i.qtd_devolvida as number | null) ?? 0,
-			preco_unitario: (i.preco_unitario as number | null) ?? null,
-			valor_minimo_unit: (i.valor_minimo_unit as number | null) ?? null,
-		};
-	});
-
-	return (
-		<ConferenciaForm
-			envioId={envio.envio_id as string}
-			dataEnvio={envio.data_envio as string}
-			status={envio.status as string}
-			revendedor={revendedor}
-			itens={itens}
-		/>
-	);
+	redirect(`/conferencias/revendedor/${envio.revendedor_id as string}`);
 }

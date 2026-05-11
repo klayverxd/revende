@@ -5,6 +5,7 @@ import { Badge, RowActionsMenu } from "@/components/ui";
 
 export interface EnvioRow {
 	envio_id: string;
+	revendedor_id: string;
 	revendedor_nome: string;
 	data_envio: string;
 	total_itens: number;
@@ -140,7 +141,7 @@ export default function EnviosTable({ envios }: Props) {
 												? [
 														{
 															label: "Conferir envio",
-															href: `/conferencias/${e.envio_id}`,
+															href: `/conferencias/revendedor/${e.revendedor_id}`,
 														},
 													]
 												: []),

@@ -34,7 +34,7 @@ export default async function EnvioDetalhePage({ params }: Props) {
 	const { data: envio, error: envioError } = await supabase
 		.from("envio")
 		.select(
-			"envio_id, data_envio, status, observacao, revendedor:revendedor_id(nome, telefone)"
+			"envio_id, revendedor_id, data_envio, status, observacao, revendedor:revendedor_id(nome, telefone)"
 		)
 		.eq("envio_id", id)
 		.is("deleted_at", null)
@@ -63,6 +63,8 @@ export default async function EnvioDetalhePage({ params }: Props) {
 		nome: string;
 		telefone: string | null;
 	} | null;
+
+	const revendedorId = envio.revendedor_id as string;
 
 	const itens = (itensRaw ?? []).map(i => {
 		const modelo = i.modelo as unknown as {
@@ -346,7 +348,7 @@ export default async function EnvioDetalhePage({ params }: Props) {
 			{/* Actions */}
 			<div className="flex gap-2">
 				{statusEnvio === "ABERTO" && (
-					<Link href={`/conferencias/${id}`}>
+					<Link href={`/conferencias/revendedor/${revendedorId}`}>
 						<Button size="sm">Conferir envio</Button>
 					</Link>
 				)}

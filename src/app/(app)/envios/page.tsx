@@ -38,6 +38,7 @@ export default async function EnviosPage({
 		}> | null;
 		return {
 			envio_id: e.envio_id as string,
+			revendedor_id: e.revendedor_id as string,
 			revendedor_nome: rev?.nome ?? "Revendedor",
 			data_envio: e.data_envio as string,
 			status: e.status as "ABERTO" | "CONFERIDO" | "ENCERRADO",

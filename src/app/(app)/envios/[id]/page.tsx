@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, Button } from "@/components/ui";
+import EditarEnvioButton from "./EditarEnvioButton";
 
 interface Props {
 	params: Promise<{ id: string }>;
@@ -41,6 +42,18 @@ export default async function EnvioDetalhePage({ params }: Props) {
 		.single();
 
 	if (envioError || !envio) notFound();
+
+	const { data: revendedoresRaw } = await supabase
+		.from("revendedor")
+		.select("revendedor_id, nome")
+		.is("deleted_at", null)
+		.eq("ativo", true)
+		.order("nome");
+
+	const revendedores = (revendedoresRaw ?? []).map(r => ({
+		revendedor_id: r.revendedor_id as string,
+		nome: r.nome as string,
+	}));
 
 	const { data: itensRaw } = await supabase
 		.from("envio_item")
@@ -346,11 +359,20 @@ export default async function EnvioDetalhePage({ params }: Props) {
 			)}
 
 			{/* Actions */}
-			<div className="flex gap-2">
+			<div className="flex gap-2 flex-wrap">
 				{statusEnvio === "ABERTO" && (
 					<Link href={`/conferencias/revendedor/${revendedorId}`}>
 						<Button size="sm">Conferir envio</Button>
 					</Link>
+				)}
+				{statusEnvio === "ABERTO" && (
+					<EditarEnvioButton
+						envioId={id}
+						dataAtual={envio.data_envio as string}
+						observacaoAtual={(envio.observacao as string | null) ?? ""}
+						revendedorAtualId={revendedorId}
+						revendedores={revendedores}
+					/>
 				)}
 				{(statusEnvio === "CONFERIDO" || statusEnvio === "ENCERRADO") && (
 					<Link href={`/envios/${id}/devolucao`}>

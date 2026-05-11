@@ -287,3 +287,110 @@ export async function registrarDevolucao(
 	revalidatePath("/financeiro");
 	revalidatePath("/dashboard");
 }
+
+export async function trocarRevendedor(
+	envioId: string,
+	novoRevendedorId: string
+): Promise<void> {
+	if (!envioId || !novoRevendedorId) throw new Error("Parâmetros inválidos");
+
+	const supabase = await createClient();
+
+	// Busca envio
+	const { data: envio, error: envioError } = await supabase
+		.from("envio")
+		.select("envio_id, status")
+		.eq("envio_id", envioId)
+		.is("deleted_at", null)
+		.single();
+
+	if (envioError || !envio) throw new Error("Envio não encontrado");
+	if (envio.status !== "ABERTO")
+		throw new Error("Só é possível trocar o revendedor de envios ABERTOS");
+
+	// Busca novo revendedor
+	const { data: novoRev, error: revError } = await supabase
+		.from("revendedor")
+		.select("revendedor_id, modelo_acerto")
+		.eq("revendedor_id", novoRevendedorId)
+		.is("deleted_at", null)
+		.single();
+
+	if (revError || !novoRev) throw new Error("Revendedor não encontrado");
+
+	const novoModeloAcerto = novoRev.modelo_acerto as "COMISSAO" | "VALOR_MINIMO";
+
+	// Busca itens do envio
+	const { data: itens } = await supabase
+		.from("envio_item")
+		.select("envio_item_id, modelo_id, qtd_enviada")
+		.eq("envio_id", envioId)
+		.is("deleted_at", null);
+
+	// Re-resolve preços para cada item com o novo revendedor
+	for (const item of itens ?? []) {
+		const modeloId = item.modelo_id as string;
+		const resolvido = await resolverPreco(modeloId, novoRevendedorId);
+		const origem = resolvido.origem ?? "MANUAL";
+
+		await supabase
+			.from("envio_item")
+			.update({
+				modelo_acerto: novoModeloAcerto,
+				preco_unitario:
+					novoModeloAcerto === "COMISSAO" ? resolvido.precoUnitario : null,
+				valor_minimo_unit:
+					novoModeloAcerto === "VALOR_MINIMO"
+						? resolvido.valorMinimoUnit
+						: null,
+				preco_origem: origem,
+			})
+			.eq("envio_item_id", item.envio_item_id as string);
+	}
+
+	// Atualiza o revendedor do envio
+	const { error } = await supabase
+		.from("envio")
+		.update({ revendedor_id: novoRevendedorId })
+		.eq("envio_id", envioId);
+
+	if (error) throw new Error(error.message);
+
+	revalidatePath(`/envios/${envioId}`);
+	revalidatePath("/envios");
+	revalidatePath("/conferencias");
+}
+
+export async function editarEnvio(
+	envioId: string,
+	data: { dataEnvio: string; observacao: string }
+): Promise<void> {
+	if (!envioId) throw new Error("ID inválido");
+	if (!data.dataEnvio) throw new Error("Data obrigatória");
+
+	const supabase = await createClient();
+
+	const { data: envio, error: fetchError } = await supabase
+		.from("envio")
+		.select("status")
+		.eq("envio_id", envioId)
+		.is("deleted_at", null)
+		.single();
+
+	if (fetchError || !envio) throw new Error("Envio não encontrado");
+	if (envio.status !== "ABERTO")
+		throw new Error("Só é possível editar envios ABERTOS");
+
+	const { error } = await supabase
+		.from("envio")
+		.update({
+			data_envio: data.dataEnvio,
+			observacao: data.observacao.trim() || null,
+		})
+		.eq("envio_id", envioId);
+
+	if (error) throw new Error(error.message);
+
+	revalidatePath(`/envios/${envioId}`);
+	revalidatePath("/envios");
+}

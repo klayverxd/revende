@@ -8,6 +8,7 @@ export interface EnvioRow {
 	revendedor_nome: string;
 	data_envio: string;
 	total_itens: number;
+	total_unidades: number;
 	status: "ABERTO" | "CONFERIDO" | "ENCERRADO";
 }
 
@@ -119,7 +120,7 @@ export default function EnviosTable({ envios }: Props) {
 									{fmtDate(e.data_envio)}
 								</td>
 								<td className="px-3 py-2.5 text-right text-gray-700">
-									{e.total_itens}
+									{e.total_itens} prod. · {e.total_unidades} un.
 								</td>
 								<td className="px-3 py-2.5 text-center">
 									<Badge variant={variantFromStatus(e.status)}>

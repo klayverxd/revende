@@ -19,7 +19,7 @@ export default async function EnviosPage({
 	let query = supabase
 		.from("envio")
 		.select(
-			"envio_id, revendedor_id, data_envio, status, revendedor:revendedor_id(nome), envio_item(envio_item_id)"
+			"envio_id, revendedor_id, data_envio, status, revendedor:revendedor_id(nome), envio_item(envio_item_id, qtd_enviada)"
 		)
 		.is("deleted_at", null)
 		.order("data_envio", { ascending: false });
@@ -32,13 +32,18 @@ export default async function EnviosPage({
 
 	const envios: EnvioRow[] = (enviosRaw ?? []).map(e => {
 		const rev = e.revendedor as unknown as { nome: string } | null;
-		const itens = e.envio_item as Array<{ envio_item_id: string }> | null;
+		const itens = e.envio_item as Array<{
+			envio_item_id: string;
+			qtd_enviada: number | null;
+		}> | null;
 		return {
 			envio_id: e.envio_id as string,
 			revendedor_nome: rev?.nome ?? "Revendedor",
 			data_envio: e.data_envio as string,
 			status: e.status as "ABERTO" | "CONFERIDO" | "ENCERRADO",
 			total_itens: itens?.length ?? 0,
+			total_unidades:
+				itens?.reduce((acc, i) => acc + (i.qtd_enviada ?? 0), 0) ?? 0,
 		};
 	});
 

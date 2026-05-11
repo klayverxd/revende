@@ -16,6 +16,7 @@ export interface ProdutoDisponivel {
 	codigo: string | null;
 	nome: string;
 	estoque_disponivel: number;
+	custo_producao: number | null;
 }
 
 interface ItemSelecionado {
@@ -26,6 +27,7 @@ interface ItemSelecionado {
 	preco: number;
 	origem: "MODELO" | "REVENDEDOR" | "MANUAL";
 	estoque_disponivel: number;
+	custo_producao: number | null;
 }
 
 interface Props {
@@ -141,6 +143,18 @@ export default function NovoEnvioStepper({ revendedores, produtos }: Props) {
 		[itens]
 	);
 
+	const custoTotalProducao = useMemo(
+		() =>
+			itens.reduce(
+				(acc, item) =>
+					item.custo_producao != null
+						? acc + item.custo_producao * item.quantidade
+						: acc,
+				0
+			),
+		[itens]
+	);
+
 	function isSelecionado(modeloId: string) {
 		return itens.some(i => i.modelo_id === modeloId);
 	}
@@ -174,6 +188,7 @@ export default function NovoEnvioStepper({ revendedores, produtos }: Props) {
 						| "REVENDEDOR"
 						| "MANUAL",
 					estoque_disponivel: produto.estoque_disponivel,
+					custo_producao: produto.custo_producao,
 				},
 			]);
 		} catch {
@@ -395,6 +410,9 @@ export default function NovoEnvioStepper({ revendedores, produtos }: Props) {
 											Origem
 										</th>
 										<th className="px-3 py-2 text-right font-medium text-gray-600">
+											Custo
+										</th>
+										<th className="px-3 py-2 text-right font-medium text-gray-600">
 											Subtotal
 										</th>
 									</tr>
@@ -526,6 +544,11 @@ export default function NovoEnvioStepper({ revendedores, produtos }: Props) {
 						<div className="rounded-lg border border-[#B5D4F4] bg-[#E6F1FB] px-3 py-2 text-sm text-[#0C447C] flex items-center justify-between">
 							<span>
 								{itens.length} produtos selecionados ({totalUnidades} un.)
+								{custoTotalProducao > 0 && (
+									<span className="ml-2 text-gray-500">
+										· custo {fmtCurrency(custoTotalProducao)}
+									</span>
+								)}
 							</span>
 							<strong>{fmtCurrency(total)}</strong>
 						</div>
@@ -556,6 +579,12 @@ export default function NovoEnvioStepper({ revendedores, produtos }: Props) {
 							<p>
 								<strong>Valor total:</strong> {fmtCurrency(total)}
 							</p>
+							{custoTotalProducao > 0 && (
+								<p className="text-gray-500">
+									<strong>Custo de produção:</strong>{" "}
+									{fmtCurrency(custoTotalProducao)}
+								</p>
+							)}
 						</div>
 
 						{itens.some(i => i.quantidade > i.estoque_disponivel) && (

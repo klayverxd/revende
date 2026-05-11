@@ -20,7 +20,7 @@ export default async function NovoEnvioPage() {
 				.order("nome"),
 			supabase
 				.from("modelo")
-				.select("modelo_id, codigo, nome")
+				.select("modelo_id, codigo, nome, custo_producao")
 				.eq("ativo", true)
 				.is("deleted_at", null)
 				.order("nome"),
@@ -43,6 +43,7 @@ export default async function NovoEnvioPage() {
 		codigo: (p.codigo as string | null) ?? null,
 		nome: p.nome as string,
 		estoque_disponivel: estoqueMap.get(p.modelo_id as string) ?? 0,
+		custo_producao: (p.custo_producao as number | null) ?? null,
 	}));
 
 	return (

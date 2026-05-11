@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Badge, Button } from "@/components/ui";
+import { CopiarLinkExtrato } from "./CopiarLinkExtrato";
 
 interface Props {
 	readonly params: Promise<{ id: string }>;
@@ -123,9 +124,12 @@ export default async function RevendedorVisaoGeralPage({ params }: Props) {
 						</p>
 					)}
 				</div>
-				<Link href={`/envios/novo?revendedor=${id}`}>
-					<Button size="sm">+ Novo envio</Button>
-				</Link>
+				<div className="flex flex-wrap items-center gap-2">
+					<Link href={`/envios/novo?revendedor=${id}`}>
+						<Button size="sm">+ Novo envio</Button>
+					</Link>
+					<CopiarLinkExtrato revendedorId={id} />
+				</div>
 			</div>
 
 			{/* KPI Cards */}

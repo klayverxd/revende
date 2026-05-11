@@ -5,7 +5,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { Button, Input, Modal, Select, useToast } from "@/components/ui";
+import { Button, Input, Modal, useToast } from "@/components/ui";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import { registrarProducao, criarProdutoERegistrarProducao } from "./actions";
 
 const NOVO_MODELO = "__novo__";
@@ -71,6 +72,7 @@ export default function ProducaoModal({ open, onClose, modelos }: Props) {
 		handleSubmit,
 		reset,
 		watch,
+		setValue,
 		formState: { errors },
 	} = useForm<FormValues>({
 		resolver: zodResolver(schema),
@@ -174,13 +176,15 @@ export default function ProducaoModal({ open, onClose, modelos }: Props) {
 				onSubmit={onSubmit}
 				className="flex flex-col gap-3"
 			>
-				<Select
+				<SearchableSelect
 					label="Produto"
 					required
 					options={modeloOptions}
 					placeholder="Selecione um produto"
+					searchPlaceholder="Buscar por nome ou código..."
 					error={errors.modelo_id?.message}
-					{...register("modelo_id")}
+					value={modeloId}
+					onChange={v => setValue("modelo_id", v, { shouldValidate: true })}
 				/>
 
 				{isNovo && (

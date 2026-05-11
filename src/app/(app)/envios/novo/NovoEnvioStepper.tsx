@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Input, Modal, Select, useToast } from "@/components/ui";
 import { criarEnvio, resolverPrecoEnvio } from "../actions";
@@ -47,19 +47,65 @@ function todayISO() {
 	return new Date().toISOString().slice(0, 10);
 }
 
+const DRAFT_KEY = "novo_envio_rascunho";
+
+type DraftState = {
+	revendedorId: string;
+	itens: ItemSelecionado[];
+	step: Step;
+	dataEnvio: string;
+	observacao: string;
+};
+
+function loadDraft(): DraftState | null {
+	if (typeof window === "undefined") return null;
+	try {
+		const raw = localStorage.getItem(DRAFT_KEY);
+		if (!raw) return null;
+		return JSON.parse(raw) as DraftState;
+	} catch {
+		return null;
+	}
+}
+
+function saveDraft(data: DraftState): void {
+	if (typeof window === "undefined") return;
+	localStorage.setItem(DRAFT_KEY, JSON.stringify(data));
+}
+
+function clearDraft(): void {
+	if (typeof window === "undefined") return;
+	localStorage.removeItem(DRAFT_KEY);
+}
+
 export default function NovoEnvioStepper({ revendedores, produtos }: Props) {
 	const { showToast } = useToast();
 	const router = useRouter();
 
-	const [step, setStep] = useState<Step>(1);
-	const [revendedorId, setRevendedorId] = useState("");
+	const [step, setStep] = useState<Step>(() => loadDraft()?.step ?? 1);
+	const [revendedorId, setRevendedorId] = useState(
+		() => loadDraft()?.revendedorId ?? ""
+	);
 	const [searchProduto, setSearchProduto] = useState("");
-	const [itens, setItens] = useState<ItemSelecionado[]>([]);
+	const [itens, setItens] = useState<ItemSelecionado[]>(
+		() => loadDraft()?.itens ?? []
+	);
 	const [loadingPriceId, setLoadingPriceId] = useState<string | null>(null);
 	const [salvando, setSalvando] = useState(false);
 	const [openPrint, setOpenPrint] = useState(false);
-	const [dataEnvio, setDataEnvio] = useState(todayISO());
-	const [observacao, setObservacao] = useState("");
+	const [dataEnvio, setDataEnvio] = useState(
+		() => loadDraft()?.dataEnvio ?? todayISO()
+	);
+	const [observacao, setObservacao] = useState(
+		() => loadDraft()?.observacao ?? ""
+	);
+
+	const hasDraft = revendedorId !== "" || itens.length > 0;
+
+	// Auto-save draft to localStorage
+	useEffect(() => {
+		saveDraft({ revendedorId, itens, step, dataEnvio, observacao });
+	}, [revendedorId, itens, step, dataEnvio, observacao]);
 
 	const revendedor = useMemo(
 		() => revendedores.find(r => r.revendedor_id === revendedorId) ?? null,
@@ -226,6 +272,7 @@ export default function NovoEnvioStepper({ revendedores, produtos }: Props) {
 				dataEnvio
 			);
 			showToast("Envio confirmado com sucesso", "success");
+			clearDraft();
 			router.push("/envios");
 			router.refresh();
 		} catch (err) {
@@ -260,6 +307,26 @@ export default function NovoEnvioStepper({ revendedores, produtos }: Props) {
 						</div>
 					))}
 				</div>
+
+				{hasDraft && (
+					<div className="flex items-center justify-between border-t border-[#E6F1FB] pt-2 text-xs text-gray-500">
+						<span>Rascunho salvo automaticamente</span>
+						<button
+							type="button"
+							onClick={() => {
+								clearDraft();
+								setStep(1);
+								setRevendedorId("");
+								setItens([]);
+								setDataEnvio(todayISO());
+								setObservacao("");
+							}}
+							className="text-red-500 hover:underline"
+						>
+							Limpar rascunho
+						</button>
+					</div>
+				)}
 
 				{step === 1 && (
 					<div className="flex flex-col gap-4 max-w-xl">

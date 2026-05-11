@@ -6,11 +6,12 @@ import NovoEnvioStepper, {
 	type ProdutoDisponivel,
 	type RevendedorAtivo,
 } from "./NovoEnvioStepper";
+import { carregarRascunhoServidor } from "./draftActions";
 
 export default async function NovoEnvioPage() {
 	const supabase = await createClient();
 
-	const [{ data: revendedores }, { data: produtos }, estoque] =
+	const [{ data: revendedores }, { data: produtos }, estoque, draftServidor] =
 		await Promise.all([
 			supabase
 				.from("revendedor")
@@ -25,6 +26,7 @@ export default async function NovoEnvioPage() {
 				.is("deleted_at", null)
 				.order("nome"),
 			buscarEstoque(),
+			carregarRascunhoServidor(),
 		]);
 
 	const estoqueMap = new Map<string, number>();
@@ -65,6 +67,7 @@ export default async function NovoEnvioPage() {
 			<NovoEnvioStepper
 				revendedores={revendedoresAtivos}
 				produtos={produtosDisponiveis}
+				serverDraft={draftServidor}
 			/>
 		</div>
 	);

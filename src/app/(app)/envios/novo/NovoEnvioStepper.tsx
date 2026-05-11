@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Input, Modal, Select, useToast } from "@/components/ui";
 import { criarEnvio, resolverPrecoEnvio } from "../actions";
+import {
+	salvarRascunhoServidor,
+	limparRascunhoServidor,
+	type DraftState as ServerDraftState,
+} from "./draftActions";
 
 export interface RevendedorAtivo {
 	revendedor_id: string;
@@ -33,9 +38,18 @@ interface ItemSelecionado {
 interface Props {
 	readonly revendedores: RevendedorAtivo[];
 	readonly produtos: ProdutoDisponivel[];
+	readonly serverDraft: ServerDraftState | null;
 }
 
 type Step = 1 | 2 | 3;
+
+type DraftState = {
+	revendedorId: string;
+	itens: ItemSelecionado[];
+	step: Step;
+	dataEnvio: string;
+	observacao: string;
+};
 
 function fmtCurrency(v: number) {
 	return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -50,14 +64,6 @@ function todayISO() {
 }
 
 const DRAFT_KEY = "novo_envio_rascunho";
-
-type DraftState = {
-	revendedorId: string;
-	itens: ItemSelecionado[];
-	step: Step;
-	dataEnvio: string;
-	observacao: string;
-};
 
 function loadDraft(): DraftState | null {
 	if (typeof window === "undefined") return null;
@@ -80,34 +86,62 @@ function clearDraft(): void {
 	localStorage.removeItem(DRAFT_KEY);
 }
 
-export default function NovoEnvioStepper({ revendedores, produtos }: Props) {
+export default function NovoEnvioStepper({
+	revendedores,
+	produtos,
+	serverDraft,
+}: Props) {
 	const { showToast } = useToast();
 	const router = useRouter();
 
-	const [step, setStep] = useState<Step>(() => loadDraft()?.step ?? 1);
-	const [revendedorId, setRevendedorId] = useState(
-		() => loadDraft()?.revendedorId ?? ""
-	);
+	// Prefer server draft; fall back to localStorage
+	const initialDraft = useMemo<DraftState>(() => {
+		if (serverDraft) return serverDraft as DraftState;
+		return (
+			loadDraft() ?? {
+				revendedorId: "",
+				itens: [],
+				step: 1,
+				dataEnvio: todayISO(),
+				observacao: "",
+			}
+		);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
+
+	const [step, setStep] = useState<Step>(initialDraft.step);
+	const [revendedorId, setRevendedorId] = useState(initialDraft.revendedorId);
 	const [searchProduto, setSearchProduto] = useState("");
-	const [itens, setItens] = useState<ItemSelecionado[]>(
-		() => loadDraft()?.itens ?? []
-	);
+	const [itens, setItens] = useState<ItemSelecionado[]>(initialDraft.itens);
 	const [loadingPriceId, setLoadingPriceId] = useState<string | null>(null);
 	const [salvando, setSalvando] = useState(false);
 	const [openPrint, setOpenPrint] = useState(false);
-	const [dataEnvio, setDataEnvio] = useState(
-		() => loadDraft()?.dataEnvio ?? todayISO()
-	);
-	const [observacao, setObservacao] = useState(
-		() => loadDraft()?.observacao ?? ""
-	);
+	const [dataEnvio, setDataEnvio] = useState(initialDraft.dataEnvio);
+	const [observacao, setObservacao] = useState(initialDraft.observacao);
 
 	const hasDraft = revendedorId !== "" || itens.length > 0;
 
-	// Auto-save draft to localStorage
+	const serverSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	const debouncedSaveToServer = useCallback((draft: DraftState) => {
+		if (serverSaveTimerRef.current) clearTimeout(serverSaveTimerRef.current);
+		serverSaveTimerRef.current = setTimeout(() => {
+			void salvarRascunhoServidor(draft);
+		}, 1500);
+	}, []);
+
+	// Auto-save draft to localStorage + debounced server save
 	useEffect(() => {
-		saveDraft({ revendedorId, itens, step, dataEnvio, observacao });
-	}, [revendedorId, itens, step, dataEnvio, observacao]);
+		const draft: DraftState = {
+			revendedorId,
+			itens,
+			step,
+			dataEnvio,
+			observacao,
+		};
+		saveDraft(draft);
+		debouncedSaveToServer(draft);
+	}, [revendedorId, itens, step, dataEnvio, observacao, debouncedSaveToServer]);
 
 	const revendedor = useMemo(
 		() => revendedores.find(r => r.revendedor_id === revendedorId) ?? null,
@@ -288,6 +322,7 @@ export default function NovoEnvioStepper({ revendedores, produtos }: Props) {
 			);
 			showToast("Envio confirmado com sucesso", "success");
 			clearDraft();
+			void limparRascunhoServidor();
 			router.push("/envios");
 			router.refresh();
 		} catch (err) {

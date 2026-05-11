@@ -122,6 +122,7 @@ export default function NovoEnvioStepper({
 	const hasDraft = revendedorId !== "" || itens.length > 0;
 
 	const serverSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const submittedRef = useRef(false);
 
 	const debouncedSaveToServer = useCallback((draft: DraftState) => {
 		if (serverSaveTimerRef.current) clearTimeout(serverSaveTimerRef.current);
@@ -298,6 +299,7 @@ export default function NovoEnvioStepper({
 	}
 
 	async function confirmarEnvio() {
+		if (submittedRef.current) return;
 		if (!revendedor) {
 			showToast("Selecione um revendedor", "error");
 			return;
@@ -307,6 +309,7 @@ export default function NovoEnvioStepper({
 			return;
 		}
 
+		submittedRef.current = true;
 		setSalvando(true);
 		try {
 			await criarEnvio(
@@ -325,13 +328,13 @@ export default function NovoEnvioStepper({
 			void limparRascunhoServidor();
 			router.push("/envios");
 			router.refresh();
-			// Mantém salvando=true para desabilitar o botão durante o redirecionamento
-			// e evitar duplo envio caso o usuário altere dados antes de sair da página
 		} catch (err) {
 			showToast(
 				err instanceof Error ? err.message : "Erro ao criar envio",
 				"error"
 			);
+			submittedRef.current = false;
+		} finally {
 			setSalvando(false);
 		}
 	}

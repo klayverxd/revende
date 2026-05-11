@@ -59,6 +59,91 @@ export async function criarEnvio(
 	if (envioError) throw new Error(envioError.message);
 	const envioId = createdEnvio.envio_id as string;
 
+	// Auto-create producao entries for items that exceed available stock
+	const modeloIds = itens
+		.filter(
+			i => i.modeloId && Number.isFinite(i.quantidade) && i.quantidade > 0
+		)
+		.map(i => i.modeloId);
+
+	if (modeloIds.length > 0) {
+		const [{ data: producoes }, { data: envioItens }] = await Promise.all([
+			supabase
+				.from("producao")
+				.select("modelo_id, quantidade")
+				.in("modelo_id", modeloIds)
+				.is("deleted_at", null),
+			supabase
+				.from("envio_item")
+				.select(
+					"modelo_id, qtd_enviada, qtd_vendida, qtd_devolvida, envio:envio_id(status)"
+				)
+				.in("modelo_id", modeloIds)
+				.is("deleted_at", null)
+				.not("envio", "is", null),
+		]);
+
+		const entradasMap = new Map<string, number>();
+		const saidasMap = new Map<string, number>();
+
+		for (const p of producoes ?? []) {
+			const id = p.modelo_id as string;
+			entradasMap.set(
+				id,
+				(entradasMap.get(id) ?? 0) + ((p.quantidade as number) ?? 0)
+			);
+		}
+
+		for (const ei of envioItens ?? []) {
+			const id = ei.modelo_id as string;
+			const envioStatus = (ei.envio as unknown as { status: string } | null)
+				?.status;
+			if (envioStatus === "ABERTO") {
+				saidasMap.set(
+					id,
+					(saidasMap.get(id) ?? 0) + ((ei.qtd_enviada as number) ?? 0)
+				);
+			} else if (envioStatus === "CONFERIDO" || envioStatus === "ENCERRADO") {
+				const devolvida = (ei.qtd_devolvida as number | null) ?? 0;
+				saidasMap.set(
+					id,
+					(saidasMap.get(id) ?? 0) +
+						(((ei.qtd_enviada as number) ?? 0) - devolvida)
+				);
+			}
+		}
+
+		const producaoPayloads = [];
+		const dataEnvio = data ?? new Date().toISOString().slice(0, 10);
+		for (const item of itens) {
+			if (
+				!item.modeloId ||
+				!Number.isFinite(item.quantidade) ||
+				item.quantidade <= 0
+			)
+				continue;
+			const disponivel =
+				(entradasMap.get(item.modeloId) ?? 0) -
+				(saidasMap.get(item.modeloId) ?? 0);
+			const deficit = item.quantidade - disponivel;
+			if (deficit > 0) {
+				producaoPayloads.push({
+					modelo_id: item.modeloId,
+					quantidade: deficit,
+					data_producao: dataEnvio,
+					observacao: `Entrada automática gerada pelo envio`,
+				});
+			}
+		}
+
+		if (producaoPayloads.length > 0) {
+			const { error: prodError } = await supabase
+				.from("producao")
+				.insert(producaoPayloads);
+			if (prodError) throw new Error(prodError.message);
+		}
+	}
+
 	const payloads = [];
 	for (const item of itens) {
 		if (!item.modeloId) continue;

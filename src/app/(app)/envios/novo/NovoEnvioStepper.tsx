@@ -413,10 +413,7 @@ export default function NovoEnvioStepper({ revendedores, produtos }: Props) {
 													<input
 														type="checkbox"
 														checked={isSelecionado(p.modelo_id)}
-														disabled={
-															loadingPriceId === p.modelo_id ||
-															p.estoque_disponivel <= 0
-														}
+														disabled={loadingPriceId === p.modelo_id}
 														onChange={e => {
 															void alternarProduto(p, e.target.checked);
 														}}
@@ -429,7 +426,7 @@ export default function NovoEnvioStepper({ revendedores, produtos }: Props) {
 														{p.nome}
 													</p>
 													{p.estoque_disponivel <= 0 && (
-														<span className="inline-block mt-0.5 rounded px-1.5 py-0.5 text-xs font-medium bg-red-50 text-red-700">
+														<span className="inline-block mt-0.5 rounded px-1.5 py-0.5 text-xs font-medium bg-amber-50 text-amber-700">
 															Sem estoque
 														</span>
 													)}
@@ -439,22 +436,35 @@ export default function NovoEnvioStepper({ revendedores, produtos }: Props) {
 												</td>
 												<td className="px-3 py-2 text-right">
 													{selecionado ? (
-														<input
-															type="number"
-															min={1}
-															max={selecionado.estoque_disponivel}
-															value={selecionado.quantidade}
-															onChange={e =>
-																atualizarQuantidade(
-																	selecionado.modelo_id,
-																	Math.min(
-																		selecionado.estoque_disponivel,
+														<div className="flex flex-col items-end gap-0.5">
+															<input
+																type="number"
+																min={1}
+																value={selecionado.quantidade}
+																onChange={e =>
+																	atualizarQuantidade(
+																		selecionado.modelo_id,
 																		parseInt(e.target.value || "1", 10)
 																	)
-																)
-															}
-															className="w-20 h-9 rounded-md border border-[#B5D4F4] px-2 text-sm text-right"
-														/>
+																}
+																className={[
+																	"w-20 h-9 rounded-md border px-2 text-sm text-right",
+																	selecionado.quantidade >
+																	selecionado.estoque_disponivel
+																		? "border-amber-400 bg-amber-50"
+																		: "border-[#B5D4F4]",
+																].join(" ")}
+															/>
+															{selecionado.quantidade >
+																selecionado.estoque_disponivel && (
+																<span className="text-[10px] text-amber-600 whitespace-nowrap">
+																	+
+																	{selecionado.quantidade -
+																		selecionado.estoque_disponivel}{" "}
+																	auto
+																</span>
+															)}
+														</div>
 													) : (
 														<span className="text-gray-400">-</span>
 													)}
@@ -547,6 +557,32 @@ export default function NovoEnvioStepper({ revendedores, produtos }: Props) {
 								<strong>Valor total:</strong> {fmtCurrency(total)}
 							</p>
 						</div>
+
+						{itens.some(i => i.quantidade > i.estoque_disponivel) && (
+							<div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+								<p className="font-medium mb-1">
+									Entrada de estoque automática
+								</p>
+								<p className="text-xs mb-1">
+									Os itens abaixo excedem o estoque disponível. Uma entrada de
+									produção será gerada automaticamente:
+								</p>
+								<ul className="text-xs space-y-0.5">
+									{itens
+										.filter(i => i.quantidade > i.estoque_disponivel)
+										.map(i => (
+											<li key={i.modelo_id}>
+												• {i.codigo ? `${i.codigo} - ` : ""}
+												{i.nome}:{" "}
+												<strong>
+													+{i.quantidade - i.estoque_disponivel} un.
+												</strong>{" "}
+												serão adicionadas ao estoque
+											</li>
+										))}
+								</ul>
+							</div>
+						)}
 
 						<div className="rounded-lg border border-[#B5D4F4] divide-y divide-[#B5D4F4]">
 							{itens.map(item => (

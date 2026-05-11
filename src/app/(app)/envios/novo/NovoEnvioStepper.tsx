@@ -327,7 +327,6 @@ export default function NovoEnvioStepper({
 			clearDraft();
 			void limparRascunhoServidor();
 			router.push("/envios");
-			router.refresh();
 		} catch (err) {
 			showToast(
 				err instanceof Error ? err.message : "Erro ao criar envio",

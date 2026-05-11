@@ -39,13 +39,34 @@ export default async function ProdutoPage({ params }: Props) {
 
 	if (!modelo) notFound();
 
+	type RawCalculo = Omit<
+		NonNullable<typeof ultimoCalculo>,
+		"config_equipamento"
+	> & {
+		config_equipamento: { nome: unknown }[] | null;
+	};
+
+	const raw = ultimoCalculo as RawCalculo | null;
+	const calculoNormalizado = raw
+		? {
+				...raw,
+				config_equipamento:
+					Array.isArray(raw.config_equipamento) &&
+					raw.config_equipamento.length > 0
+						? ({ nome: String(raw.config_equipamento[0].nome) } as {
+								nome: string;
+							})
+						: null,
+			}
+		: null;
+
 	return (
 		<ProdutoDadosGerais
 			modelo={{
 				...modelo,
 				preco_unitario: (precoRow?.preco as number | null) ?? null,
 			}}
-			ultimoCalculo={ultimoCalculo ?? null}
+			ultimoCalculo={calculoNormalizado}
 		/>
 	);
 }

@@ -325,12 +325,13 @@ export default function NovoEnvioStepper({
 			void limparRascunhoServidor();
 			router.push("/envios");
 			router.refresh();
+			// Mantém salvando=true para desabilitar o botão durante o redirecionamento
+			// e evitar duplo envio caso o usuário altere dados antes de sair da página
 		} catch (err) {
 			showToast(
 				err instanceof Error ? err.message : "Erro ao criar envio",
 				"error"
 			);
-		} finally {
 			setSalvando(false);
 		}
 	}

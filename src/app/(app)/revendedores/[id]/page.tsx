@@ -185,8 +185,8 @@ export default async function RevendedorVisaoGeralPage({ params }: Props) {
 									</th>
 									<th className="px-4 py-2.5 text-center font-medium text-gray-600">
 										Status
-									</th>{" "}
-									<th className="px-4 py-2.5" />{" "}
+									</th>
+									<th className="px-4 py-2.5" />
 								</tr>
 							</thead>
 							<tbody>

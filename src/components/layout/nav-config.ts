@@ -38,9 +38,8 @@ export const navGroups: NavGroup[] = [
 export const bottomNavItems = [
 	{ href: "/dashboard", label: "Dashboard", icon: "home" as const },
 	{ href: "/envios", label: "Envios", icon: "inbox" as const },
-	{ href: "/venda-direta", label: "Venda direta", icon: "clipboard" as const },
+	{ href: "/conferencias", label: "Conferir", icon: "clipboard" as const },
 	{ href: "/estoque", label: "Estoque", icon: "cube" as const },
-	{ href: "/financeiro/fluxo", label: "Financeiro", icon: "chart" as const },
 ];
 
 export type BottomNavIcon = (typeof bottomNavItems)[number]["icon"];

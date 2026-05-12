@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Input, Select, useToast } from "@/components/ui";
 import {
 	salvarComoNovoProduto,
@@ -69,6 +69,31 @@ interface PersistedState {
 	custoExtraVal: string;
 }
 
+// Tabela oficial Shopee 2026
+const SHOPEE_FAIXAS = [
+	{ min: 0, max: 79.99, pct: 0.2, fixo: 4, label: "20% + R$\u00a04" },
+	{ min: 80, max: 99.99, pct: 0.14, fixo: 16, label: "14% + R$16" },
+	{ min: 100, max: 199.99, pct: 0.14, fixo: 20, label: "14% + R$20" },
+	{ min: 200, max: 499.99, pct: 0.14, fixo: 26, label: "14% + R$26" },
+	{ min: 500, max: Infinity, pct: 0.14, fixo: 26, label: "14% + R$26" },
+] as const;
+
+function calcShopee(targetNet: number): {
+	preco: number;
+	faixa: (typeof SHOPEE_FAIXAS)[number];
+} | null {
+	if (targetNet <= 0) return null;
+	for (const faixa of SHOPEE_FAIXAS) {
+		const preco = (targetNet + faixa.fixo) / (1 - faixa.pct);
+		if (preco >= faixa.min && preco <= faixa.max + 0.005) {
+			return { preco, faixa };
+		}
+	}
+	// fallback: usar última faixa (>500)
+	const faixa = SHOPEE_FAIXAS.at(-1)!;
+	return { preco: (targetNet + faixa.fixo) / (1 - faixa.pct), faixa };
+}
+
 function loadState(): Partial<PersistedState> {
 	if (globalThis.window === undefined) return {};
 	try {
@@ -109,29 +134,46 @@ export default function CalculadoraView({
 	custosExtras,
 }: Props) {
 	const { showToast } = useToast();
-	const saved = useMemo(() => loadState(), []);
 
-	const [equipamentoId, setEquipamentoId] = useState(() => {
-		const savedId = saved.equipamentoId;
-		const exists =
-			savedId && equipamentos.some(e => e.equipamento_id === savedId);
-		return exists ? savedId : (equipamentos[0]?.equipamento_id ?? "");
-	});
-	const [tempoHInput, setTempoHInput] = useState(saved.tempoHInput ?? "0");
-	const [tempoMInput, setTempoMInput] = useState(saved.tempoMInput ?? "0");
-	const [quantidade, setQuantidade] = useState(saved.quantidade ?? "1");
-	const [numPlacas, setnumPlacas] = useState(saved.numPlacas ?? "1");
-	const [materiaId, setMateriaId] = useState(() => {
-		const savedId = saved.materiaId;
-		const exists =
-			savedId && materias.some(m => m.materia_prima_id === savedId);
-		return exists ? savedId : (materias[0]?.materia_prima_id ?? "");
-	});
-	const [materiaQtd, setMateriaQtd] = useState(saved.materiaQtd ?? "0");
-	const [custoExtraId, setCustoExtraId] = useState(saved.custoExtraId ?? "");
-	const [custoExtraVal, setCustoExtraVal] = useState(
-		saved.custoExtraVal ?? "0"
+	// Use server-safe defaults to avoid SSR/client hydration mismatch.
+	// localStorage values are applied in a useEffect after hydration.
+	const [equipamentoId, setEquipamentoId] = useState(
+		equipamentos[0]?.equipamento_id ?? ""
 	);
+	const [tempoHInput, setTempoHInput] = useState("0");
+	const [tempoMInput, setTempoMInput] = useState("0");
+	const [quantidade, setQuantidade] = useState("1");
+	const [numPlacas, setnumPlacas] = useState("1");
+	const [materiaId, setMateriaId] = useState(
+		materias[0]?.materia_prima_id ?? ""
+	);
+	const [materiaQtd, setMateriaQtd] = useState("0");
+	const [custoExtraId, setCustoExtraId] = useState("");
+	const [custoExtraVal, setCustoExtraVal] = useState("0");
+
+	// Restore persisted state after hydration
+	useEffect(() => {
+		const saved = loadState();
+		if (saved.equipamentoId) {
+			const exists = equipamentos.some(
+				e => e.equipamento_id === saved.equipamentoId
+			);
+			if (exists) setEquipamentoId(saved.equipamentoId);
+		}
+		if (saved.tempoHInput !== undefined) setTempoHInput(saved.tempoHInput);
+		if (saved.tempoMInput !== undefined) setTempoMInput(saved.tempoMInput);
+		if (saved.quantidade !== undefined) setQuantidade(saved.quantidade);
+		if (saved.numPlacas !== undefined) setnumPlacas(saved.numPlacas);
+		if (saved.materiaId) {
+			const exists = materias.some(m => m.materia_prima_id === saved.materiaId);
+			if (exists) setMateriaId(saved.materiaId);
+		}
+		if (saved.materiaQtd !== undefined) setMateriaQtd(saved.materiaQtd);
+		if (saved.custoExtraId !== undefined) setCustoExtraId(saved.custoExtraId);
+		if (saved.custoExtraVal !== undefined)
+			setCustoExtraVal(saved.custoExtraVal);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
 	const [salvando, setSalvando] = useState(false);
 	const [novoNome, setNovoNome] = useState("");
 	const [modeloExistente, setModeloExistente] = useState("");
@@ -321,7 +363,7 @@ export default function CalculadoraView({
 	}
 
 	return (
-		<div className="grid grid-cols-1 lg:grid-cols-[minmax(0,480px)_260px] gap-4 items-start w-fit max-w-full">
+		<div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start w-full">
 			{/* Coluna esquerda — inputs */}
 			<div className="flex flex-col gap-4">
 				{/* Bloco: Impressão */}
@@ -331,7 +373,7 @@ export default function CalculadoraView({
 					</h2>
 
 					<div className="flex flex-wrap items-end gap-3">
-						<div className="w-48 shrink-0">
+						<div className="flex-1 min-w-45">
 							<Select
 								label="Equipamento"
 								value={equipamentoId}
@@ -388,7 +430,7 @@ export default function CalculadoraView({
 					</h2>
 
 					<div className="flex flex-wrap items-end gap-3">
-						<div className="w-44 shrink-0">
+						<div className="flex-1 min-w-40">
 							<Select
 								label="Matéria-prima"
 								value={materiaId}
@@ -429,7 +471,7 @@ export default function CalculadoraView({
 					</h2>
 
 					<div className="flex flex-wrap items-end gap-3">
-						<div className="w-48 shrink-0">
+						<div className="flex-1 min-w-45">
 							<Select
 								label="Catálogo"
 								value={custoExtraId}
@@ -463,7 +505,7 @@ export default function CalculadoraView({
 				</div>
 			</div>
 
-			{/* Coluna direita — resumo + sugestões + salvar */}
+			{/* Coluna central — resumo + sugestões de preço */}
 			<div className="flex flex-col gap-4">
 				{/* Bloco: Resumo de custos */}
 				<div className="rounded-xl border border-[#B5D4F4] bg-white p-4 flex flex-col gap-2">
@@ -608,6 +650,98 @@ export default function CalculadoraView({
 									</td>
 								</tr>
 							))}
+						</tbody>
+					</table>
+				</div>
+			</div>
+
+			{/* Coluna direita — salvar */}
+			<div className="flex flex-col gap-4">
+				{/* Bloco: Preço na Shopee */}
+				<div className="rounded-xl border border-[#B5D4F4] bg-white p-4 flex flex-col gap-3">
+					<h2 className="text-xs font-semibold uppercase tracking-wide text-[#185FA5]">
+						Preço na Shopee
+					</h2>
+
+					{lucroCustomPct > 0 &&
+						custoUnitario > 0 &&
+						(() => {
+							const r = calcShopee(custoUnitario * (1 + lucroCustomPct / 100));
+							if (!r) return null;
+							const lucroLiq =
+								r.preco * (1 - r.faixa.pct) - r.faixa.fixo - custoUnitario;
+							return (
+								<div className="rounded-lg bg-[#F4F8FD] border border-[#185FA5] px-3 py-2 flex justify-between items-center gap-2">
+									<span className="text-xs text-gray-600">
+										{lucroCustomPct}% de lucro
+										<span className="ml-1 text-gray-400">
+											({r.faixa.label})
+										</span>
+									</span>
+									<div className="text-right shrink-0">
+										<strong className="text-[#185FA5] text-sm block">
+											{fmtCurrency(r.preco)}
+										</strong>
+										<span className="text-[10px] text-green-700">
+											+{fmtCurrency(lucroLiq)} líquido
+										</span>
+									</div>
+								</div>
+							);
+						})()}
+
+					<table className="w-full text-xs">
+						<thead>
+							<tr className="border-b border-[#B5D4F4]">
+								<th className="pb-1 text-left font-medium text-gray-500">
+									Lucro
+								</th>
+								<th className="pb-1 text-right font-medium text-gray-500">
+									Anunciar por
+								</th>
+								<th className="pb-1 text-right font-medium text-gray-500">
+									Líquido
+								</th>
+							</tr>
+						</thead>
+						<tbody>
+							{LUCROS_PADRAO.map(pct => {
+								if (custoUnitario <= 0) {
+									return (
+										<tr
+											key={pct}
+											className="border-b border-[#E6F1FB] last:border-0"
+										>
+											<td className="py-1 text-gray-600 font-medium">{pct}%</td>
+											<td className="py-1 text-right">—</td>
+											<td className="py-1 text-right">—</td>
+										</tr>
+									);
+								}
+								const r = calcShopee(custoUnitario * (1 + pct / 100));
+								if (!r) return null;
+								const lucroLiq =
+									r.preco * (1 - r.faixa.pct) - r.faixa.fixo - custoUnitario;
+								return (
+									<tr
+										key={pct}
+										className="border-b border-[#E6F1FB] last:border-0"
+									>
+										<td className="py-1 text-gray-600 font-medium">
+											<span>{pct}%</span>
+											<span className="ml-1 text-gray-400 font-normal">
+												({r.faixa.label})
+											</span>
+										</td>
+										<td className="py-1 text-right font-semibold text-gray-900">
+											{fmtCurrency(r.preco)}
+										</td>
+										<td className="py-1 text-right text-green-700">
+											+{fmtCurrency(lucroLiq)}
+										</td>
+									</tr>
+								);
+							})}
 						</tbody>
 					</table>
 				</div>

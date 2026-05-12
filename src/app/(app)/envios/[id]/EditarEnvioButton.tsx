@@ -19,7 +19,7 @@ export default function EditarEnvioButton({
 	observacaoAtual,
 	revendedorAtualId,
 	revendedores,
-}: Props) {
+}: Readonly<Props>) {
 	const [open, setOpen] = useState(false);
 	const [dataEnvio, setDataEnvio] = useState(dataAtual);
 	const [observacao, setObservacao] = useState(observacaoAtual);
@@ -105,10 +105,11 @@ export default function EditarEnvioButton({
 						onChange={e => setDataEnvio(e.target.value)}
 					/>
 					<div className="flex flex-col gap-1">
-						<label className="text-[13px] text-gray-600 font-medium">
+						<label htmlFor="observacao" className="text-[13px] text-gray-600 font-medium">
 							Observação
 						</label>
 						<textarea
+							id="observacao"
 							rows={3}
 							className="w-full rounded-md border border-[#B5D4F4] px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:border-[#185FA5] focus:ring-[#185FA5]"
 							placeholder="Opcional"

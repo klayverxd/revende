@@ -28,7 +28,7 @@ function statusLabel(status: string) {
 	return "Encerrado";
 }
 
-export default async function EnvioDetalhePage({ params }: Props) {
+export default async function EnvioDetalhePage({ params }: Readonly<Props>) {
 	const { id } = await params;
 	const supabase = await createClient();
 
@@ -156,7 +156,7 @@ export default async function EnvioDetalhePage({ params }: Props) {
 				<div className="bg-white rounded-xl border border-[#B5D4F4] px-4 py-3">
 					<p className="text-xs text-gray-500 mb-1">Itens no envio</p>
 					<p className="text-sm font-semibold text-gray-900">
-						{itens.length} produto{itens.length !== 1 ? "s" : ""}
+					{itens.length} produto{itens.length === 1 ? "" : "s"}
 					</p>
 				</div>
 			</div>
@@ -233,7 +233,7 @@ export default async function EnvioDetalhePage({ params }: Props) {
 										{item.em_consignacao}
 									</td>
 									<td className="px-3 py-2.5 text-right text-gray-700">
-										{preco != null ? fmtCurrency(preco) : "-"}
+										{preco == null ? "-" : fmtCurrency(preco)}
 									</td>
 								</tr>
 							);

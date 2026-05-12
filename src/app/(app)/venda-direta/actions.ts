@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { resolverPrecoModelo } from "@/lib/utils/preco";
 
 export interface VendaDiretaItemInput {
-	modeloId: string;
+	modelId?: string | null;
+	descricaoLivre?: string | null;
 	quantidade: number;
 	preco?: number | null;
 	origem?: "MODELO" | "MANUAL";
@@ -118,17 +119,20 @@ export async function criarVendaDireta(data: CriarVendaDiretaInput) {
 		vendasValidas
 	);
 
+	// Validar estoque apenas para itens de catálogo
 	for (const item of data.itens) {
-		const disponivel = estoqueMap.get(item.modeloId) ?? 0;
+		if (!item.modelId) continue; // item personalizado — sem controle de estoque
+		const disponivel = estoqueMap.get(item.modelId) ?? 0;
 		if (item.quantidade > disponivel) {
 			throw new Error("Estoque insuficiente para um ou mais itens");
 		}
-		estoqueMap.set(item.modeloId, disponivel - item.quantidade);
+		estoqueMap.set(item.modelId, disponivel - item.quantidade);
 	}
 
 	let subtotal = 0;
 	const itensResolvidos: Array<{
-		modelo_id: string;
+		modelo_id: string | null;
+		descricao_livre: string | null;
 		quantidade: number;
 		preco_unitario: number;
 		preco_origem: "MODELO" | "MANUAL";
@@ -136,19 +140,30 @@ export async function criarVendaDireta(data: CriarVendaDiretaInput) {
 	}> = [];
 
 	for (const item of data.itens) {
-		const resolved = await resolverPrecoModelo(item.modeloId);
-		const origem = (item.origem ?? (resolved.origem ? "MODELO" : "MANUAL")) as
-			| "MODELO"
-			| "MANUAL";
-		const precoUnit =
-			origem === "MANUAL"
-				? (item.preco ?? 0)
-				: (resolved.preco ?? item.preco ?? 0);
+		let precoUnit: number;
+		let origem: "MODELO" | "MANUAL";
+
+		if (item.modelId) {
+			const resolved = await resolverPrecoModelo(item.modelId);
+			origem = (item.origem ?? (resolved.origem ? "MODELO" : "MANUAL")) as
+				| "MODELO"
+				| "MANUAL";
+			precoUnit =
+				origem === "MANUAL"
+					? (item.preco ?? 0)
+					: (resolved.preco ?? item.preco ?? 0);
+		} else {
+			// Item personalizado — preço sempre manual
+			origem = "MANUAL";
+			precoUnit = item.preco ?? 0;
+		}
+
 		const itemSubtotal = Number((precoUnit * item.quantidade).toFixed(2));
 		subtotal += itemSubtotal;
 
 		itensResolvidos.push({
-			modelo_id: item.modeloId,
+			modelo_id: item.modelId ?? null,
+			descricao_livre: item.descricaoLivre ?? null,
 			quantidade: item.quantidade,
 			preco_unitario: Number(precoUnit.toFixed(2)),
 			preco_origem: origem,
@@ -182,6 +197,7 @@ export async function criarVendaDireta(data: CriarVendaDiretaInput) {
 			.insert({
 				venda_id: venda.venda_id,
 				modelo_id: item.modelo_id,
+				descricao_livre: item.descricao_livre,
 				quantidade: item.quantidade,
 				preco_unitario: item.preco_unitario,
 				preco_origem: item.preco_origem,

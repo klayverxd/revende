@@ -15,7 +15,7 @@ export default async function ProdutoPage({ params }: Props) {
 			supabase
 				.from("modelo")
 				.select(
-					"modelo_id, codigo, nome, descricao, custo_producao, estoque_minimo, ativo"
+					"modelo_id, codigo, nome, descricao, custo_producao, estoque_minimo, ativo, foto_url"
 				)
 				.eq("modelo_id", id)
 				.is("deleted_at", null)

@@ -175,3 +175,16 @@ export async function desativarProdutos(ids: string[]) {
 	if (error) throw new Error(error.message);
 	revalidatePath("/produtos");
 }
+
+export async function salvarFotoUrl(modeloId: string, fotoUrl: string | null) {
+	const supabase = await createClient();
+
+	const { error } = await supabase
+		.from("modelo")
+		.update({ foto_url: fotoUrl })
+		.eq("modelo_id", modeloId);
+
+	if (error) throw new Error(error.message);
+	revalidatePath("/produtos");
+	revalidatePath(`/produtos/${modeloId}`);
+}

@@ -7,3 +7,4 @@ export { default as BulkActionBar } from "./BulkActionBar";
 export { default as Select } from "./Select";
 export { default as RowActionsMenu } from "./RowActionsMenu";
 export type { RowAction } from "./RowActionsMenu";
+export { default as FotoUpload } from "./FotoUpload";

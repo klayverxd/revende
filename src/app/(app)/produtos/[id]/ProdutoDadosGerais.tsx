@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
+import FotoUpload from "@/components/ui/FotoUpload";
 import ProdutoModal from "../ProdutoModal";
 
 interface Modelo {
@@ -14,6 +15,7 @@ interface Modelo {
 	estoque_minimo?: number | null;
 	ativo: boolean;
 	preco_unitario?: number | null;
+	foto_url?: string | null;
 }
 
 interface UltimoCalculo {
@@ -81,6 +83,11 @@ export default function ProdutoDadosGerais({ modelo, ultimoCalculo }: Props) {
 					Editar
 				</Button>
 			</div>
+
+			<FotoUpload
+				modeloId={modelo.modelo_id}
+				fotoUrl={modelo.foto_url ?? null}
+			/>
 
 			<dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
 				<div>

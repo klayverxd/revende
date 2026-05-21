@@ -158,8 +158,11 @@ function StatusDropdown({
 
 			{open && createPortal(
 				<div
-					style={{ position: "fixed", top: menuPos.top, left: menuPos.left }}
-					className={`z-50 bg-white border border-[#B5D4F4] shadow-lg py-1 min-w-40 ${menuPos.flipUp ? "rounded-t-xl rounded-b-lg" : "rounded-xl"}`}
+					style={menuPos.flipUp
+						? { position: "fixed", bottom: menuPos.bottom, left: menuPos.left }
+						: { position: "fixed", top: menuPos.top, left: menuPos.left }
+					}
+					className="z-50 bg-white border border-[#B5D4F4] rounded-xl shadow-lg py-1 min-w-40"
 				>
 					{ALL_STATUSES_WITH_CANCEL.filter(s => s !== status).map(s => (
 						<button

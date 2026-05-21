@@ -214,6 +214,25 @@ export async function atualizarPedido(
 	revalidatePath(`/pedidos/${pedidoId}`);
 }
 
+export async function patchPedido(
+	pedidoId: string,
+	campos: Partial<{
+		canal: CanalPedido;
+		data_prazo: string | null;
+		cliente_nome: string | null;
+		prioridade: Prioridade;
+	}>
+) {
+	const supabase = await createClient();
+	const { error } = await supabase
+		.from("pedido")
+		.update(campos)
+		.eq("pedido_id", pedidoId);
+	if (error) throw new Error(error.message);
+	revalidatePath("/pedidos");
+	revalidatePath(`/pedidos/${pedidoId}`);
+}
+
 export async function deletarPedido(pedidoId: string) {
 	const supabase = await createClient();
 	const { error } = await supabase
@@ -252,7 +271,9 @@ export async function buscarPedidos(filtros?: {
 	let query = supabase
 		.from("pedido")
 		.select(
-			"pedido_id, numero_pedido, data_pedido, data_prazo, canal, status, prioridade, cliente_nome, status_pagamento, created_at"
+			`pedido_id, numero_pedido, data_pedido, data_prazo, canal, status, prioridade,
+			cliente_nome, status_pagamento, created_at,
+			itens:pedido_item(descricao_custom, modelo:modelo_id(nome))`
 		)
 		.is("deleted_at", null)
 		.order("created_at", { ascending: false });
@@ -261,18 +282,30 @@ export async function buscarPedidos(filtros?: {
 	if (filtros?.canal) query = query.eq("canal", filtros.canal);
 
 	const { data } = await query;
-	return (data ?? []) as Array<{
-		pedido_id: string;
-		numero_pedido: string;
-		data_pedido: string;
-		data_prazo: string | null;
-		canal: CanalPedido;
-		status: PedidoStatus;
-		prioridade: Prioridade;
-		cliente_nome: string | null;
-		status_pagamento: StatusPagamento;
-		created_at: string;
-	}>;
+
+	return (data ?? []).map(p => {
+		const itens = (p.itens ?? []) as Array<{
+			descricao_custom: string | null;
+			modelo: { nome: string } | { nome: string }[] | null;
+		}>;
+		const produtos = itens.map(i => {
+			const m = Array.isArray(i.modelo) ? i.modelo[0] : i.modelo;
+			return m?.nome ?? i.descricao_custom ?? "";
+		}).filter(Boolean);
+		return {
+			pedido_id: p.pedido_id as string,
+			numero_pedido: p.numero_pedido as string,
+			data_pedido: p.data_pedido as string,
+			data_prazo: p.data_prazo as string | null,
+			canal: p.canal as CanalPedido,
+			status: p.status as PedidoStatus,
+			prioridade: p.prioridade as Prioridade,
+			cliente_nome: p.cliente_nome as string | null,
+			status_pagamento: p.status_pagamento as StatusPagamento,
+			created_at: p.created_at as string,
+			produtos,
+		};
+	});
 }
 
 export async function buscarPedido(pedidoId: string) {

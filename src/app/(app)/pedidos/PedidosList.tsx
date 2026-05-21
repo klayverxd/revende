@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, useToast } from "@/components/ui";
 import PedidoModal from "./PedidoModal";
-import { atualizarStatusPedido } from "./actions";
+import { atualizarStatusPedido, patchPedido } from "./actions";
 import type { PedidoStatus, CanalPedido, Prioridade, StatusPagamento } from "./actions";
 
 export interface PedidoRow {
@@ -20,6 +20,7 @@ export interface PedidoRow {
 	cliente_nome: string | null;
 	status_pagamento: StatusPagamento;
 	created_at: string;
+	produtos: string[];
 }
 
 const STATUS_LABEL: Record<PedidoStatus, string> = {
@@ -59,12 +60,6 @@ const STATUS_COLOR: Record<PedidoStatus, string> = {
 	CANCELADO: "bg-red-50 text-red-700 border-red-200",
 };
 
-const CANAL_LABEL: Record<CanalPedido, string> = {
-	PRESENCIAL: "Presencial",
-	WHATSAPP: "WhatsApp",
-	INSTAGRAM: "Instagram",
-	SHOPEE: "Shopee",
-};
 
 const PRIORIDADE_STYLE: Record<Prioridade, string> = {
 	NORMAL: "text-gray-400",
@@ -187,21 +182,92 @@ function StatusDropdown({
 	);
 }
 
+const inlineSelect = "text-sm bg-transparent border-0 outline-none cursor-pointer hover:text-[#185FA5] text-gray-700 p-0 appearance-none";
+const inlineDate = "text-sm bg-transparent border-0 outline-none cursor-pointer hover:text-[#185FA5] p-0";
+
+function CanalCell({
+	pedidoId,
+	canal,
+	onSave,
+}: {
+	readonly pedidoId: string;
+	readonly canal: CanalPedido;
+	readonly onSave: (pedidoId: string, canal: CanalPedido) => void;
+}) {
+	return (
+		<select
+			value={canal}
+			onChange={e => onSave(pedidoId, e.target.value as CanalPedido)}
+			className={inlineSelect}
+		>
+			<option value="PRESENCIAL">Presencial</option>
+			<option value="WHATSAPP">WhatsApp</option>
+			<option value="INSTAGRAM">Instagram</option>
+			<option value="SHOPEE">Shopee</option>
+		</select>
+	);
+}
+
+function PrazoCell({
+	pedidoId,
+	dataPrazo,
+	atrasado,
+	onSave,
+}: {
+	readonly pedidoId: string;
+	readonly dataPrazo: string | null;
+	readonly atrasado: boolean | "" | null;
+	readonly onSave: (pedidoId: string, data: string | null) => void;
+}) {
+	return (
+		<input
+			type="date"
+			defaultValue={dataPrazo?.slice(0, 10) ?? ""}
+			onBlur={e => onSave(pedidoId, e.target.value || null)}
+			className={`${inlineDate} ${atrasado ? "text-red-600 font-medium" : dataPrazo ? "text-gray-700" : "text-gray-400"}`}
+		/>
+	);
+}
+
 export default function PedidosList({ pedidos }: Props) {
 	const [novoOpen, setNovoOpen] = useState(false);
 	const [filtroStatus, setFiltroStatus] = useState<PedidoStatus | "">("");
+	const [busca, setBusca] = useState("");
 	const [advancing, setAdvancing] = useState<string | null>(null);
 	const [isPending, startTransition] = useTransition();
 	const router = useRouter();
 	const { showToast } = useToast();
 
-	const exibidos = filtroStatus
-		? pedidos.filter(p => p.status === filtroStatus)
-		: pedidos.filter(p => p.status !== "ENTREGUE" && p.status !== "CANCELADO");
+	const normalize = (s: string) =>
+		s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+	const exibidos = (() => {
+		const q = normalize(busca.trim());
+		if (q) {
+			return pedidos.filter(p =>
+				normalize(p.numero_pedido).includes(q) ||
+				normalize(p.cliente_nome ?? "").includes(q) ||
+				p.produtos.some(nome => normalize(nome).includes(q))
+			);
+		}
+		if (filtroStatus) return pedidos.filter(p => p.status === filtroStatus);
+		return pedidos.filter(p => p.status !== "ENTREGUE" && p.status !== "CANCELADO");
+	})();
 
 	const ativos = pedidos.filter(
 		p => p.status !== "ENTREGUE" && p.status !== "CANCELADO"
 	).length;
+
+	function handlePatch(pedidoId: string, campos: Parameters<typeof patchPedido>[1]) {
+		startTransition(async () => {
+			try {
+				await patchPedido(pedidoId, campos);
+				router.refresh();
+			} catch {
+				showToast("Erro ao atualizar pedido", "error");
+			}
+		});
+	}
 
 	function handleStatusSelect(pedidoId: string, novoStatus: PedidoStatus) {
 		setAdvancing(pedidoId);
@@ -220,6 +286,13 @@ export default function PedidosList({ pedidos }: Props) {
 
 	return (
 		<div className="flex flex-col gap-4">
+			<input
+				type="search"
+				value={busca}
+				onChange={e => setBusca(e.target.value)}
+				placeholder="Buscar por número ou cliente..."
+				className="w-full text-sm rounded-xl border border-[#B5D4F4] px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:border-[#185FA5] focus:ring-[#185FA5]"
+			/>
 			<div className="flex flex-wrap items-center gap-2 justify-between">
 				<div className="flex flex-wrap gap-1.5">
 					<button
@@ -299,9 +372,9 @@ export default function PedidosList({ pedidos }: Props) {
 									<td className="px-4 py-3">
 										<Link
 											href={`/pedidos/${p.pedido_id}`}
-											className="font-mono font-medium text-[#185FA5] hover:underline"
+											className="font-medium text-[#185FA5] hover:underline uppercase"
 										>
-											{p.numero_pedido}
+											{p.produtos[0] ?? p.numero_pedido}
 										</Link>
 										{p.prioridade !== "NORMAL" && (
 											<span
@@ -311,7 +384,7 @@ export default function PedidosList({ pedidos }: Props) {
 											</span>
 										)}
 										<div className="text-xs text-gray-400 mt-0.5">
-											{new Date(`${p.data_pedido.slice(0, 10)}T00:00:00`).toLocaleDateString("pt-BR")}
+											{p.numero_pedido} · {new Date(`${p.data_pedido.slice(0, 10)}T00:00:00`).toLocaleDateString("pt-BR")}
 										</div>
 									</td>
 									<td className="px-4 py-3 text-gray-900">
@@ -319,8 +392,12 @@ export default function PedidosList({ pedidos }: Props) {
 											<span className="text-gray-400">—</span>
 										)}
 									</td>
-									<td className="px-4 py-3 text-gray-700">
-										{CANAL_LABEL[p.canal]}
+									<td className="px-4 py-3">
+										<CanalCell
+											pedidoId={p.pedido_id}
+											canal={p.canal}
+											onSave={(id, canal) => handlePatch(id, { canal })}
+										/>
 									</td>
 									<td className="px-4 py-3">
 										<StatusDropdown
@@ -331,20 +408,12 @@ export default function PedidosList({ pedidos }: Props) {
 										/>
 									</td>
 									<td className="px-4 py-3">
-										{p.data_prazo ? (
-											<span
-												className={
-													atrasado
-														? "text-red-600 font-medium"
-														: "text-gray-700"
-												}
-											>
-												{new Date(`${p.data_prazo.slice(0, 10)}T00:00:00`).toLocaleDateString("pt-BR")}
-												{atrasado && " ⚠"}
-											</span>
-										) : (
-											<span className="text-gray-400">—</span>
-										)}
+										<PrazoCell
+											pedidoId={p.pedido_id}
+											dataPrazo={p.data_prazo}
+											atrasado={atrasado}
+											onSave={(id, data) => handlePatch(id, { data_prazo: data })}
+										/>
 									</td>
 								</tr>
 							);

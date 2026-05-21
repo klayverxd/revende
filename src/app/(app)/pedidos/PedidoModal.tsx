@@ -34,6 +34,13 @@ const itemSchema = z.object({
 
 const PEDIDO_STATUSES = ["NOVO","EM_MODELAGEM","AGUARDANDO_IMPRESSAO","IMPRIMINDO","EM_ACABAMENTO","PRONTO","ENVIADO","ENTREGUE","CANCELADO"] as const;
 
+const CANAL_TAXA_DEFAULT: Record<string, number> = {
+	SHOPEE: 20,
+	PRESENCIAL: 0,
+	WHATSAPP: 0,
+	INSTAGRAM: 0,
+};
+
 const schema = z.object({
 	canal: z.enum(["PRESENCIAL", "WHATSAPP", "INSTAGRAM", "SHOPEE"]),
 	status: z.enum(PEDIDO_STATUSES),
@@ -48,6 +55,9 @@ const schema = z.object({
 	status_pagamento: z.enum(["PENDENTE", "SINAL_RECEBIDO", "PAGO"]),
 	valor_sinal: z.string().optional(),
 	desconto_valor: z.string().optional(),
+	taxa_marketplace_pct: z.string().optional(),
+	custo_envio: z.string().optional(),
+	outros_encargos: z.string().optional(),
 	observacao: z.string().optional(),
 	itens: z.array(itemSchema).min(1, "Adicione ao menos um item"),
 });
@@ -72,6 +82,9 @@ export interface PedidoParaEditar {
 	status_pagamento: StatusPagamento;
 	valor_sinal: number | null;
 	desconto_valor: number | null;
+	taxa_marketplace_pct: number | null;
+	custo_envio: number | null;
+	outros_encargos: number | null;
 	observacao: string | null;
 	itens: Array<{
 		tipo: "PRODUTO" | "CORINGA";
@@ -137,6 +150,10 @@ export default function PedidoModal({ open, onClose, pedido }: Props) {
 	const { fields, append, remove } = useFieldArray({ control, name: "itens" });
 	const watchItens = useWatch({ control, name: "itens" });
 	const watchDesconto = useWatch({ control, name: "desconto_valor" });
+	const watchCanal = useWatch({ control, name: "canal" });
+	const watchTaxaPct = useWatch({ control, name: "taxa_marketplace_pct" });
+	const watchCustoEnvio = useWatch({ control, name: "custo_envio" });
+	const watchOutrosEncargos = useWatch({ control, name: "outros_encargos" });
 
 	function recarregarModelos() {
 		return buscarModelos().then(setModelos);
@@ -146,6 +163,12 @@ export default function PedidoModal({ open, onClose, pedido }: Props) {
 		recarregarModelos();
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
+
+	useEffect(() => {
+		if (isEdit) return;
+		const defaultPct = CANAL_TAXA_DEFAULT[watchCanal] ?? 0;
+		setValue("taxa_marketplace_pct", defaultPct > 0 ? String(defaultPct) : "");
+	}, [watchCanal, isEdit, setValue]);
 
 	async function handleProdutoCriado(modeloId: string, idx: number) {
 		await recarregarModelos();
@@ -170,6 +193,9 @@ export default function PedidoModal({ open, onClose, pedido }: Props) {
 				status_pagamento: pedido.status_pagamento,
 				valor_sinal: numStr(pedido.valor_sinal),
 				desconto_valor: numStr(pedido.desconto_valor),
+				taxa_marketplace_pct: numStr(pedido.taxa_marketplace_pct),
+				custo_envio: numStr(pedido.custo_envio),
+				outros_encargos: numStr(pedido.outros_encargos),
 				observacao: pedido.observacao ?? "",
 				itens: pedido.itens.map(i => ({
 					tipo: i.tipo,
@@ -205,6 +231,19 @@ export default function PedidoModal({ open, onClose, pedido }: Props) {
 	}, 0);
 	const desconto = parseNum(watchDesconto) ?? 0;
 	const total = Math.max(0, subtotal - desconto);
+
+	const custoProducao = (watchItens ?? []).reduce((acc, item) => {
+		const custo = parseNum(item?.custo_unit) ?? 0;
+		const qty = parseInt2(item?.quantidade) ?? 0;
+		return acc + custo * qty;
+	}, 0);
+	const taxaPct = parseNum(watchTaxaPct) ?? 0;
+	const taxaMarketplace = (total * taxaPct) / 100;
+	const custoEnvioVal = parseNum(watchCustoEnvio) ?? 0;
+	const outrosEncargosVal = parseNum(watchOutrosEncargos) ?? 0;
+	const totalCustos = custoProducao + taxaMarketplace + custoEnvioVal + outrosEncargosVal;
+	const lucro = total - totalCustos;
+	const hasCosts = custoProducao > 0 || taxaMarketplace > 0 || custoEnvioVal > 0 || outrosEncargosVal > 0;
 
 	function adicionarItem(tipo: "PRODUTO" | "CORINGA") {
 		append({
@@ -259,6 +298,9 @@ export default function PedidoModal({ open, onClose, pedido }: Props) {
 				status_pagamento: values.status_pagamento,
 				valor_sinal: parseNum(values.valor_sinal),
 				desconto_valor: parseNum(values.desconto_valor),
+				taxa_marketplace_pct: parseNum(values.taxa_marketplace_pct),
+				custo_envio: parseNum(values.custo_envio),
+				outros_encargos: parseNum(values.outros_encargos),
 				observacao: values.observacao || null,
 				itens,
 			};
@@ -497,37 +539,84 @@ export default function PedidoModal({ open, onClose, pedido }: Props) {
 							{...register("desconto_valor")}
 						/>
 					</div>
+
+					<p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mt-1">
+						Custos operacionais
+					</p>
+					<div className="grid grid-cols-3 gap-3">
+						<Input
+							label={`Taxa marketplace${taxaPct > 0 ? ` (${taxaPct}%)` : " (%)"}`}
+							placeholder="0"
+							type="text"
+							inputMode="decimal"
+							{...register("taxa_marketplace_pct")}
+						/>
+						<Input
+							label="Custo de envio (R$)"
+							placeholder="0,00"
+							type="text"
+							inputMode="decimal"
+							{...register("custo_envio")}
+						/>
+						<Input
+							label="Outros encargos (R$)"
+							placeholder="0,00"
+							type="text"
+							inputMode="decimal"
+							{...register("outros_encargos")}
+						/>
+					</div>
+
 					{fields.length > 0 && (
 						<div className="rounded-lg bg-[#F4F8FD] border border-[#B5D4F4] px-4 py-3 flex flex-col gap-1 text-sm">
 							<div className="flex justify-between text-gray-600">
 								<span>Subtotal</span>
-								<span>
-									{subtotal.toLocaleString("pt-BR", {
-										style: "currency",
-										currency: "BRL",
-									})}
-								</span>
+								<span>{subtotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
 							</div>
 							{desconto > 0 && (
 								<div className="flex justify-between text-gray-500">
 									<span>Desconto</span>
-									<span>
-										-{desconto.toLocaleString("pt-BR", {
-											style: "currency",
-											currency: "BRL",
-										})}
-									</span>
+									<span>−{desconto.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
 								</div>
 							)}
 							<div className="flex justify-between font-semibold text-gray-900 border-t border-[#B5D4F4] pt-1 mt-0.5">
 								<span>Total</span>
-								<span className="text-[#185FA5]">
-									{total.toLocaleString("pt-BR", {
-										style: "currency",
-										currency: "BRL",
-									})}
-								</span>
+								<span className="text-[#185FA5]">{total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
 							</div>
+							{hasCosts && (
+								<>
+									<div className="border-t border-[#B5D4F4] mt-0.5 pt-1 flex flex-col gap-1">
+										{custoProducao > 0 && (
+											<div className="flex justify-between text-gray-500">
+												<span>Custo de produção</span>
+												<span>−{custoProducao.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+											</div>
+										)}
+										{taxaMarketplace > 0 && (
+											<div className="flex justify-between text-gray-500">
+												<span>Taxa marketplace ({taxaPct}%)</span>
+												<span>−{taxaMarketplace.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+											</div>
+										)}
+										{custoEnvioVal > 0 && (
+											<div className="flex justify-between text-gray-500">
+												<span>Custo de envio</span>
+												<span>−{custoEnvioVal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+											</div>
+										)}
+										{outrosEncargosVal > 0 && (
+											<div className="flex justify-between text-gray-500">
+												<span>Outros encargos</span>
+												<span>−{outrosEncargosVal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+											</div>
+										)}
+									</div>
+									<div className={`flex justify-between font-semibold border-t border-[#B5D4F4] pt-1 mt-0.5 ${lucro >= 0 ? "text-green-700" : "text-red-600"}`}>
+										<span>Lucro estimado</span>
+										<span>{lucro.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+									</div>
+								</>
+							)}
 						</div>
 					)}
 				</Section>

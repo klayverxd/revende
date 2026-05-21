@@ -52,6 +52,9 @@ export interface CriarPedidoInput {
 	status_pagamento?: StatusPagamento;
 	valor_sinal?: number | null;
 	desconto_valor?: number | null;
+	taxa_marketplace_pct?: number | null;
+	custo_envio?: number | null;
+	outros_encargos?: number | null;
 	observacao?: string | null;
 	itens: PedidoItemInput[];
 }
@@ -93,6 +96,9 @@ export async function criarPedido(input: CriarPedidoInput) {
 			status_pagamento: input.status_pagamento ?? "PENDENTE",
 			valor_sinal: input.valor_sinal ?? null,
 			desconto_valor: input.desconto_valor ?? null,
+			taxa_marketplace_pct: input.taxa_marketplace_pct ?? null,
+			custo_envio: input.custo_envio ?? null,
+			outros_encargos: input.outros_encargos ?? null,
 			observacao: input.observacao?.trim() || null,
 		})
 		.select("pedido_id")
@@ -180,6 +186,9 @@ export async function atualizarPedido(
 			status_pagamento: input.status_pagamento ?? "PENDENTE",
 			valor_sinal: input.valor_sinal ?? null,
 			desconto_valor: input.desconto_valor ?? null,
+			taxa_marketplace_pct: input.taxa_marketplace_pct ?? null,
+			custo_envio: input.custo_envio ?? null,
+			outros_encargos: input.outros_encargos ?? null,
 			observacao: input.observacao?.trim() || null,
 		})
 		.eq("pedido_id", pedidoId);
@@ -317,6 +326,7 @@ export async function buscarPedido(pedidoId: string) {
 			data_conclusao_producao, data_entrega, canal, status, prioridade,
 			cliente_nome, cliente_telefone, cliente_email, cliente_referencia,
 			forma_pagamento, status_pagamento, valor_sinal, desconto_valor,
+			taxa_marketplace_pct, custo_envio, outros_encargos,
 			observacao, created_at, updated_at,
 			itens:pedido_item(item_id, tipo, modelo_id, descricao_custom,
 				tempo_impressao_min, peso_g, num_placas, quantidade,

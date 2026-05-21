@@ -64,7 +64,7 @@ export default async function RevendedorExtrato({ params }: Props) {
 		itens: EnvioItem[];
 	};
 
-	const envios = (enviosRaw ?? []) as Envio[];
+	const envios = (enviosRaw ?? []) as unknown as Envio[];
 	const acertos = (acertosRaw ?? []) as Array<{
 		acerto_id: string;
 		envio_id: string | null;

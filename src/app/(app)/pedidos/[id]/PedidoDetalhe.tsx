@@ -51,6 +51,9 @@ interface Pedido {
 	status_pagamento: StatusPagamento;
 	valor_sinal: number | null;
 	desconto_valor: number | null;
+	taxa_marketplace_pct: number | null;
+	custo_envio: number | null;
+	outros_encargos: number | null;
 	observacao: string | null;
 	created_at: string;
 	updated_at: string;
@@ -184,6 +187,9 @@ export default function PedidoDetalhe({ pedido }: Props) {
 		status_pagamento: pedido.status_pagamento,
 		valor_sinal: pedido.valor_sinal,
 		desconto_valor: pedido.desconto_valor,
+		taxa_marketplace_pct: pedido.taxa_marketplace_pct,
+		custo_envio: pedido.custo_envio,
+		outros_encargos: pedido.outros_encargos,
 		observacao: pedido.observacao,
 		itens: pedido.itens.map(i => ({
 			tipo: i.tipo as "PRODUTO" | "CORINGA",
@@ -445,42 +451,99 @@ export default function PedidoDetalhe({ pedido }: Props) {
 
 			{/* Financeiro */}
 			<Card title="Financeiro">
-				<DescList>
-					<DescTerm>Forma de pagamento</DescTerm>
-					<DescDetail>
-						{pedido.forma_pagamento
-							? FORMA_PAGAMENTO_LABEL[pedido.forma_pagamento]
-							: "—"}
-					</DescDetail>
-					<DescTerm>Status do pagamento</DescTerm>
-					<DescDetail>
-						<Badge variant={pagamentoVariant(pedido.status_pagamento)}>
-							{PAGAMENTO_LABEL[pedido.status_pagamento]}
-						</Badge>
-					</DescDetail>
-					{Boolean(pedido.valor_sinal) && (
-						<>
-							<DescTerm>Sinal / entrada</DescTerm>
-							<DescDetail>{fmt(pedido.valor_sinal)}</DescDetail>
-						</>
-					)}
-					{Boolean(pedido.desconto_valor) && (
-						<>
-							<DescTerm>Desconto</DescTerm>
-							<DescDetail>−{fmt(pedido.desconto_valor)}</DescDetail>
-						</>
-					)}
-					<DescTerm>Total</DescTerm>
-					<DescDetail className="font-bold text-[#185FA5] text-base">
-						{fmt(
-							pedido.itens.reduce(
-								(sum, it) =>
-									sum + (it.preco_venda_unit ?? 0) * (it.quantidade ?? 1),
-								0
-							) - (pedido.desconto_valor ?? 0)
-						)}
-					</DescDetail>
-				</DescList>
+				{(() => {
+					const subtotal = pedido.itens.reduce(
+						(sum, it) => sum + (it.preco_venda_unit ?? 0) * (it.quantidade ?? 1), 0
+					);
+					const desconto = pedido.desconto_valor ?? 0;
+					const total = Math.max(0, subtotal - desconto);
+					const custoProducao = pedido.itens.reduce(
+						(sum, it) => sum + (it.custo_unit ?? 0) * (it.quantidade ?? 1), 0
+					);
+					const taxaPct = pedido.taxa_marketplace_pct ?? 0;
+					const taxaMarketplace = (total * taxaPct) / 100;
+					const custoEnvio = pedido.custo_envio ?? 0;
+					const outrosEncargos = pedido.outros_encargos ?? 0;
+					const totalCustos = custoProducao + taxaMarketplace + custoEnvio + outrosEncargos;
+					const lucro = total - totalCustos;
+					const hasCosts = custoProducao > 0 || taxaMarketplace > 0 || custoEnvio > 0 || outrosEncargos > 0;
+
+					return (
+						<div className="flex flex-col gap-4">
+							<DescList>
+								<DescTerm>Forma de pagamento</DescTerm>
+								<DescDetail>
+									{pedido.forma_pagamento ? FORMA_PAGAMENTO_LABEL[pedido.forma_pagamento] : "—"}
+								</DescDetail>
+								<DescTerm>Status do pagamento</DescTerm>
+								<DescDetail>
+									<Badge variant={pagamentoVariant(pedido.status_pagamento)}>
+										{PAGAMENTO_LABEL[pedido.status_pagamento]}
+									</Badge>
+								</DescDetail>
+								{Boolean(pedido.valor_sinal) && (
+									<>
+										<DescTerm>Sinal / entrada</DescTerm>
+										<DescDetail>{fmt(pedido.valor_sinal)}</DescDetail>
+									</>
+								)}
+							</DescList>
+
+							<div className="rounded-lg bg-[#F4F8FD] border border-[#B5D4F4] px-4 py-3 flex flex-col gap-1.5 text-sm">
+								<div className="flex justify-between text-gray-600">
+									<span>Subtotal</span>
+									<span>{fmt(subtotal)}</span>
+								</div>
+								{desconto > 0 && (
+									<div className="flex justify-between text-gray-500">
+										<span>Desconto</span>
+										<span>−{fmt(desconto)}</span>
+									</div>
+								)}
+								<div className="flex justify-between font-semibold text-gray-900 border-t border-[#B5D4F4] pt-1.5">
+									<span>Total</span>
+									<span className="text-[#185FA5]">{fmt(total)}</span>
+								</div>
+
+								{hasCosts && (
+									<>
+										<div className="flex flex-col gap-1 border-t border-[#B5D4F4] pt-1.5 mt-0.5">
+											<p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Custos</p>
+											{custoProducao > 0 && (
+												<div className="flex justify-between text-gray-500">
+													<span>Produção</span>
+													<span>−{fmt(custoProducao)}</span>
+												</div>
+											)}
+											{taxaMarketplace > 0 && (
+												<div className="flex justify-between text-gray-500">
+													<span>Taxa marketplace ({taxaPct}%)</span>
+													<span>−{fmt(taxaMarketplace)}</span>
+												</div>
+											)}
+											{custoEnvio > 0 && (
+												<div className="flex justify-between text-gray-500">
+													<span>Envio</span>
+													<span>−{fmt(custoEnvio)}</span>
+												</div>
+											)}
+											{outrosEncargos > 0 && (
+												<div className="flex justify-between text-gray-500">
+													<span>Outros encargos</span>
+													<span>−{fmt(outrosEncargos)}</span>
+												</div>
+											)}
+										</div>
+										<div className={`flex justify-between font-semibold border-t border-[#B5D4F4] pt-1.5 ${lucro >= 0 ? "text-green-700" : "text-red-600"}`}>
+											<span>Lucro estimado</span>
+											<span>{fmt(lucro)}</span>
+										</div>
+									</>
+								)}
+							</div>
+						</div>
+					);
+				})()}
 			</Card>
 
 			{Boolean(pedido.observacao) && (

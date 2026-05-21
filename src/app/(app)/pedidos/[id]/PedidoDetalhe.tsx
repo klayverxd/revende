@@ -130,7 +130,7 @@ function fmt(v: number | null | undefined) {
 }
 function fmtDate(s: string | null | undefined) {
 	if (!s) return "—";
-	return new Date(s).toLocaleDateString("pt-BR");
+	return new Date(`${s.slice(0, 10)}T00:00:00`).toLocaleDateString("pt-BR");
 }
 
 function getModeloInfo(item: Item): ItemModelo {
@@ -299,7 +299,7 @@ export default function PedidoDetalhe({ pedido }: Props) {
 							{pedido.data_prazo ? (
 								<span
 									className={
-										new Date(pedido.data_prazo) < new Date() &&
+										new Date(`${pedido.data_prazo.slice(0, 10)}T00:00:00`) < new Date() &&
 										pedido.status !== "ENTREGUE" &&
 										pedido.status !== "CANCELADO"
 											? "text-red-600 font-medium"

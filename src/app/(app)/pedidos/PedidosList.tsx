@@ -288,7 +288,7 @@ export default function PedidosList({ pedidos }: Props) {
 								p.data_prazo &&
 								p.status !== "ENTREGUE" &&
 								p.status !== "CANCELADO" &&
-								new Date(p.data_prazo) < new Date();
+								new Date(`${p.data_prazo.slice(0, 10)}T00:00:00`) < new Date();
 							const isAdvancing = advancing === p.pedido_id && isPending;
 							return (
 								<tr
@@ -310,7 +310,7 @@ export default function PedidosList({ pedidos }: Props) {
 											</span>
 										)}
 										<div className="text-xs text-gray-400 mt-0.5">
-											{new Date(p.data_pedido).toLocaleDateString("pt-BR")}
+											{new Date(`${p.data_pedido.slice(0, 10)}T00:00:00`).toLocaleDateString("pt-BR")}
 										</div>
 									</td>
 									<td className="px-4 py-3 text-gray-900">
@@ -338,7 +338,7 @@ export default function PedidosList({ pedidos }: Props) {
 														: "text-gray-700"
 												}
 											>
-												{new Date(p.data_prazo).toLocaleDateString("pt-BR")}
+												{new Date(`${p.data_prazo.slice(0, 10)}T00:00:00`).toLocaleDateString("pt-BR")}
 												{atrasado && " ⚠"}
 											</span>
 										) : (

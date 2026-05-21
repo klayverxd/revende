@@ -54,7 +54,7 @@ export default async function RevendedorHistoricoPage({ params }: Props) {
 			.order("created_at", { ascending: false }),
 	]);
 
-	const envios = (enviosRaw ?? []) as Array<{
+	const envios = (enviosRaw ?? []) as unknown as Array<{
 		envio_id: string;
 		data_envio: string;
 		status: string;

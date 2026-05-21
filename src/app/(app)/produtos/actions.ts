@@ -10,6 +10,8 @@ export interface ProdutoData {
 	custo_producao?: number | null;
 	estoque_minimo?: number;
 	preco_unitario?: number | null;
+	preco_atacado?: number | null;
+	qtd_minima_atacado?: number | null;
 }
 
 async function gerarCodigo(): Promise<string> {
@@ -46,14 +48,27 @@ export async function criarProduto(data: ProdutoData) {
 
 	if (error) throw new Error(error.message);
 
+	const tiersNovoModelo = [];
 	if (data.preco_unitario != null && novoModelo) {
-		await supabase.from("modelo_preco").insert({
+		tiersNovoModelo.push({
 			modelo_id: novoModelo.modelo_id,
 			quantidade_minima: 1,
 			rotulo: "Unitário",
 			preco: data.preco_unitario,
 			ativo: true,
 		});
+	}
+	if (data.preco_atacado != null && (data.qtd_minima_atacado ?? 0) >= 2 && novoModelo) {
+		tiersNovoModelo.push({
+			modelo_id: novoModelo.modelo_id,
+			quantidade_minima: data.qtd_minima_atacado!,
+			rotulo: "Atacado",
+			preco: data.preco_atacado,
+			ativo: true,
+		});
+	}
+	if (tiersNovoModelo.length > 0) {
+		await supabase.from("modelo_preco").insert(tiersNovoModelo);
 	}
 
 	revalidatePath("/produtos");
@@ -76,14 +91,27 @@ export async function atualizarProduto(id: string, data: ProdutoData) {
 	if (error) throw new Error(error.message);
 
 	await supabase.from("modelo_preco").delete().eq("modelo_id", id);
+	const tiersAtualizar = [];
 	if (data.preco_unitario != null) {
-		await supabase.from("modelo_preco").insert({
+		tiersAtualizar.push({
 			modelo_id: id,
 			quantidade_minima: 1,
 			rotulo: "Unitário",
 			preco: data.preco_unitario,
 			ativo: true,
 		});
+	}
+	if (data.preco_atacado != null && (data.qtd_minima_atacado ?? 0) >= 2) {
+		tiersAtualizar.push({
+			modelo_id: id,
+			quantidade_minima: data.qtd_minima_atacado!,
+			rotulo: "Atacado",
+			preco: data.preco_atacado,
+			ativo: true,
+		});
+	}
+	if (tiersAtualizar.length > 0) {
+		await supabase.from("modelo_preco").insert(tiersAtualizar);
 	}
 
 	revalidatePath("/produtos");
@@ -133,6 +161,47 @@ export async function atualizarCustoEPreco(
 		await supabase
 			.from("modelo_preco")
 			.update({ ativo: false })
+			.eq("preco_id", existente.preco_id);
+	}
+
+	revalidatePath("/produtos");
+	revalidatePath(`/produtos/${id}`);
+}
+
+export async function atualizarPrecoAtacado(
+	id: string,
+	preco: number | null,
+	qtd: number | null
+) {
+	const supabase = await createClient();
+
+	const { data: existente } = await supabase
+		.from("modelo_preco")
+		.select("preco_id")
+		.eq("modelo_id", id)
+		.eq("rotulo", "Atacado")
+		.is("deleted_at", null)
+		.maybeSingle();
+
+	if (preco != null && qtd != null && qtd >= 2) {
+		if (existente) {
+			await supabase
+				.from("modelo_preco")
+				.update({ preco, quantidade_minima: qtd, ativo: true })
+				.eq("preco_id", existente.preco_id);
+		} else {
+			await supabase.from("modelo_preco").insert({
+				modelo_id: id,
+				quantidade_minima: qtd,
+				rotulo: "Atacado",
+				preco,
+				ativo: true,
+			});
+		}
+	} else if (existente) {
+		await supabase
+			.from("modelo_preco")
+			.delete()
 			.eq("preco_id", existente.preco_id);
 	}
 

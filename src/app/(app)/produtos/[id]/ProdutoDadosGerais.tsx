@@ -15,6 +15,8 @@ interface Modelo {
 	estoque_minimo?: number | null;
 	ativo: boolean;
 	preco_unitario?: number | null;
+	preco_atacado?: number | null;
+	qtd_minima_atacado?: number | null;
 	foto_url?: string | null;
 }
 
@@ -136,15 +138,32 @@ export default function ProdutoDadosGerais({ modelo, ultimoCalculo }: Props) {
 					</dt>
 					<dd className="text-gray-900">{modelo.estoque_minimo ?? 0} un.</dd>
 				</div>
-				<div className="col-span-2">
+				<div>
 					<dt className="text-gray-500 text-xs uppercase tracking-wide mb-0.5">
-						Preço unitário
+						Varejo (≥1 un.)
 					</dt>
 					<dd className="text-gray-900 font-medium">
 						{modelo.preco_unitario == null ? (
-							<span className="text-gray-400">Não definido</span>
+							<span className="text-gray-400">—</span>
 						) : (
 							fmt(modelo.preco_unitario)
+						)}
+					</dd>
+				</div>
+				<div>
+					<dt className="text-gray-500 text-xs uppercase tracking-wide mb-0.5">
+						Atacado
+						{modelo.qtd_minima_atacado != null && (
+							<span className="ml-1 normal-case font-normal">
+								(≥{modelo.qtd_minima_atacado} un.)
+							</span>
+						)}
+					</dt>
+					<dd className="text-gray-900 font-medium">
+						{modelo.preco_atacado == null ? (
+							<span className="text-gray-400">—</span>
+						) : (
+							fmt(modelo.preco_atacado)
 						)}
 					</dd>
 				</div>
@@ -161,6 +180,8 @@ export default function ProdutoDadosGerais({ modelo, ultimoCalculo }: Props) {
 					custo_producao: modelo.custo_producao,
 					estoque_minimo: modelo.estoque_minimo,
 					preco_unitario: modelo.preco_unitario,
+					preco_atacado: modelo.preco_atacado,
+					qtd_minima_atacado: modelo.qtd_minima_atacado,
 				}}
 			/>
 

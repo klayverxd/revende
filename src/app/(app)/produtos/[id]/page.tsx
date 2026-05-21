@@ -10,7 +10,7 @@ export default async function ProdutoPage({ params }: Props) {
 	const { id } = await params;
 	const supabase = await createClient();
 
-	const [{ data: modelo }, { data: precoRow }, { data: ultimoCalculo }] =
+	const [{ data: modelo }, { data: precoRow }, { data: atacadoRow }, { data: ultimoCalculo }] =
 		await Promise.all([
 			supabase
 				.from("modelo")
@@ -25,6 +25,16 @@ export default async function ProdutoPage({ params }: Props) {
 				.select("preco")
 				.eq("modelo_id", id)
 				.eq("quantidade_minima", 1)
+				.eq("ativo", true)
+				.is("deleted_at", null)
+				.maybeSingle(),
+			supabase
+				.from("modelo_preco")
+				.select("preco, quantidade_minima")
+				.eq("modelo_id", id)
+				.eq("rotulo", "Atacado")
+				.eq("ativo", true)
+				.is("deleted_at", null)
 				.maybeSingle(),
 			supabase
 				.from("calculo_custo")
@@ -53,9 +63,7 @@ export default async function ProdutoPage({ params }: Props) {
 				config_equipamento:
 					Array.isArray(raw.config_equipamento) &&
 					raw.config_equipamento.length > 0
-						? ({ nome: String(raw.config_equipamento[0].nome) } as {
-								nome: string;
-							})
+						? { nome: String(raw.config_equipamento[0].nome) }
 						: null,
 			}
 		: null;
@@ -64,7 +72,9 @@ export default async function ProdutoPage({ params }: Props) {
 		<ProdutoDadosGerais
 			modelo={{
 				...modelo,
-				preco_unitario: (precoRow?.preco as number | null) ?? null,
+				preco_unitario: (precoRow?.preco ?? null) as number | null,
+				preco_atacado: (atacadoRow?.preco ?? null) as number | null,
+				qtd_minima_atacado: (atacadoRow?.quantidade_minima ?? null) as number | null,
 			}}
 			ultimoCalculo={calculoNormalizado}
 		/>

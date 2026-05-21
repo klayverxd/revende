@@ -16,6 +16,7 @@ import {
 	ativarProdutos,
 	desativarProdutos,
 	atualizarCustoEPreco,
+	atualizarPrecoAtacado,
 } from "./actions";
 
 function parseMonetary(raw: string): number | null {
@@ -87,6 +88,100 @@ function InlinePrice({ value, onSave }: InlinePriceProps) {
 	);
 }
 
+interface InlineAtacadoProps {
+	readonly preco: number | null;
+	readonly qtd: number | null;
+	readonly onSave: (preco: number | null, qtd: number | null) => Promise<void>;
+}
+
+function InlineAtacado({ preco, qtd, onSave }: InlineAtacadoProps) {
+	const [editing, setEditing] = useState(false);
+	const [draftPreco, setDraftPreco] = useState("");
+	const [draftQtd, setDraftQtd] = useState("");
+	const [saving, setSaving] = useState(false);
+
+	function startEdit() {
+		setDraftPreco(preco == null ? "" : preco.toFixed(2).replace(".", ","));
+		setDraftQtd(qtd == null ? "" : String(qtd));
+		setEditing(true);
+	}
+
+	async function commit() {
+		const p = draftPreco.trim() === "" ? null : parseMonetary(draftPreco);
+		const q = draftQtd.trim() === "" ? null : Number.parseInt(draftQtd, 10);
+		setSaving(true);
+		try {
+			await onSave(p, q);
+		} finally {
+			setSaving(false);
+			setEditing(false);
+		}
+	}
+
+	function onKeyDown(e: React.KeyboardEvent) {
+		if (e.key === "Enter") commit();
+		if (e.key === "Escape") setEditing(false);
+	}
+
+	if (editing) {
+		return (
+			<div className="flex items-center gap-1 justify-end">
+				<input
+					autoFocus
+					type="text"
+					value={draftPreco}
+					onChange={e => setDraftPreco(e.target.value)}
+					onKeyDown={onKeyDown}
+					disabled={saving}
+					placeholder="0,00"
+					className="w-20 rounded border border-[#185FA5] px-1.5 py-0.5 text-sm text-right focus:outline-none"
+				/>
+				<span className="text-xs text-gray-400 select-none">≥</span>
+				<input
+					type="number"
+					value={draftQtd}
+					onChange={e => setDraftQtd(e.target.value)}
+					onKeyDown={onKeyDown}
+					onBlur={commit}
+					disabled={saving}
+					placeholder="10"
+					min={2}
+					className="w-12 rounded border border-[#185FA5] px-1.5 py-0.5 text-sm text-center focus:outline-none"
+				/>
+			</div>
+		);
+	}
+
+	if (preco == null) {
+		return (
+			<button
+				type="button"
+				onClick={startEdit}
+				className="w-full text-right text-xs text-gray-300 hover:text-[#185FA5] transition-colors px-1.5 py-0.5 rounded hover:bg-[#E6F1FB]"
+				title="Clique para adicionar preço atacado"
+			>
+				+ atacado
+			</button>
+		);
+	}
+
+	return (
+		<button
+			type="button"
+			onClick={startEdit}
+			className="text-right w-full hover:bg-[#E6F1FB] rounded px-1.5 py-0.5 cursor-text"
+			title="Clique para editar"
+		>
+			<div className="tabular-nums text-gray-700 text-sm">
+				{preco.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+			</div>
+			{qtd != null && (
+				<div className="text-[11px] text-gray-400">≥{qtd} un.</div>
+			)}
+		</button>
+	);
+}
+
 export interface ProdutoRow {
 	modelo_id: string;
 	codigo: string;
@@ -96,6 +191,8 @@ export interface ProdutoRow {
 	ativo: boolean;
 	// preços resolvidos pelo servidor
 	preco_1un: number | null;
+	preco_atacado: number | null;
+	qtd_atacado: number | null;
 	estoque_disponivel: number;
 }
 
@@ -149,6 +246,16 @@ export default function ProdutosTable({ produtos }: ProdutosTableProps) {
 		};
 	}
 
+	function makeSaveAtacadoFn(p: ProdutoRow) {
+		return async (preco: number | null, qtd: number | null) => {
+			try {
+				await atualizarPrecoAtacado(p.modelo_id, preco, qtd);
+			} catch {
+				showToast("Erro ao salvar preço atacado", "error");
+			}
+		};
+	}
+
 	const filtered = useMemo(
 		() =>
 			produtos.filter(
@@ -192,6 +299,8 @@ export default function ProdutosTable({ produtos }: ProdutosTableProps) {
 			custo_producao: p.custo_producao,
 			estoque_minimo: p.estoque_minimo,
 			preco_unitario: p.preco_1un,
+			preco_atacado: p.preco_atacado,
+			qtd_minima_atacado: p.qtd_atacado,
 		});
 		setModalOpen(true);
 	}
@@ -289,7 +398,10 @@ export default function ProdutosTable({ produtos }: ProdutosTableProps) {
 								Custo
 							</th>
 							<th className="px-3 py-2.5 text-right font-medium text-gray-600">
-								Preço 1un
+								Varejo
+							</th>
+							<th className="px-3 py-2.5 text-right font-medium text-gray-600">
+								Atacado
 							</th>
 							<th className="px-3 py-2.5 text-right font-medium text-gray-600">
 								Estoque
@@ -305,7 +417,7 @@ export default function ProdutosTable({ produtos }: ProdutosTableProps) {
 					<tbody>
 						{paginated.length === 0 && (
 							<tr>
-								<td colSpan={8} className="px-3 py-8 text-center text-gray-400">
+								<td colSpan={9} className="px-3 py-8 text-center text-gray-400">
 									Nenhum produto encontrado.
 								</td>
 							</tr>
@@ -349,6 +461,16 @@ export default function ProdutosTable({ produtos }: ProdutosTableProps) {
 										<InlinePrice
 											value={p.preco_1un}
 											onSave={makeSaveFn(p, "preco")}
+										/>
+										<div className="text-[11px] text-gray-400 text-right px-1.5">
+											≥1 un.
+										</div>
+									</td>
+									<td className="px-3 py-1.5 text-right">
+										<InlineAtacado
+											preco={p.preco_atacado}
+											qtd={p.qtd_atacado}
+											onSave={makeSaveAtacadoFn(p)}
 										/>
 									</td>
 									<td className="px-3 py-2.5 text-right text-gray-700">

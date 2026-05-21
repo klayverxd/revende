@@ -14,8 +14,9 @@ export default async function ProdutosPage() {
 			.order("nome"),
 		supabase
 			.from("modelo_preco")
-			.select("modelo_id, quantidade_minima, preco")
-			.eq("ativo", true),
+			.select("modelo_id, quantidade_minima, preco, rotulo")
+			.eq("ativo", true)
+			.is("deleted_at", null),
 		buscarEstoque(),
 	]);
 
@@ -25,11 +26,14 @@ export default async function ProdutosPage() {
 		estoqueMap[row.modelo_id] = row.disponivel;
 	}
 
-	// Resolve preço unitário por modelo
+	// Resolve preços por modelo
 	const precoMap: Record<string, number | null> = {};
+	const atacadoMap: Record<string, { preco: number; qtd: number } | null> = {};
 	for (const p of precos ?? []) {
 		if (p.quantidade_minima === 1) {
 			precoMap[p.modelo_id] = p.preco;
+		} else if (p.rotulo === "Atacado") {
+			atacadoMap[p.modelo_id] = { preco: p.preco, qtd: p.quantidade_minima };
 		}
 	}
 
@@ -41,6 +45,8 @@ export default async function ProdutosPage() {
 		estoque_minimo: m.estoque_minimo ?? 0,
 		ativo: m.ativo,
 		preco_1un: precoMap[m.modelo_id] ?? null,
+		preco_atacado: atacadoMap[m.modelo_id]?.preco ?? null,
+		qtd_atacado: atacadoMap[m.modelo_id]?.qtd ?? null,
 		estoque_disponivel: estoqueMap[m.modelo_id] ?? 0,
 	}));
 

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { Button, Input, Select, useToast } from "@/components/ui";
@@ -34,6 +34,16 @@ export interface CustoExtraAtivo {
 	valor: number;
 }
 
+interface PlacaIndividual {
+	id: string;
+	tempoH: string;
+	tempoM: string;
+	peso: string;
+	unidades: string;
+}
+
+type ModoPlacas = "igual" | "individual";
+
 interface Props {
 	readonly precoKwh: number;
 	readonly pctFalhasPadrao: number;
@@ -67,11 +77,13 @@ interface PersistedState {
 	materiaQtd: string;
 	custoExtraId: string;
 	custoExtraVal: string;
+	modoPlacas?: ModoPlacas;
+	placasInd?: PlacaIndividual[];
 }
 
 // Tabela oficial Shopee 2026
 const SHOPEE_FAIXAS = [
-	{ min: 0, max: 79.99, pct: 0.2, fixo: 4, label: "20% + R$\u00a04" },
+	{ min: 0, max: 79.99, pct: 0.2, fixo: 4, label: "20% + R$ 4" },
 	{ min: 80, max: 99.99, pct: 0.14, fixo: 16, label: "14% + R$16" },
 	{ min: 100, max: 199.99, pct: 0.14, fixo: 20, label: "14% + R$20" },
 	{ min: 200, max: 499.99, pct: 0.14, fixo: 26, label: "14% + R$26" },
@@ -89,7 +101,6 @@ function calcShopee(targetNet: number): {
 			return { preco, faixa };
 		}
 	}
-	// fallback: usar última faixa (>500)
 	const faixa = SHOPEE_FAIXAS.at(-1)!;
 	return { preco: (targetNet + faixa.fixo) / (1 - faixa.pct), faixa };
 }
@@ -108,14 +119,6 @@ function fmtCurrency(v: number) {
 	return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function hintMateria() {
-	return "Peso total da placa em gramas — ex: 364";
-}
-
-function labelMateria() {
-	return "Peso (g)";
-}
-
 function converterParaUnidadeInterna(
 	valor: number,
 	unidade: string | undefined
@@ -124,6 +127,21 @@ function converterParaUnidadeInterna(
 	if (unidade === "litro") return valor / 1000;
 	return valor;
 }
+
+let _placaIdSeq = 0;
+function newPlacaId() {
+	return `pl_${++_placaIdSeq}`;
+}
+
+const PLACA_DEFAULT: Omit<PlacaIndividual, "id"> = {
+	tempoH: "0",
+	tempoM: "0",
+	peso: "0",
+	unidades: "1",
+};
+
+const inputCls =
+	"rounded-lg border border-[#B5D4F4] px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#378ADD]";
 
 export default function CalculadoraView({
 	precoKwh,
@@ -135,8 +153,6 @@ export default function CalculadoraView({
 }: Props) {
 	const { showToast } = useToast();
 
-	// Use server-safe defaults to avoid SSR/client hydration mismatch.
-	// localStorage values are applied in a useEffect after hydration.
 	const [equipamentoId, setEquipamentoId] = useState(
 		equipamentos[0]?.equipamento_id ?? ""
 	);
@@ -150,6 +166,10 @@ export default function CalculadoraView({
 	const [materiaQtd, setMateriaQtd] = useState("0");
 	const [custoExtraId, setCustoExtraId] = useState("");
 	const [custoExtraVal, setCustoExtraVal] = useState("0");
+	const [modoPlacas, setModoPlacas] = useState<ModoPlacas>("igual");
+	const [placasInd, setPlacasInd] = useState<PlacaIndividual[]>([
+		{ id: newPlacaId(), ...PLACA_DEFAULT },
+	]);
 
 	// Restore persisted state after hydration
 	useEffect(() => {
@@ -172,8 +192,17 @@ export default function CalculadoraView({
 		if (saved.custoExtraId !== undefined) setCustoExtraId(saved.custoExtraId);
 		if (saved.custoExtraVal !== undefined)
 			setCustoExtraVal(saved.custoExtraVal);
+		if (saved.modoPlacas) setModoPlacas(saved.modoPlacas);
+		if (
+			saved.placasInd &&
+			Array.isArray(saved.placasInd) &&
+			saved.placasInd.length > 0
+		) {
+			setPlacasInd(saved.placasInd);
+		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
+
 	const [salvando, setSalvando] = useState(false);
 	const [novoNome, setNovoNome] = useState("");
 	const [modeloExistente, setModeloExistente] = useState("");
@@ -212,6 +241,7 @@ export default function CalculadoraView({
 				setCustoExtraId(load.custo_extra_id);
 				setCustoExtraVal(String(Number(load.custo_extra_unitario.toFixed(4))));
 			}
+			setModoPlacas("igual");
 		} catch {
 			// ignora parse error
 		}
@@ -230,6 +260,8 @@ export default function CalculadoraView({
 			materiaQtd,
 			custoExtraId,
 			custoExtraVal,
+			modoPlacas,
+			placasInd,
 		};
 		localStorage.setItem(LS_KEY, JSON.stringify(state));
 	}, [
@@ -242,10 +274,27 @@ export default function CalculadoraView({
 		materiaQtd,
 		custoExtraId,
 		custoExtraVal,
+		modoPlacas,
+		placasInd,
 	]);
+
+	// --- Helpers para placas individuais ---
+	function addPlaca() {
+		setPlacasInd(prev => [...prev, { id: newPlacaId(), ...PLACA_DEFAULT }]);
+	}
+	function removePlaca(id: string) {
+		setPlacasInd(prev => (prev.length > 1 ? prev.filter(p => p.id !== id) : prev));
+	}
+	function updatePlaca(id: string, field: keyof Omit<PlacaIndividual, "id">, value: string) {
+		setPlacasInd(prev => prev.map(p => (p.id === id ? { ...p, [field]: value } : p)));
+	}
 
 	const equip = equipamentos.find(e => e.equipamento_id === equipamentoId);
 	const selectedMat = materias.find(m => m.materia_prima_id === materiaId);
+	const falhas = pctFalhasPadrao;
+	const isIndividual = modoPlacas === "individual";
+
+	// === MODO IGUAL (por placa, depois × numPlacas) ===
 	const tempoHoras =
 		(Number.parseFloat(tempoHInput.replace(",", ".")) || 0) +
 		(Number.parseFloat(tempoMInput.replace(",", ".")) || 0) / 60;
@@ -254,60 +303,116 @@ export default function CalculadoraView({
 		1,
 		Number.parseFloat(numPlacas.replace(",", ".")) || 1
 	);
-	const falhas = pctFalhasPadrao;
-
 	const qtdMateriaInterna = converterParaUnidadeInterna(
 		Number.parseFloat(materiaQtd.replace(",", ".")) || 0,
 		selectedMat?.unidade_medida
 	);
-	const custoMateriasPrimas =
-		qtdMateriaInterna * (selectedMat?.preco_por_unidade ?? 0);
+	const custoMatIgual = qtdMateriaInterna * (selectedMat?.preco_por_unidade ?? 0);
+	const custoEnergiaIgual = ((equip?.potencia_watts ?? 0) / 1000) * precoKwh * tempoHoras;
+	const custoDeprecIgual = (equip?.depreciacao_hora ?? 0) * tempoHoras;
+	const custoFalhasIgual = custoMatIgual * falhas;
+	const custoTotalPlaca = custoMatIgual + custoEnergiaIgual + custoDeprecIgual + custoFalhasIgual;
+	const qtdTotalIgual = qtdPorPlaca * placas;
 
-	const custoEnergia =
-		((equip?.potencia_watts ?? 0) / 1000) * precoKwh * tempoHoras;
-	const custoDepreciacao = (equip?.depreciacao_hora ?? 0) * tempoHoras;
-	const custoBase = custoMateriasPrimas + custoEnergia + custoDepreciacao;
-	const custoFalhas = custoMateriasPrimas * falhas;
-	const custoExtraUnitario =
-		Number.parseFloat(custoExtraVal.replace(",", ".")) || 0;
-	const custoExtraPlaca = custoExtraUnitario * qtdPorPlaca;
-	const custoTotalPlaca = custoBase + custoFalhas + custoExtraPlaca;
-	const custoTotalGeral = custoTotalPlaca * placas;
-	const qtdTotal = qtdPorPlaca * placas;
+	// === MODO INDIVIDUAL (soma de todas as placas) ===
+	let custoMatInd = 0;
+	let totalTempoHorasInd = 0;
+	let qtdTotalInd = 0;
+	for (const p of placasInd) {
+		totalTempoHorasInd +=
+			(Number.parseFloat(p.tempoH.replace(",", ".")) || 0) +
+			(Number.parseFloat(p.tempoM.replace(",", ".")) || 0) / 60;
+		custoMatInd +=
+			converterParaUnidadeInterna(
+				Number.parseFloat(p.peso.replace(",", ".")) || 0,
+				selectedMat?.unidade_medida
+			) * (selectedMat?.preco_por_unidade ?? 0);
+		qtdTotalInd += Number.parseFloat(p.unidades.replace(",", ".")) || 0;
+	}
+	const custoEnergiaInd = ((equip?.potencia_watts ?? 0) / 1000) * precoKwh * totalTempoHorasInd;
+	const custoDeprecInd = (equip?.depreciacao_hora ?? 0) * totalTempoHorasInd;
+	const custoFalhasInd = custoMatInd * falhas;
+
+	// === VALORES UNIFICADOS ===
+	const custoMateriasPrimas = isIndividual ? custoMatInd : custoMatIgual;
+	const custoEnergia = isIndividual ? custoEnergiaInd : custoEnergiaIgual;
+	const custoDepreciacao = isIndividual ? custoDeprecInd : custoDeprecIgual;
+	const custoFalhas = isIndividual ? custoFalhasInd : custoFalhasIgual;
+	const custoExtraTotal = Number.parseFloat(custoExtraVal.replace(",", ".")) || 0;
+	const qtdTotal = isIndividual ? qtdTotalInd : qtdTotalIgual;
+	const numPlacasEff = isIndividual ? placasInd.length : placas;
+
+	// Total geral: igual multiplica por placas; individual já tem tudo somado
+	const custoTotalGeral = isIndividual
+		? custoMatInd + custoEnergiaInd + custoDeprecInd + custoFalhasInd + custoExtraTotal
+		: custoTotalPlaca * placas + custoExtraTotal;
+
 	const custoUnitario = qtdTotal > 0 ? custoTotalGeral / qtdTotal : 0;
 
 	const LUCROS_PADRAO = [50, 100, 150, 200, 300, 400, 500];
 	const lucroCustomPct = Number.parseFloat(lucroCustom.replace(",", ".")) || 0;
 
-	async function salvarNovoProduto() {
-		if (!novoNome.trim()) {
-			showToast("Informe o nome do novo produto", "error");
-			return;
+	function buildSnapshot(): CalculoSnapshot {
+		if (isIndividual) {
+			const totalMateriaInterna = placasInd.reduce((s, p) => {
+				return (
+					s +
+					converterParaUnidadeInterna(
+						Number.parseFloat(p.peso.replace(",", ".")) || 0,
+						selectedMat?.unidade_medida
+					)
+				);
+			}, 0);
+			return {
+				equipamento_id: equipamentoId,
+				tempo_impressao_min: Number((totalTempoHorasInd * 60).toFixed(2)),
+				materias_primas: materiaId
+					? [{ materia_prima_id: materiaId, quantidade: Number(totalMateriaInterna.toFixed(4)) }]
+					: [],
+				pct_falhas: falhas,
+				custo_energia: Number(custoEnergiaInd.toFixed(4)),
+				custo_materias_primas: Number(custoMatInd.toFixed(4)),
+				custo_depreciacao: Number(custoDeprecInd.toFixed(4)),
+				custo_falhas: Number(custoFalhasInd.toFixed(4)),
+				custo_extra: Number(custoExtraTotal.toFixed(4)),
+				custo_total: Number(custoTotalGeral.toFixed(4)),
+				quantidade: qtdTotalInd,
+				num_placas: placasInd.length,
+				custo_unitario: Number(custoUnitario.toFixed(4)),
+				custo_extra_id: custoExtraId || null,
+			};
 		}
-		const calculo: CalculoSnapshot = {
+		return {
 			equipamento_id: equipamentoId,
 			tempo_impressao_min: tempoHoras * 60,
 			materias_primas: materiaId
 				? [{ materia_prima_id: materiaId, quantidade: qtdMateriaInterna }]
 				: [],
 			pct_falhas: falhas,
-			custo_energia: Number(custoEnergia.toFixed(4)),
-			custo_materias_primas: Number(custoMateriasPrimas.toFixed(4)),
-			custo_depreciacao: Number(custoDepreciacao.toFixed(4)),
-			custo_falhas: Number(custoFalhas.toFixed(4)),
-			custo_extra: Number((custoExtraPlaca * placas).toFixed(4)),
+			custo_energia: Number(custoEnergiaIgual.toFixed(4)),
+			custo_materias_primas: Number(custoMatIgual.toFixed(4)),
+			custo_depreciacao: Number(custoDeprecIgual.toFixed(4)),
+			custo_falhas: Number(custoFalhasIgual.toFixed(4)),
+			custo_extra: Number(custoExtraTotal.toFixed(4)),
 			custo_total: Number(custoTotalGeral.toFixed(4)),
-			quantidade: qtdTotal,
+			quantidade: qtdTotalIgual,
 			num_placas: placas,
 			custo_unitario: Number(custoUnitario.toFixed(4)),
 			custo_extra_id: custoExtraId || null,
 		};
+	}
+
+	async function salvarNovoProduto() {
+		if (!novoNome.trim()) {
+			showToast("Informe o nome do novo produto", "error");
+			return;
+		}
 		setSalvando(true);
 		try {
 			await salvarComoNovoProduto({
 				nome: novoNome.trim(),
 				custo_producao: Number(custoUnitario.toFixed(4)),
-				calculo,
+				calculo: buildSnapshot(),
 			});
 			setNovoNome("");
 			showToast("Produto criado com custo atualizado", "success");
@@ -326,30 +431,12 @@ export default function CalculadoraView({
 			showToast("Selecione um produto", "error");
 			return;
 		}
-		const calculo: CalculoSnapshot = {
-			equipamento_id: equipamentoId,
-			tempo_impressao_min: tempoHoras * 60,
-			materias_primas: materiaId
-				? [{ materia_prima_id: materiaId, quantidade: qtdMateriaInterna }]
-				: [],
-			pct_falhas: falhas,
-			custo_energia: Number(custoEnergia.toFixed(4)),
-			custo_materias_primas: Number(custoMateriasPrimas.toFixed(4)),
-			custo_depreciacao: Number(custoDepreciacao.toFixed(4)),
-			custo_falhas: Number(custoFalhas.toFixed(4)),
-			custo_extra: Number((custoExtraPlaca * placas).toFixed(4)),
-			custo_total: Number(custoTotalGeral.toFixed(4)),
-			quantidade: qtdTotal,
-			num_placas: placas,
-			custo_unitario: Number(custoUnitario.toFixed(4)),
-			custo_extra_id: custoExtraId || null,
-		};
 		setSalvando(true);
 		try {
 			await atualizarCustoProduto(
 				modeloExistente,
 				Number(custoUnitario.toFixed(4)),
-				calculo
+				buildSnapshot()
 			);
 			showToast("Custo do produto atualizado", "success");
 		} catch (err) {
@@ -372,55 +459,173 @@ export default function CalculadoraView({
 						Impressão
 					</h2>
 
-					<div className="flex flex-wrap items-end gap-3">
-						<div className="flex-1 min-w-45">
-							<Select
-								label="Equipamento"
-								value={equipamentoId}
-								onChange={e => setEquipamentoId(e.target.value)}
-								options={equipamentos.map(e => ({
-									value: e.equipamento_id,
-									label: e.nome,
-								}))}
-							/>
-						</div>
-						<div className="flex flex-col gap-1 shrink-0">
-							<span className="text-[13px] text-gray-700 font-medium">
-								Tempo
-							</span>
-							<div className="flex items-center gap-1">
-								<input
-									type="text"
-									inputMode="numeric"
-									min={0}
-									value={tempoHInput}
-									onChange={e => setTempoHInput(e.target.value)}
-									className="w-14 rounded-lg border border-[#B5D4F4] px-2 py-2 text-base font-semibold text-center focus:outline-none focus:ring-2 focus:ring-[#378ADD]"
+					<div className="flex-1 min-w-45">
+						<Select
+							label="Equipamento"
+							value={equipamentoId}
+							onChange={e => setEquipamentoId(e.target.value)}
+							options={equipamentos.map(e => ({
+								value: e.equipamento_id,
+								label: e.nome,
+							}))}
+						/>
+					</div>
+
+					{/* Toggle modo de placas */}
+					<div className="flex gap-1 rounded-lg bg-[#F4F8FD] p-1">
+						<button
+							type="button"
+							onClick={() => setModoPlacas("igual")}
+							className={`flex-1 text-xs py-1.5 px-2 rounded-md font-medium transition-colors ${
+								modoPlacas === "igual"
+									? "bg-white text-[#185FA5] shadow-sm"
+									: "text-gray-500 hover:text-gray-700"
+							}`}
+						>
+							Placas iguais
+						</button>
+						<button
+							type="button"
+							onClick={() => setModoPlacas("individual")}
+							className={`flex-1 text-xs py-1.5 px-2 rounded-md font-medium transition-colors ${
+								modoPlacas === "individual"
+									? "bg-white text-[#185FA5] shadow-sm"
+									: "text-gray-500 hover:text-gray-700"
+							}`}
+						>
+							Placas individuais
+						</button>
+					</div>
+
+					{/* Modo: Placas iguais */}
+					{modoPlacas === "igual" && (
+						<div className="flex flex-wrap items-end gap-3">
+							<div className="flex flex-col gap-1 shrink-0">
+								<span className="text-[13px] text-gray-700 font-medium">
+									Tempo
+								</span>
+								<div className="flex items-center gap-1">
+									<input
+										type="text"
+										inputMode="numeric"
+										min={0}
+										value={tempoHInput}
+										onChange={e => setTempoHInput(e.target.value)}
+										className="w-14 rounded-lg border border-[#B5D4F4] px-2 py-2 text-base font-semibold text-center focus:outline-none focus:ring-2 focus:ring-[#378ADD]"
+									/>
+									<span className="text-sm text-gray-600 select-none">h</span>
+									<input
+										type="text"
+										inputMode="numeric"
+										min={0}
+										max={59}
+										value={tempoMInput}
+										onChange={e => setTempoMInput(e.target.value)}
+										className="w-14 rounded-lg border border-[#B5D4F4] px-2 py-2 text-base font-semibold text-center focus:outline-none focus:ring-2 focus:ring-[#378ADD]"
+									/>
+									<span className="text-sm text-gray-600 select-none">min</span>
+								</div>
+							</div>
+							<div className="w-24 shrink-0">
+								<Input
+									label="Nº de placas"
+									type="number"
+									min={1}
+									tooltip="Quantas placas você vai produzir. Ex: 10 peças, 5 por placa = 2 placas"
+									value={numPlacas}
+									onChange={e => setnumPlacas(e.target.value)}
 								/>
-								<span className="text-sm text-gray-600 select-none">h</span>
-								<input
-									type="text"
-									inputMode="numeric"
-									min={0}
-									max={59}
-									value={tempoMInput}
-									onChange={e => setTempoMInput(e.target.value)}
-									className="w-14 rounded-lg border border-[#B5D4F4] px-2 py-2 text-base font-semibold text-center focus:outline-none focus:ring-2 focus:ring-[#378ADD]"
-								/>
-								<span className="text-sm text-gray-600 select-none">min</span>
 							</div>
 						</div>
-						<div className="w-24 shrink-0">
-							<Input
-								label="Nº de placas"
-								type="number"
-								min={1}
-								tooltip="Quantas placas você vai produzir. Ex: 10 peças, 5 por placa = 2 placas"
-								value={numPlacas}
-								onChange={e => setnumPlacas(e.target.value)}
-							/>
+					)}
+
+					{/* Modo: Placas individuais */}
+					{modoPlacas === "individual" && (
+						<div className="flex flex-col gap-2">
+							{/* Cabeçalho da tabela */}
+							<div className="grid grid-cols-[1.2rem_1fr_5rem_4rem_1.5rem] gap-x-2 text-[11px] font-medium text-gray-400 px-0.5">
+								<span>#</span>
+								<span>Tempo</span>
+								<span className="text-center">
+									{selectedMat?.unidade_medida === "kg" ||
+									selectedMat?.unidade_medida === "litro"
+										? "Peso (g)"
+										: "Qtd."}
+								</span>
+								<span className="text-center">Unid.</span>
+								<span />
+							</div>
+
+							{placasInd.map((placa, idx) => (
+								<div
+									key={placa.id}
+									className="grid grid-cols-[1.2rem_1fr_5rem_4rem_1.5rem] gap-x-2 items-center"
+								>
+									<span className="text-xs text-gray-400 select-none">
+										{idx + 1}
+									</span>
+
+									{/* Tempo */}
+									<div className="flex items-center gap-0.5">
+										<input
+											type="text"
+											inputMode="numeric"
+											value={placa.tempoH}
+											onChange={e => updatePlaca(placa.id, "tempoH", e.target.value)}
+											className={`${inputCls} w-9`}
+										/>
+										<span className="text-xs text-gray-500 select-none">h</span>
+										<input
+											type="text"
+											inputMode="numeric"
+											value={placa.tempoM}
+											onChange={e => updatePlaca(placa.id, "tempoM", e.target.value)}
+											className={`${inputCls} w-9`}
+										/>
+										<span className="text-xs text-gray-500 select-none">m</span>
+									</div>
+
+									{/* Peso */}
+									<input
+										type="number"
+										step="1"
+										value={placa.peso}
+										onChange={e => updatePlaca(placa.id, "peso", e.target.value)}
+										className={`${inputCls} w-full`}
+									/>
+
+									{/* Unidades */}
+									<input
+										type="number"
+										min={1}
+										step="1"
+										value={placa.unidades}
+										onChange={e => updatePlaca(placa.id, "unidades", e.target.value)}
+										className={`${inputCls} w-full`}
+									/>
+
+									{/* Remover */}
+									<button
+										type="button"
+										onClick={() => removePlaca(placa.id)}
+										disabled={placasInd.length === 1}
+										className="text-gray-400 hover:text-red-500 disabled:opacity-30 text-base leading-none transition-colors"
+										title="Remover placa"
+									>
+										×
+									</button>
+								</div>
+							))}
+
+							<button
+								type="button"
+								onClick={addPlaca}
+								className="mt-1 flex items-center gap-1 text-xs text-[#185FA5] hover:text-[#0C447C] font-medium transition-colors"
+							>
+								<span className="text-base leading-none">+</span> Adicionar placa
+							</button>
 						</div>
-					</div>
+					)}
 				</div>
 
 				{/* Bloco: Material */}
@@ -441,26 +646,38 @@ export default function CalculadoraView({
 								}))}
 							/>
 						</div>
-						<div className="w-28 shrink-0">
-							<Input
-								label={labelMateria()}
-								type="number"
-								step="1"
-								tooltip={hintMateria()}
-								value={materiaQtd}
-								onChange={e => setMateriaQtd(e.target.value)}
-							/>
-						</div>
-						<div className="w-24 shrink-0">
-							<Input
-								label="Unidades/placa"
-								type="number"
-								min={1}
-								tooltip="Quantas peças saem de uma única placa de impressão"
-								value={quantidade}
-								onChange={e => setQuantidade(e.target.value)}
-							/>
-						</div>
+
+						{/* Em modo individual, peso e unidades ficam na tabela de placas */}
+						{modoPlacas === "igual" && (
+							<>
+								<div className="w-28 shrink-0">
+									<Input
+										label="Peso (g)"
+										type="number"
+										step="1"
+										tooltip="Peso total da placa em gramas — ex: 364"
+										value={materiaQtd}
+										onChange={e => setMateriaQtd(e.target.value)}
+									/>
+								</div>
+								<div className="w-24 shrink-0">
+									<Input
+										label="Unidades/placa"
+										type="number"
+										min={1}
+										tooltip="Quantas peças saem de uma única placa de impressão"
+										value={quantidade}
+										onChange={e => setQuantidade(e.target.value)}
+									/>
+								</div>
+							</>
+						)}
+
+						{modoPlacas === "individual" && (
+							<p className="text-xs text-gray-400 italic">
+								Peso e unidades definidos por placa na tabela acima.
+							</p>
+						)}
 					</div>
 				</div>
 
@@ -493,10 +710,10 @@ export default function CalculadoraView({
 						</div>
 						<div className="w-36 shrink-0">
 							<Input
-								label="Valor por peça (R$)"
+								label="Valor total (R$)"
 								type="number"
 								step="0.01"
-								tooltip="Custo adicional por peça (argola, embalagem etc.). Edite livremente."
+								tooltip="Custo operacional fixo do lote (frete, embalagens, consumíveis etc.). Não é multiplicado pela quantidade."
 								value={custoExtraVal}
 								onChange={e => setCustoExtraVal(e.target.value)}
 							/>
@@ -515,7 +732,9 @@ export default function CalculadoraView({
 
 					{(() => {
 						let resumoLote: string;
-						if (placas > 1) {
+						if (isIndividual) {
+							resumoLote = `${numPlacasEff} placa${numPlacasEff !== 1 ? "s" : ""} individuais → ${qtdTotalInd} peças`;
+						} else if (placas > 1) {
 							resumoLote = `${placas} placas × ${qtdPorPlaca} un. = ${qtdTotal} peças`;
 						} else if (qtdPorPlaca === 1) {
 							resumoLote = "1 peça (1 lote)";
@@ -528,6 +747,12 @@ export default function CalculadoraView({
 							</div>
 						);
 					})()}
+
+					{isIndividual && (
+						<p className="text-[11px] text-gray-400 italic -mt-1 mb-1">
+							Valores totais de todas as placas
+						</p>
+					)}
 
 					<div className="flex justify-between text-sm text-gray-600">
 						<span>Energia</span>
@@ -553,28 +778,35 @@ export default function CalculadoraView({
 							{fmtCurrency(custoFalhas)}
 						</strong>
 					</div>
-					{custoExtraPlaca > 0 && (
+					{custoExtraTotal > 0 && (
 						<div className="flex justify-between text-sm text-gray-600">
-							<span>Custo extra</span>
+							<span>Custo extra (fixo)</span>
 							<strong className="text-gray-800">
-								{fmtCurrency(custoExtraPlaca)}
+								{fmtCurrency(custoExtraTotal)}
 							</strong>
 						</div>
 					)}
-					<div className="flex justify-between text-sm text-gray-600 border-t border-[#B5D4F4] pt-2 mt-1">
-						<span>1 placa</span>
-						<strong className="text-gray-800">
-							{fmtCurrency(custoTotalPlaca)}
-						</strong>
-					</div>
-					{placas > 1 && (
-						<div className="flex justify-between text-sm text-gray-600">
-							<span>{placas} placas</span>
-							<strong className="text-gray-800">
-								{fmtCurrency(custoTotalGeral)}
-							</strong>
-						</div>
+
+					{/* Subtotais: apenas em modo igual */}
+					{!isIndividual && (
+						<>
+							<div className="flex justify-between text-sm text-gray-600 border-t border-[#B5D4F4] pt-2 mt-1">
+								<span>1 placa</span>
+								<strong className="text-gray-800">
+									{fmtCurrency(custoTotalPlaca)}
+								</strong>
+							</div>
+							{placas > 1 && (
+								<div className="flex justify-between text-sm text-gray-600">
+									<span>{placas} placas</span>
+									<strong className="text-gray-800">
+										{fmtCurrency(custoTotalPlaca * placas)}
+									</strong>
+								</div>
+							)}
+						</>
 					)}
+
 					<div className="flex justify-between items-baseline border-t border-[#B5D4F4] pt-2 mt-1">
 						<span className="text-sm font-semibold text-gray-900">
 							Por unidade

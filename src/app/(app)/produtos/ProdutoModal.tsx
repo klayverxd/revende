@@ -36,12 +36,14 @@ interface ProdutoModalProps {
 	readonly open: boolean;
 	readonly onClose: () => void;
 	readonly produto?: ProdutoParaEditar | null;
+	readonly onCreated?: (modeloId: string) => void;
 }
 
 export default function ProdutoModal({
 	open,
 	onClose,
 	produto,
+	onCreated,
 }: ProdutoModalProps) {
 	const { showToast } = useToast();
 	const isEdit = Boolean(produto);
@@ -109,8 +111,9 @@ export default function ProdutoModal({
 				await atualizarProduto(produto.modelo_id, data);
 				showToast("Produto atualizado com sucesso", "success");
 			} else {
-				await criarProduto(data);
+				const { modeloId } = await criarProduto(data);
 				showToast("Produto criado com sucesso", "success");
+				onCreated?.(modeloId);
 			}
 			onClose();
 		} catch {

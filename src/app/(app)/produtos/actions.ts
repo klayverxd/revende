@@ -72,6 +72,7 @@ export async function criarProduto(data: ProdutoData) {
 	}
 
 	revalidatePath("/produtos");
+	return { modeloId: novoModelo.modelo_id as string };
 }
 
 export async function atualizarProduto(id: string, data: ProdutoData) {

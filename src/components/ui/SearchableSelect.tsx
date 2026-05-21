@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 export interface SearchableSelectOption {
 	value: string;
 	label: string;
+	sublabel?: string;
 }
 
 interface SearchableSelectProps {
@@ -25,13 +26,17 @@ function normalize(s: string) {
 		.toLowerCase();
 }
 
+function fullText(opt: SearchableSelectOption) {
+	return [opt.label, opt.sublabel].filter(Boolean).join(" ");
+}
+
 function getBorderClass(open: boolean) {
 	if (open) return "border-[#185FA5] ring-1 ring-[#185FA5]";
 	return "border-[#B5D4F4] focus:border-[#185FA5] focus:ring-[#185FA5]";
 }
 
 function getOptionClass(isSelected: boolean, isHighlighted: boolean) {
-	const base = "w-full text-left px-3 py-2 text-sm cursor-pointer select-none";
+	const base = "w-full flex items-center justify-between gap-2 text-left px-3 py-2 text-sm cursor-pointer select-none";
 	if (isSelected) return `${base} bg-[#E6F1FB] text-[#185FA5] font-medium`;
 	if (isHighlighted) return `${base} bg-gray-50`;
 	return `${base} text-gray-800 hover:bg-gray-50`;
@@ -59,7 +64,7 @@ export default function SearchableSelect({
 	const filtered = useMemo(() => {
 		const q = normalize(busca.trim());
 		if (!q) return options;
-		return options.filter(o => normalize(o.label).includes(q));
+		return options.filter(o => normalize(fullText(o)).includes(q));
 	}, [options, busca]);
 
 	// Focus search input when dropdown opens
@@ -148,9 +153,16 @@ export default function SearchableSelect({
 						: getBorderClass(open),
 				].join(" ")}
 			>
-				<span className={selected ? "text-gray-900" : "text-gray-400"}>
-					{selected ? selected.label : placeholder}
-				</span>
+				{selected ? (
+					<span className="flex items-center gap-2 min-w-0">
+						<span className="text-gray-900 truncate">{selected.label}</span>
+						{selected.sublabel && (
+							<span className="text-gray-400 text-xs shrink-0">{selected.sublabel}</span>
+						)}
+					</span>
+				) : (
+					<span className="text-gray-400">{placeholder}</span>
+				)}
 				<svg
 					width="16"
 					height="16"
@@ -219,7 +231,10 @@ export default function SearchableSelect({
 											idx === highlighted
 										)}
 									>
-										{opt.label}
+										<span className="truncate">{opt.label}</span>
+										{opt.sublabel && (
+											<span className="ml-2 text-xs text-gray-400 shrink-0">{opt.sublabel}</span>
+										)}
 									</button>
 								))
 							)}

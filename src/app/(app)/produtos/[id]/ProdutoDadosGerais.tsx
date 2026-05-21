@@ -116,7 +116,7 @@ export default function ProdutoDadosGerais({ modelo, ultimoCalculo }: Props) {
 					<dt className="text-gray-500 text-xs uppercase tracking-wide mb-0.5">
 						Nome
 					</dt>
-					<dd className="text-gray-900">{modelo.nome}</dd>
+					<dd className="text-gray-900 uppercase">{modelo.nome}</dd>
 				</div>
 				{modelo.descricao && (
 					<div className="col-span-2">

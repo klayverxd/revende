@@ -390,7 +390,7 @@ export default function PedidoDetalhe({ pedido }: Props) {
 												<div>
 													<Link
 														href={`/produtos/${item.modelo_id}`}
-														className="font-medium text-[#185FA5] hover:underline"
+														className="font-medium text-[#185FA5] hover:underline uppercase"
 													>
 														{modelo.nome}
 													</Link>

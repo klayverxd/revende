@@ -602,7 +602,7 @@ function ItemRow({
 						searchPlaceholder="Buscar por nome ou código..."
 						options={modelos.map(m => ({
 							value: m.modelo_id,
-							label: m.nome,
+							label: m.nome.toUpperCase(),
 							sublabel: m.codigo,
 						}))}
 						value={item?.modelo_id ?? ""}

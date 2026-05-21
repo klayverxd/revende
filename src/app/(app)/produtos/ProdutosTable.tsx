@@ -446,7 +446,7 @@ export default function ProdutosTable({ produtos }: ProdutosTableProps) {
 									<td className="px-3 py-2.5 font-medium text-gray-900">
 										<Link
 											href={`/produtos/${p.modelo_id}`}
-											className="hover:text-[#185FA5] hover:underline"
+											className="hover:text-[#185FA5] hover:underline uppercase"
 										>
 											{p.nome}
 										</Link>

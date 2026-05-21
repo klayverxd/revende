@@ -287,6 +287,9 @@ export default function EstoqueView({
 										Mínimo
 									</th>
 									<th className="px-3 py-2.5 text-right font-medium text-gray-600">
+										Em consignação
+									</th>
+									<th className="px-3 py-2.5 text-right font-medium text-gray-600">
 										Disponível
 									</th>
 									<th className="px-3 py-2.5 text-center font-medium text-gray-600">
@@ -298,7 +301,7 @@ export default function EstoqueView({
 								{filteredEstoque.length === 0 && (
 									<tr>
 										<td
-											colSpan={8}
+											colSpan={9}
 											className="px-3 py-10 text-center text-gray-400"
 										>
 											{filtro
@@ -330,6 +333,13 @@ export default function EstoqueView({
 										</td>
 										<td className="px-3 py-2.5 text-right text-gray-700">
 											{row.estoque_minimo}
+										</td>
+										<td className="px-3 py-2.5 text-right text-gray-700">
+											{row.em_consignacao > 0 ? (
+												<span className="text-amber-600 font-medium">{row.em_consignacao}</span>
+											) : (
+												<span className="text-gray-400">—</span>
+											)}
 										</td>
 										<td className="px-3 py-2.5 text-right font-semibold text-gray-900">
 											{row.disponivel}

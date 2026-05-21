@@ -18,6 +18,7 @@ export interface EstoqueCalculadoRow {
 	entradas: number;
 	saidas: number;
 	estoque_minimo: number;
+	em_consignacao: number;
 	disponivel: number;
 	status: "OK" | "ATENCAO" | "REPOR" | "SEM_ESTOQUE";
 }
@@ -163,6 +164,7 @@ export async function buscarEstoque(): Promise<EstoqueCalculadoRow[]> {
 
 	const entradasMap = new Map<string, number>();
 	const saidasMap = new Map<string, number>();
+	const consignacaoMap = new Map<string, number>();
 
 	for (const p of producoes ?? []) {
 		const modeloId = p.modelo_id as string;
@@ -178,20 +180,21 @@ export async function buscarEstoque(): Promise<EstoqueCalculadoRow[]> {
 		if (!envio) continue;
 
 		if (envio.status === "ABERTO") {
-			saidasMap.set(
-				modeloId,
-				(saidasMap.get(modeloId) ?? 0) + (item.qtd_enviada ?? 0)
-			);
+			const qtd = (item.qtd_enviada as number) ?? 0;
+			saidasMap.set(modeloId, (saidasMap.get(modeloId) ?? 0) + qtd);
+			consignacaoMap.set(modeloId, (consignacaoMap.get(modeloId) ?? 0) + qtd);
 		}
 		if (envio.status === "CONFERIDO" || envio.status === "ENCERRADO") {
 			// Subtrai vendidos + ainda com revendedor (qtd_enviada - qtd_devolvida).
 			// Somente as devoluções físicas retornam ao estoque.
+			const qtdEnviada = (item.qtd_enviada as number) ?? 0;
+			const qtdVendida = (item.qtd_vendida as number | null) ?? 0;
 			const qtdDevolvida = (item.qtd_devolvida as number | null) ?? 0;
-			saidasMap.set(
-				modeloId,
-				(saidasMap.get(modeloId) ?? 0) +
-					((item.qtd_enviada ?? 0) - qtdDevolvida)
-			);
+			saidasMap.set(modeloId, (saidasMap.get(modeloId) ?? 0) + qtdEnviada - qtdDevolvida);
+			const saldoConsig = qtdEnviada - qtdVendida - qtdDevolvida;
+			if (saldoConsig > 0) {
+				consignacaoMap.set(modeloId, (consignacaoMap.get(modeloId) ?? 0) + saldoConsig);
+			}
 		}
 	}
 
@@ -220,6 +223,7 @@ export async function buscarEstoque(): Promise<EstoqueCalculadoRow[]> {
 			entradas,
 			saidas,
 			estoque_minimo: minimo,
+			em_consignacao: consignacaoMap.get(modeloId) ?? 0,
 			disponivel,
 			status: calcularStatus(disponivel, minimo),
 		};

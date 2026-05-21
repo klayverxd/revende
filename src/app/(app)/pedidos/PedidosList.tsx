@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button, Badge, useToast } from "@/components/ui";
+import { Button, useToast } from "@/components/ui";
 import PedidoModal from "./PedidoModal";
 import { atualizarStatusPedido } from "./actions";
 import type { PedidoStatus, CanalPedido, Prioridade, StatusPagamento } from "./actions";
@@ -33,7 +34,6 @@ const STATUS_LABEL: Record<PedidoStatus, string> = {
 	CANCELADO: "Cancelado",
 };
 
-
 const STATUS_ORDER: PedidoStatus[] = [
 	"NOVO",
 	"EM_MODELAGEM",
@@ -45,19 +45,18 @@ const STATUS_ORDER: PedidoStatus[] = [
 	"ENTREGUE",
 ];
 
-const STATUS_VARIANT: Record<
-	PedidoStatus,
-	"neutral" | "success" | "warning" | "danger" | "info"
-> = {
-	NOVO: "info",
-	EM_MODELAGEM: "neutral",
-	AGUARDANDO_IMPRESSAO: "warning",
-	IMPRIMINDO: "warning",
-	EM_ACABAMENTO: "warning",
-	PRONTO: "success",
-	ENVIADO: "info",
-	ENTREGUE: "success",
-	CANCELADO: "danger",
+const ALL_STATUSES_WITH_CANCEL: PedidoStatus[] = [...STATUS_ORDER, "CANCELADO"];
+
+const STATUS_COLOR: Record<PedidoStatus, string> = {
+	NOVO: "bg-blue-50 text-blue-700 border-blue-200",
+	EM_MODELAGEM: "bg-gray-100 text-gray-700 border-gray-200",
+	AGUARDANDO_IMPRESSAO: "bg-amber-50 text-amber-700 border-amber-200",
+	IMPRIMINDO: "bg-orange-50 text-orange-700 border-orange-200",
+	EM_ACABAMENTO: "bg-yellow-50 text-yellow-700 border-yellow-200",
+	PRONTO: "bg-teal-50 text-teal-700 border-teal-200",
+	ENVIADO: "bg-indigo-50 text-indigo-700 border-indigo-200",
+	ENTREGUE: "bg-green-50 text-green-700 border-green-200",
+	CANCELADO: "bg-red-50 text-red-700 border-red-200",
 };
 
 const CANAL_LABEL: Record<CanalPedido, string> = {
@@ -95,10 +94,94 @@ interface Props {
 	readonly pedidos: PedidoRow[];
 }
 
-function futureStatuses(current: PedidoStatus): PedidoStatus[] {
-	const idx = STATUS_ORDER.indexOf(current);
-	if (idx === -1) return [];
-	return STATUS_ORDER.slice(idx + 1);
+function StatusDropdown({
+	pedidoId,
+	status,
+	onSelect,
+	loading,
+}: {
+	readonly pedidoId: string;
+	readonly status: PedidoStatus;
+	readonly onSelect: (pedidoId: string, s: PedidoStatus) => void;
+	readonly loading: boolean;
+}) {
+	const [open, setOpen] = useState(false);
+	const [menuPos, setMenuPos] = useState<
+		{ flipUp: false; top: number; left: number } |
+		{ flipUp: true; bottom: number; left: number }
+	>({ flipUp: false, top: 0, left: 0 });
+	const btnRef = useRef<HTMLButtonElement>(null);
+
+	useEffect(() => {
+		if (!open) return;
+		function handleClick(e: MouseEvent) {
+			if (btnRef.current && !btnRef.current.contains(e.target as Node)) setOpen(false);
+		}
+		function handleScroll() { setOpen(false); }
+		document.addEventListener("mousedown", handleClick);
+		document.addEventListener("scroll", handleScroll, true);
+		return () => {
+			document.removeEventListener("mousedown", handleClick);
+			document.removeEventListener("scroll", handleScroll, true);
+		};
+	}, [open]);
+
+	function handleToggle() {
+		if (!btnRef.current) return;
+		const r = btnRef.current.getBoundingClientRect();
+		const estimatedMenuHeight = ALL_STATUSES_WITH_CANCEL.length * 30 + 16;
+		const flipUp = r.bottom + estimatedMenuHeight > window.innerHeight;
+		if (flipUp) {
+			setMenuPos({ flipUp: true, bottom: window.innerHeight - r.top + 4, left: r.left });
+		} else {
+			setMenuPos({ flipUp: false, top: r.bottom + 4, left: r.left });
+		}
+		setOpen(v => !v);
+	}
+
+	const isFinal = status === "ENTREGUE" || status === "CANCELADO";
+
+	return (
+		<>
+			<button
+				ref={btnRef}
+				type="button"
+				disabled={loading || isFinal}
+				onClick={handleToggle}
+				className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${STATUS_COLOR[status]} ${
+					isFinal ? "cursor-default" : "cursor-pointer hover:brightness-95"
+				} ${loading ? "opacity-50" : ""}`}
+			>
+				{loading ? "…" : STATUS_LABEL[status]}
+				{!isFinal && <span className="ml-1 opacity-60">▾</span>}
+			</button>
+
+			{open && createPortal(
+				<div
+					style={{ position: "fixed", top: menuPos.top, left: menuPos.left }}
+					className={`z-50 bg-white border border-[#B5D4F4] shadow-lg py-1 min-w-40 ${menuPos.flipUp ? "rounded-t-xl rounded-b-lg" : "rounded-xl"}`}
+				>
+					{ALL_STATUSES_WITH_CANCEL.filter(s => s !== status).map(s => (
+						<button
+							key={s}
+							type="button"
+							onClick={() => {
+								setOpen(false);
+								onSelect(pedidoId, s);
+							}}
+							className={`w-full text-left px-3 py-1.5 text-xs font-medium hover:bg-[#F4F8FD] flex items-center gap-2 ${
+								s === "CANCELADO" ? "text-red-600 border-t border-[#E6F1FB] mt-1 pt-2" : "text-gray-700"
+							}`}
+						>
+							<span className={`inline-block w-2 h-2 rounded-full border ${STATUS_COLOR[s]}`} />
+							{STATUS_LABEL[s]}
+						</button>
+					))}
+				</div>,
+				document.body
+			)}
+		</>
+	);
 }
 
 export default function PedidosList({ pedidos }: Props) {
@@ -117,12 +200,12 @@ export default function PedidosList({ pedidos }: Props) {
 		p => p.status !== "ENTREGUE" && p.status !== "CANCELADO"
 	).length;
 
-	function handleAvançar(pedidoId: string, proximo: PedidoStatus) {
+	function handleStatusSelect(pedidoId: string, novoStatus: PedidoStatus) {
 		setAdvancing(pedidoId);
 		startTransition(async () => {
 			try {
-				await atualizarStatusPedido(pedidoId, proximo);
-				showToast(`Avançado para "${STATUS_LABEL[proximo]}"`, "success");
+				await atualizarStatusPedido(pedidoId, novoStatus);
+				showToast(`Status: "${STATUS_LABEL[novoStatus]}"`, "success");
 				router.refresh();
 			} catch {
 				showToast("Erro ao atualizar status", "error");
@@ -182,14 +265,13 @@ export default function PedidosList({ pedidos }: Props) {
 							<th className="px-4 py-3 font-medium">Canal</th>
 							<th className="px-4 py-3 font-medium">Status</th>
 							<th className="px-4 py-3 font-medium">Prazo</th>
-							<th className="px-4 py-3 font-medium" />
 						</tr>
 					</thead>
 					<tbody>
 						{exibidos.length === 0 && (
 							<tr>
 								<td
-									colSpan={6}
+									colSpan={5}
 									className="px-4 py-8 text-center text-gray-400 text-sm"
 								>
 									{filtroStatus
@@ -237,9 +319,12 @@ export default function PedidosList({ pedidos }: Props) {
 										{CANAL_LABEL[p.canal]}
 									</td>
 									<td className="px-4 py-3">
-										<Badge variant={STATUS_VARIANT[p.status]}>
-											{STATUS_LABEL[p.status]}
-										</Badge>
+										<StatusDropdown
+											pedidoId={p.pedido_id}
+											status={p.status}
+											onSelect={handleStatusSelect}
+											loading={isAdvancing}
+										/>
 									</td>
 									<td className="px-4 py-3">
 										{p.data_prazo ? (
@@ -255,28 +340,6 @@ export default function PedidosList({ pedidos }: Props) {
 											</span>
 										) : (
 											<span className="text-gray-400">—</span>
-										)}
-									</td>
-									<td className="px-4 py-3 text-right">
-										{futureStatuses(p.status).length > 0 && (
-											<select
-												disabled={isAdvancing}
-												value=""
-												onChange={e => {
-													if (e.target.value)
-														handleAvançar(p.pedido_id, e.target.value as PedidoStatus);
-												}}
-												className="text-xs border border-[#B5D4F4] rounded-lg px-2 py-1 text-[#185FA5] bg-white hover:bg-[#E6F1FB] transition-colors disabled:opacity-50 cursor-pointer"
-											>
-												<option value="" disabled>
-													{isAdvancing ? "…" : "Avançar →"}
-												</option>
-												{futureStatuses(p.status).map(s => (
-													<option key={s} value={s}>
-														{STATUS_LABEL[s]}
-													</option>
-												))}
-											</select>
 										)}
 									</td>
 								</tr>

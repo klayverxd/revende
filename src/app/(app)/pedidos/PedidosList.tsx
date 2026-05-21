@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Button, useToast } from "@/components/ui";
 import PedidoModal from "./PedidoModal";
 import { atualizarStatusPedido, patchPedido } from "./actions";
+import { fmtData } from "@/lib/utils/data";
 import type { PedidoStatus, CanalPedido, Prioridade, StatusPagamento } from "./actions";
 
 export interface PedidoRow {
@@ -183,7 +184,6 @@ function StatusDropdown({
 }
 
 const inlineSelect = "text-sm bg-transparent border-0 outline-none cursor-pointer hover:text-[#185FA5] text-gray-700 p-0 appearance-none";
-const inlineDate = "text-sm bg-transparent border-0 outline-none cursor-pointer hover:text-[#185FA5] p-0";
 
 function CanalCell({
 	pedidoId,
@@ -219,13 +219,23 @@ function PrazoCell({
 	readonly atrasado: boolean | "" | null;
 	readonly onSave: (pedidoId: string, data: string | null) => void;
 }) {
+	const ref = useRef<HTMLInputElement>(null);
+	const colorClass = atrasado ? "text-red-600 font-medium" : dataPrazo ? "text-gray-700" : "text-gray-400";
+
 	return (
-		<input
-			type="date"
-			defaultValue={dataPrazo?.slice(0, 10) ?? ""}
-			onBlur={e => onSave(pedidoId, e.target.value || null)}
-			className={`${inlineDate} ${atrasado ? "text-red-600 font-medium" : dataPrazo ? "text-gray-700" : "text-gray-400"}`}
-		/>
+		<span
+			className={`relative inline-flex items-center gap-1 cursor-pointer hover:underline text-sm ${colorClass}`}
+			onClick={() => { ref.current?.showPicker?.(); ref.current?.focus(); }}
+		>
+			{dataPrazo ? `${fmtData(dataPrazo)}${atrasado ? " ⚠" : ""}` : "—"}
+			<input
+				ref={ref}
+				type="date"
+				defaultValue={dataPrazo?.slice(0, 10) ?? ""}
+				onBlur={e => onSave(pedidoId, e.target.value || null)}
+				className="sr-only"
+			/>
+		</span>
 	);
 }
 
@@ -384,7 +394,7 @@ export default function PedidosList({ pedidos }: Props) {
 											</span>
 										)}
 										<div className="text-xs text-gray-400 mt-0.5">
-											{p.numero_pedido} · {new Date(`${p.data_pedido.slice(0, 10)}T00:00:00`).toLocaleDateString("pt-BR")}
+											{p.numero_pedido} · {fmtData(p.data_pedido)}
 										</div>
 									</td>
 									<td className="px-4 py-3 text-gray-900">

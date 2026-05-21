@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button, Badge, useToast } from "@/components/ui";
 import PedidoModal from "../PedidoModal";
 import { atualizarStatusPedido, deletarPedido } from "../actions";
+import { fmtData } from "@/lib/utils/data";
 import type {
 	PedidoStatus,
 	CanalPedido,
@@ -128,10 +129,7 @@ function fmt(v: number | null | undefined) {
 	if (v == null) return "—";
 	return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
-function fmtDate(s: string | null | undefined) {
-	if (!s) return "—";
-	return new Date(`${s.slice(0, 10)}T00:00:00`).toLocaleDateString("pt-BR");
-}
+const fmtDate = fmtData;
 
 function getModeloInfo(item: Item): ItemModelo {
 	if (Array.isArray(item.modelo)) return item.modelo[0] ?? null;

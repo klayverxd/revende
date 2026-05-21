@@ -174,6 +174,7 @@ export default function PedidoDetalhe({ pedido }: Props) {
 		pedido_id: pedido.pedido_id,
 		numero_pedido: pedido.numero_pedido,
 		canal: pedido.canal,
+		status: pedido.status,
 		prioridade: pedido.prioridade,
 		data_pedido: pedido.data_pedido,
 		cliente_nome: pedido.cliente_nome,

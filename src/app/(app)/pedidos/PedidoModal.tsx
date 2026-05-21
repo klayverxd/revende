@@ -32,8 +32,11 @@ const itemSchema = z.object({
 	observacao: z.string().optional(),
 });
 
+const PEDIDO_STATUSES = ["NOVO","EM_MODELAGEM","AGUARDANDO_IMPRESSAO","IMPRIMINDO","EM_ACABAMENTO","PRONTO","ENVIADO","ENTREGUE","CANCELADO"] as const;
+
 const schema = z.object({
 	canal: z.enum(["PRESENCIAL", "WHATSAPP", "INSTAGRAM", "SHOPEE"]),
+	status: z.enum(PEDIDO_STATUSES),
 	prioridade: z.enum(["NORMAL", "ALTA", "URGENTE"]),
 	data_pedido: z.string().min(1),
 	cliente_nome: z.string().optional(),
@@ -57,6 +60,7 @@ export interface PedidoParaEditar {
 	pedido_id: string;
 	numero_pedido: string;
 	canal: CanalPedido;
+	status: typeof PEDIDO_STATUSES[number];
 	prioridade: Prioridade;
 	data_pedido: string;
 	cliente_nome: string | null;
@@ -120,6 +124,7 @@ export default function PedidoModal({ open, onClose, pedido }: Props) {
 		resolver: zodResolver(schema),
 		defaultValues: {
 			canal: "PRESENCIAL",
+			status: "NOVO" as const,
 			prioridade: "NORMAL",
 			data_pedido: hoje,
 			data_prazo: hoje,
@@ -153,6 +158,7 @@ export default function PedidoModal({ open, onClose, pedido }: Props) {
 		if (pedido) {
 			reset({
 				canal: pedido.canal,
+				status: pedido.status,
 				prioridade: pedido.prioridade,
 				data_pedido: pedido.data_pedido,
 				cliente_nome: pedido.cliente_nome ?? "",
@@ -181,6 +187,7 @@ export default function PedidoModal({ open, onClose, pedido }: Props) {
 		} else {
 			reset({
 				canal: "PRESENCIAL",
+				status: "NOVO",
 				prioridade: "NORMAL",
 				data_pedido: hoje,
 				data_prazo: hoje,
@@ -240,6 +247,7 @@ export default function PedidoModal({ open, onClose, pedido }: Props) {
 
 			const payload = {
 				canal: values.canal,
+				status: values.status,
 				prioridade: values.prioridade,
 				data_pedido: values.data_pedido,
 				cliente_nome: values.cliente_nome || null,
@@ -327,6 +335,26 @@ export default function PedidoModal({ open, onClose, pedido }: Props) {
 								<option value="URGENTE">Urgente</option>
 							</select>
 						</div>
+					</div>
+					<div className="flex flex-col gap-1">
+						<label htmlFor="pedido-status" className="text-[13px] text-gray-600 font-medium">
+							Status
+						</label>
+						<select
+							id="pedido-status"
+							className="rounded-md border border-[#B5D4F4] px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-1 focus:border-[#185FA5] focus:ring-[#185FA5]"
+							{...register("status")}
+						>
+							<option value="NOVO">Novo</option>
+							<option value="EM_MODELAGEM">Em modelagem</option>
+							<option value="AGUARDANDO_IMPRESSAO">Ag. impressão</option>
+							<option value="IMPRIMINDO">Imprimindo</option>
+							<option value="EM_ACABAMENTO">Em acabamento</option>
+							<option value="PRONTO">Pronto</option>
+							<option value="ENVIADO">Enviado</option>
+							<option value="ENTREGUE">Entregue</option>
+							<option value="CANCELADO">Cancelado</option>
+						</select>
 					</div>
 					<Input
 						label="Data do pedido"

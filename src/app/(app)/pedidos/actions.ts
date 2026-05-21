@@ -40,6 +40,7 @@ export interface PedidoItemInput {
 
 export interface CriarPedidoInput {
 	canal: CanalPedido;
+	status?: PedidoStatus;
 	prioridade?: Prioridade;
 	cliente_nome?: string | null;
 	cliente_telefone?: string | null;
@@ -81,7 +82,7 @@ export async function criarPedido(input: CriarPedidoInput) {
 			numero_pedido,
 			data_pedido: input.data_pedido ?? new Date().toISOString().slice(0, 10),
 			canal: input.canal,
-			status: "NOVO",
+			status: input.status ?? "NOVO",
 			prioridade: input.prioridade ?? "NORMAL",
 			cliente_nome: input.cliente_nome?.trim() || null,
 			cliente_telefone: input.cliente_telefone?.trim() || null,
@@ -167,6 +168,7 @@ export async function atualizarPedido(
 		.from("pedido")
 		.update({
 			canal: input.canal,
+			status: input.status,
 			prioridade: input.prioridade ?? "NORMAL",
 			cliente_nome: input.cliente_nome?.trim() || null,
 			cliente_telefone: input.cliente_telefone?.trim() || null,

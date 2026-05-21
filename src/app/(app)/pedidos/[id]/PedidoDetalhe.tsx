@@ -210,9 +210,18 @@ export default function PedidoDetalhe({ pedido }: Props) {
 					>
 						← Pedidos
 					</Link>
-					<h1 className="text-xl font-semibold text-gray-900 mt-1 font-mono">
-						{pedido.numero_pedido}
+					<h1 className="text-xl font-semibold text-gray-900 mt-1 uppercase">
+						{(() => {
+							const primeiro = pedido.itens[0];
+							if (!primeiro) return pedido.numero_pedido;
+							if (primeiro.tipo === "PRODUTO") {
+								const m = getModeloInfo(primeiro);
+								return m?.nome ?? pedido.numero_pedido;
+							}
+							return primeiro.descricao_custom ?? pedido.numero_pedido;
+						})()}
 					</h1>
+					<p className="text-xs text-gray-400 font-mono mt-0.5">{pedido.numero_pedido}</p>
 					<div className="flex items-center gap-2 mt-1">
 						<Badge variant={STATUS_VARIANT[pedido.status]}>
 							{STATUS_LABEL[pedido.status]}

@@ -286,6 +286,7 @@ export default function PedidosList({ pedidos }: Props) {
 						{exibidos.map(p => {
 							const atrasado =
 								p.data_prazo &&
+								p.status !== "ENVIADO" &&
 								p.status !== "ENTREGUE" &&
 								p.status !== "CANCELADO" &&
 								new Date(`${p.data_prazo.slice(0, 10)}T00:00:00`) < new Date();

@@ -47,7 +47,7 @@ export default function Modal({
 			/>
 
 			{/* Card */}
-			<div className="relative z-10 w-full max-w-lg mx-4 bg-white rounded-xl shadow-xl flex flex-col max-h-[90vh] m-auto">
+			<div className="relative z-10 w-full max-w-lg mx-4 bg-white rounded-xl shadow-xl flex flex-col max-h-[90vh] m-auto min-w-0">
 				{/* Header */}
 				{title && (
 					<div className="flex items-center justify-between px-6 py-4 border-b border-[#B5D4F4]">
@@ -72,7 +72,7 @@ export default function Modal({
 				)}
 
 				{/* Body */}
-				<div className="px-6 py-4 overflow-y-auto flex-1">{children}</div>
+				<div className="px-6 py-4 overflow-y-auto overflow-x-hidden flex-1">{children}</div>
 
 				{/* Footer */}
 				{footer && (

@@ -34,11 +34,11 @@ const itemSchema = z.object({
 
 const PEDIDO_STATUSES = ["NOVO","EM_MODELAGEM","AGUARDANDO_IMPRESSAO","IMPRIMINDO","EM_ACABAMENTO","PRONTO","ENVIADO","ENTREGUE","CANCELADO"] as const;
 
-const CANAL_TAXA_DEFAULT: Record<string, number> = {
-	SHOPEE: 20,
-	PRESENCIAL: 0,
-	WHATSAPP: 0,
-	INSTAGRAM: 0,
+const CANAL_TAXA_DEFAULT: Record<string, { pct: number; fixo: number }> = {
+	SHOPEE:     { pct: 20, fixo: 4 },
+	PRESENCIAL: { pct: 0,  fixo: 0 },
+	WHATSAPP:   { pct: 0,  fixo: 0 },
+	INSTAGRAM:  { pct: 0,  fixo: 0 },
 };
 
 const schema = z.object({
@@ -166,8 +166,9 @@ export default function PedidoModal({ open, onClose, pedido }: Props) {
 
 	useEffect(() => {
 		if (isEdit) return;
-		const defaultPct = CANAL_TAXA_DEFAULT[watchCanal] ?? 0;
-		setValue("taxa_marketplace_pct", defaultPct > 0 ? String(defaultPct) : "");
+		const defaults = CANAL_TAXA_DEFAULT[watchCanal] ?? { pct: 0, fixo: 0 };
+		setValue("taxa_marketplace_pct", defaults.pct > 0 ? String(defaults.pct) : "");
+		setValue("outros_encargos", defaults.fixo > 0 ? String(defaults.fixo) : "");
 	}, [watchCanal, isEdit, setValue]);
 
 	async function handleProdutoCriado(modeloId: string, idx: number) {
@@ -568,8 +569,26 @@ export default function PedidoModal({ open, onClose, pedido }: Props) {
 					</div>
 
 					{fields.length > 0 && (
-						<div className="rounded-lg bg-[#F4F8FD] border border-[#B5D4F4] px-4 py-3 flex flex-col gap-1 text-sm">
-							<div className="flex justify-between text-gray-600">
+						<div className="rounded-lg bg-[#F4F8FD] border border-[#B5D4F4] px-4 py-3 flex flex-col gap-0.5 text-sm">
+							{/* Itens */}
+							{(watchItens ?? []).map((item, idx) => {
+								const qty = parseInt2(item?.quantidade) ?? 0;
+								const preco = parseNum(item?.preco_venda_unit) ?? 0;
+								const custo = parseNum(item?.custo_unit) ?? 0;
+								const sub = preco * qty;
+								const nome = item?.tipo === "PRODUTO"
+									? (modelos.find(m => m.modelo_id === item?.modelo_id)?.nome?.toUpperCase() ?? `Item ${idx + 1}`)
+									: (item?.descricao_custom || `Item ${idx + 1}`);
+								return (
+									<div key={fields[idx]?.id} className="flex justify-between text-gray-600 gap-2">
+										<span className="truncate text-xs">{nome} {qty > 1 ? `×${qty}` : ""}{custo > 0 ? <span className="text-gray-400 ml-1">(custo: {(custo * qty).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})</span> : null}</span>
+										<span className="shrink-0">{sub.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+									</div>
+								);
+							})}
+
+							{/* Divisor + subtotal */}
+							<div className="flex justify-between text-gray-700 border-t border-[#B5D4F4] pt-1 mt-1">
 								<span>Subtotal</span>
 								<span>{subtotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
 							</div>
@@ -579,37 +598,44 @@ export default function PedidoModal({ open, onClose, pedido }: Props) {
 									<span>−{desconto.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
 								</div>
 							)}
+
+							{/* Total receita */}
 							<div className="flex justify-between font-semibold text-gray-900 border-t border-[#B5D4F4] pt-1 mt-0.5">
 								<span>Total</span>
 								<span className="text-[#185FA5]">{total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
 							</div>
+
+							{/* Custos */}
 							{hasCosts && (
 								<>
-									<div className="border-t border-[#B5D4F4] mt-0.5 pt-1 flex flex-col gap-1">
-										{custoProducao > 0 && (
-											<div className="flex justify-between text-gray-500">
-												<span>Custo de produção</span>
-												<span>−{custoProducao.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
-											</div>
-										)}
-										{taxaMarketplace > 0 && (
-											<div className="flex justify-between text-gray-500">
-												<span>Taxa marketplace ({taxaPct}%)</span>
-												<span>−{taxaMarketplace.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
-											</div>
-										)}
-										{custoEnvioVal > 0 && (
-											<div className="flex justify-between text-gray-500">
-												<span>Custo de envio</span>
-												<span>−{custoEnvioVal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
-											</div>
-										)}
-										{outrosEncargosVal > 0 && (
-											<div className="flex justify-between text-gray-500">
-												<span>Outros encargos</span>
-												<span>−{outrosEncargosVal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
-											</div>
-										)}
+									<p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mt-2 mb-0.5">Custos</p>
+									{custoProducao > 0 && (
+										<div className="flex justify-between text-gray-500">
+											<span>Produção</span>
+											<span>−{custoProducao.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+										</div>
+									)}
+									{taxaMarketplace > 0 && (
+										<div className="flex justify-between text-gray-500">
+											<span>Taxa marketplace ({taxaPct}%)</span>
+											<span>−{taxaMarketplace.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+										</div>
+									)}
+									{custoEnvioVal > 0 && (
+										<div className="flex justify-between text-gray-500">
+											<span>Custo de envio</span>
+											<span>−{custoEnvioVal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+										</div>
+									)}
+									{outrosEncargosVal > 0 && (
+										<div className="flex justify-between text-gray-500">
+											<span>Outros encargos</span>
+											<span>−{outrosEncargosVal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+										</div>
+									)}
+									<div className="flex justify-between text-gray-500 border-t border-[#B5D4F4] pt-1 mt-0.5">
+										<span>Total custos</span>
+										<span>−{totalCustos.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
 									</div>
 									<div className={`flex justify-between font-semibold border-t border-[#B5D4F4] pt-1 mt-0.5 ${lucro >= 0 ? "text-green-700" : "text-red-600"}`}>
 										<span>Lucro estimado</span>

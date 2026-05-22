@@ -22,6 +22,8 @@ export interface PedidoRow {
 	status_pagamento: StatusPagamento;
 	created_at: string;
 	produtos: string[];
+	receita: number | null;
+	lucro: number | null;
 }
 
 const STATUS_LABEL: Record<PedidoStatus, string> = {
@@ -351,13 +353,14 @@ export default function PedidosList({ pedidos }: Props) {
 							<th className="px-4 py-3 font-medium">Canal</th>
 							<th className="px-4 py-3 font-medium">Status</th>
 							<th className="px-4 py-3 font-medium">Prazo</th>
+							<th className="px-4 py-3 font-medium text-right">Financeiro</th>
 						</tr>
 					</thead>
 					<tbody>
 						{exibidos.length === 0 && (
 							<tr>
 								<td
-									colSpan={5}
+									colSpan={6}
 									className="px-4 py-8 text-center text-gray-400 text-sm"
 								>
 									{filtroStatus
@@ -424,6 +427,23 @@ export default function PedidosList({ pedidos }: Props) {
 											atrasado={atrasado}
 											onSave={(id, data) => handlePatch(id, { data_prazo: data })}
 										/>
+									</td>
+									<td className="px-4 py-3 text-right">
+										{p.receita != null ? (
+											<div>
+												<div className="text-sm font-medium text-gray-900">
+													{p.receita.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+												</div>
+												{p.lucro != null && (
+													<div className={`text-xs font-medium ${p.lucro >= 0 ? "text-green-600" : "text-red-500"}`}>
+														{p.lucro >= 0 ? "+" : ""}
+														{p.lucro.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+													</div>
+												)}
+											</div>
+										) : (
+											<span className="text-gray-300">—</span>
+										)}
 									</td>
 								</tr>
 							);

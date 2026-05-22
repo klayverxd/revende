@@ -282,7 +282,8 @@ export async function buscarPedidos(filtros?: {
 		.select(
 			`pedido_id, numero_pedido, data_pedido, data_prazo, canal, status, prioridade,
 			cliente_nome, status_pagamento, created_at,
-			itens:pedido_item(descricao_custom, modelo:modelo_id(nome))`
+			desconto_valor, taxa_marketplace_pct, custo_envio, outros_encargos,
+			itens:pedido_item(descricao_custom, preco_venda_unit, custo_unit, quantidade, modelo:modelo_id(nome))`
 		)
 		.is("deleted_at", null)
 		.order("created_at", { ascending: false });
@@ -295,12 +296,26 @@ export async function buscarPedidos(filtros?: {
 	return (data ?? []).map(p => {
 		const itens = (p.itens ?? []) as Array<{
 			descricao_custom: string | null;
+			preco_venda_unit: number | null;
+			custo_unit: number | null;
+			quantidade: number;
 			modelo: { nome: string } | { nome: string }[] | null;
 		}>;
 		const produtos = itens.map(i => {
 			const m = Array.isArray(i.modelo) ? i.modelo[0] : i.modelo;
 			return m?.nome ?? i.descricao_custom ?? "";
 		}).filter(Boolean);
+
+		const subtotal = itens.reduce((s, i) => s + (i.preco_venda_unit ?? 0) * (i.quantidade ?? 1), 0);
+		const desconto = (p.desconto_valor as number | null) ?? 0;
+		const receita = Math.max(0, subtotal - desconto);
+		const custoProducao = itens.reduce((s, i) => s + (i.custo_unit ?? 0) * (i.quantidade ?? 1), 0);
+		const taxaPct = (p.taxa_marketplace_pct as number | null) ?? 0;
+		const custoEnvio = (p.custo_envio as number | null) ?? 0;
+		const outrosEncargos = (p.outros_encargos as number | null) ?? 0;
+		const totalCustos = custoProducao + (receita * taxaPct) / 100 + custoEnvio + outrosEncargos;
+		const temCustos = custoProducao > 0 || taxaPct > 0 || custoEnvio > 0 || outrosEncargos > 0;
+
 		return {
 			pedido_id: p.pedido_id as string,
 			numero_pedido: p.numero_pedido as string,
@@ -313,6 +328,8 @@ export async function buscarPedidos(filtros?: {
 			status_pagamento: p.status_pagamento as StatusPagamento,
 			created_at: p.created_at as string,
 			produtos,
+			receita: receita > 0 ? receita : null,
+			lucro: temCustos ? receita - totalCustos : null,
 		};
 	});
 }

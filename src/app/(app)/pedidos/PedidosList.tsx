@@ -298,14 +298,7 @@ export default function PedidosList({ pedidos }: Props) {
 
 	return (
 		<div className="flex flex-col gap-4">
-			<input
-				type="search"
-				value={busca}
-				onChange={e => setBusca(e.target.value)}
-				placeholder="Buscar por número ou cliente..."
-				className="w-full text-sm rounded-xl border border-[#B5D4F4] px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:border-[#185FA5] focus:ring-[#185FA5]"
-			/>
-			<div className="flex flex-wrap items-center gap-2 justify-between">
+			<div className="flex items-center justify-between gap-2 flex-wrap">
 				<div className="flex flex-wrap gap-1.5">
 					<button
 						type="button"
@@ -325,9 +318,7 @@ export default function PedidosList({ pedidos }: Props) {
 							<button
 								key={s}
 								type="button"
-								onClick={() =>
-									setFiltroStatus(prev => (prev === s ? "" : s))
-								}
+								onClick={() => setFiltroStatus(prev => (prev === s ? "" : s))}
 								className={`text-xs px-3 py-1 rounded-full border font-medium transition-colors ${
 									filtroStatus === s
 										? "bg-[#185FA5] text-white border-[#185FA5]"
@@ -339,9 +330,18 @@ export default function PedidosList({ pedidos }: Props) {
 						);
 					})}
 				</div>
-				<Button variant="primary" size="sm" onClick={() => setNovoOpen(true)}>
-					+ Novo pedido
-				</Button>
+				<div className="flex items-center gap-2 shrink-0">
+					<input
+						type="search"
+						value={busca}
+						onChange={e => setBusca(e.target.value)}
+						placeholder="Buscar pedido..."
+						className="w-44 text-sm rounded-lg border border-[#B5D4F4] px-3 py-1.5 bg-white focus:outline-none focus:ring-1 focus:border-[#185FA5] focus:ring-[#185FA5]"
+					/>
+					<Button variant="primary" size="sm" onClick={() => setNovoOpen(true)}>
+						+ Novo pedido
+					</Button>
+				</div>
 			</div>
 
 			<div className="bg-white rounded-xl border border-[#B5D4F4] overflow-hidden">
@@ -363,9 +363,7 @@ export default function PedidosList({ pedidos }: Props) {
 									colSpan={6}
 									className="px-4 py-8 text-center text-gray-400 text-sm"
 								>
-									{filtroStatus
-										? "Nenhum pedido com este status."
-										: "Nenhum pedido ativo. Crie um novo pedido."}
+									{"Nenhum pedido ativo. Crie um novo pedido."}
 								</td>
 							</tr>
 						)}

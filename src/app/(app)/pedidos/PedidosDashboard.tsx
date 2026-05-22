@@ -26,6 +26,8 @@ interface Props {
 		statusCounts: Record<string, number>;
 		canalCounts: Record<string, number>;
 		receitaTotal: number;
+		custoTotal: number | null;
+		lucroTotal: number | null;
 		pedidosMes: number;
 		ativos: number;
 	};
@@ -55,8 +57,12 @@ const STATUS_COLOR: Record<PedidoStatus, string> = {
 	CANCELADO: "bg-red-50 text-red-800 border-red-200",
 };
 
+function fmtBRL(v: number) {
+	return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
 export default function PedidosDashboard({ dashboard }: Props) {
-	const { statusCounts, canalCounts, receitaTotal, pedidosMes, ativos } =
+	const { statusCounts, canalCounts, receitaTotal, custoTotal, lucroTotal, pedidosMes, ativos } =
 		dashboard;
 
 	const totalPedidos = Object.values(statusCounts).reduce((a, b) => a + b, 0);
@@ -67,76 +73,63 @@ export default function PedidosDashboard({ dashboard }: Props) {
 	return (
 		<div className="flex flex-col gap-4">
 			<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-				<MetricCard
-					label="Total de pedidos"
-					value={String(totalPedidos)}
-				/>
+				<MetricCard label="Total de pedidos" value={String(totalPedidos)} />
 				<MetricCard label="Ativos (em produção)" value={String(ativos)} />
 				<MetricCard label="Pedidos este mês" value={String(pedidosMes)} />
 				<MetricCard
 					label="Receita este mês"
-					value={receitaTotal.toLocaleString("pt-BR", {
-						style: "currency",
-						currency: "BRL",
-					})}
+					value={fmtBRL(receitaTotal)}
 					highlight
 				/>
 			</div>
 
-			<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-				<div className="bg-white rounded-xl border border-[#B5D4F4] p-4">
-					<h3 className="text-xs font-semibold uppercase tracking-wide text-[#185FA5] mb-3">
-						Por status
-					</h3>
-					<div className="flex flex-col gap-2">
+			{(custoTotal != null || lucroTotal != null) && (
+				<div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+					<MetricCard
+						label="Custos este mês"
+						value={custoTotal == null ? "—" : fmtBRL(custoTotal)}
+					/>
+					<MetricCard
+						label="Lucro este mês"
+						value={lucroTotal == null ? "—" : fmtBRL(lucroTotal)}
+						highlight={lucroTotal != null && lucroTotal >= 0}
+						danger={lucroTotal != null && lucroTotal < 0}
+					/>
+					{receitaTotal > 0 && lucroTotal != null && (
+						<MetricCard
+							label="Margem este mês"
+							value={`${Math.round((lucroTotal / receitaTotal) * 100)}%`}
+							highlight={lucroTotal >= 0}
+							danger={lucroTotal < 0}
+						/>
+					)}
+				</div>
+			)}
+
+			<div className="bg-white rounded-xl border border-[#B5D4F4] px-4 py-3 flex flex-col gap-3">
+				{/* Por status */}
+				<div className="flex items-start gap-2 flex-wrap">
+					<span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 shrink-0 mt-0.5 w-12">Status</span>
+					<div className="flex flex-wrap gap-1.5">
 						{STATUS_ORDER.filter(s => (statusCounts[s] ?? 0) > 0).map(s => (
-							<div key={s} className="flex items-center justify-between">
-								<span
-									className={`text-xs px-2 py-0.5 rounded-full border font-medium ${STATUS_COLOR[s]}`}
-								>
-									{STATUS_LABEL[s]}
-								</span>
-								<span className="text-sm font-semibold text-gray-800">
-									{statusCounts[s]}
-								</span>
-							</div>
+							<span key={s} className={`text-xs px-2 py-0.5 rounded-full border font-medium ${STATUS_COLOR[s]}`}>
+								{STATUS_LABEL[s]} · {statusCounts[s]}
+							</span>
 						))}
-						{totalPedidos === 0 && (
-							<p className="text-xs text-gray-400">Nenhum pedido ainda.</p>
-						)}
+						{totalPedidos === 0 && <span className="text-xs text-gray-400">Nenhum pedido ainda.</span>}
 					</div>
 				</div>
 
-				<div className="bg-white rounded-xl border border-[#B5D4F4] p-4">
-					<h3 className="text-xs font-semibold uppercase tracking-wide text-[#185FA5] mb-3">
-						Por canal
-					</h3>
-					<div className="flex flex-col gap-2">
+				{/* Por canal */}
+				<div className="flex items-start gap-2 flex-wrap border-t border-[#F4F8FD] pt-3">
+					<span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 shrink-0 mt-0.5 w-12">Canal</span>
+					<div className="flex flex-wrap gap-1.5">
 						{topCanais.map(([canal, count]) => (
-							<div key={canal} className="flex items-center gap-2">
-								<div className="flex-1">
-									<div className="flex justify-between mb-0.5">
-										<span className="text-xs text-gray-700">
-											{CANAL_LABEL[canal as CanalPedido] ?? canal}
-										</span>
-										<span className="text-xs font-semibold text-gray-800">
-											{count}
-										</span>
-									</div>
-									<div className="h-1.5 rounded-full bg-[#E6F1FB]">
-										<div
-											className="h-1.5 rounded-full bg-[#185FA5]"
-											style={{
-												width: `${Math.round((count / totalPedidos) * 100)}%`,
-											}}
-										/>
-									</div>
-								</div>
-							</div>
+							<span key={canal} className="text-xs px-2 py-0.5 rounded-full border border-[#B5D4F4] bg-[#F4F8FD] text-[#185FA5] font-medium">
+								{CANAL_LABEL[canal as CanalPedido] ?? canal} · {count}
+							</span>
 						))}
-						{topCanais.length === 0 && (
-							<p className="text-xs text-gray-400">Nenhum pedido ainda.</p>
-						)}
+						{topCanais.length === 0 && <span className="text-xs text-gray-400">Nenhum pedido ainda.</span>}
 					</div>
 				</div>
 			</div>
@@ -148,19 +141,20 @@ function MetricCard({
 	label,
 	value,
 	highlight,
+	danger,
 }: {
 	readonly label: string;
 	readonly value: string;
 	readonly highlight?: boolean;
+	readonly danger?: boolean;
 }) {
+	let color = "text-gray-900";
+	if (danger) color = "text-red-600";
+	else if (highlight) color = "text-[#185FA5]";
 	return (
 		<div className="bg-white rounded-xl border border-[#B5D4F4] p-4">
 			<p className="text-xs text-gray-500 mb-1">{label}</p>
-			<p
-				className={`text-xl font-bold ${highlight ? "text-[#185FA5]" : "text-gray-900"}`}
-			>
-				{value}
-			</p>
+			<p className={`text-xl font-bold ${color}`}>{value}</p>
 		</div>
 	);
 }

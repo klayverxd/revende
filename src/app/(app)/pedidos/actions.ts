@@ -367,39 +367,67 @@ export async function buscarDashboardPedidos() {
 		.toISOString()
 		.slice(0, 10);
 
-	const [{ data: pedidos }, { data: itensMes }] = await Promise.all([
+	const [{ data: todosRaw }, { data: mesPedidosRaw }] = await Promise.all([
 		supabase
 			.from("pedido")
-			.select("status, canal, prioridade")
+			.select("status, canal")
 			.is("deleted_at", null),
 		supabase
-			.from("pedido_item")
-			.select("preco_venda_unit, quantidade, pedido:pedido_id(data_pedido, status, deleted_at)")
-			.gte("pedido.data_pedido", mesInicio),
+			.from("pedido")
+			.select(
+				`pedido_id, status, desconto_valor,
+				taxa_marketplace_pct, custo_envio, outros_encargos,
+				itens:pedido_item(preco_venda_unit, custo_unit, quantidade)`
+			)
+			.is("deleted_at", null)
+			.neq("status", "CANCELADO")
+			.gte("data_pedido", mesInicio),
 	]);
 
 	const statusCounts: Record<string, number> = {};
 	const canalCounts: Record<string, number> = {};
-	let receitaTotal = 0;
-	let pedidosMes = 0;
-	const pedidosMesIds = new Set<string>();
 
-	for (const p of pedidos ?? []) {
+	for (const p of todosRaw ?? []) {
 		statusCounts[p.status] = (statusCounts[p.status] ?? 0) + 1;
 		canalCounts[p.canal] = (canalCounts[p.canal] ?? 0) + 1;
 	}
 
-	for (const item of itensMes ?? []) {
-		const pedido = Array.isArray(item.pedido) ? item.pedido[0] : item.pedido;
-		if (!pedido || pedido.deleted_at || pedido.status === "CANCELADO") continue;
-		receitaTotal += (item.preco_venda_unit ?? 0) * (item.quantidade ?? 1);
-		pedidosMesIds.add(JSON.stringify(pedido));
-	}
-	pedidosMes = pedidosMesIds.size;
-
-	const ativos = (pedidos ?? []).filter(
+	const ativos = (todosRaw ?? []).filter(
 		p => p.status !== "ENTREGUE" && p.status !== "CANCELADO"
 	).length;
 
-	return { statusCounts, canalCounts, receitaTotal, pedidosMes, ativos };
+	let receitaTotal = 0;
+	let custoTotal = 0;
+	const pedidosMes = (mesPedidosRaw ?? []).length;
+
+	for (const p of mesPedidosRaw ?? []) {
+		const itens = (p.itens ?? []) as Array<{
+			preco_venda_unit: number | null;
+			custo_unit: number | null;
+			quantidade: number;
+		}>;
+		const subtotal = itens.reduce((s, i) => s + (i.preco_venda_unit ?? 0) * (i.quantidade ?? 1), 0);
+		const desconto = (p.desconto_valor as number | null) ?? 0;
+		const receita = Math.max(0, subtotal - desconto);
+		receitaTotal += receita;
+
+		const custoItens = itens.reduce((s, i) => s + (i.custo_unit ?? 0) * (i.quantidade ?? 1), 0);
+		const taxaPct = (p.taxa_marketplace_pct as number | null) ?? 0;
+		const custoEnvio = (p.custo_envio as number | null) ?? 0;
+		const outrosEncargos = (p.outros_encargos as number | null) ?? 0;
+		custoTotal += custoItens + (receita * taxaPct) / 100 + custoEnvio + outrosEncargos;
+	}
+
+	const lucroTotal = receitaTotal - custoTotal;
+	const temCustos = custoTotal > 0;
+
+	return {
+		statusCounts,
+		canalCounts,
+		receitaTotal,
+		custoTotal: temCustos ? custoTotal : null,
+		lucroTotal: temCustos ? lucroTotal : null,
+		pedidosMes,
+		ativos,
+	};
 }

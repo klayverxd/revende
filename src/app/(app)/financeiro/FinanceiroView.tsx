@@ -4,33 +4,9 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Badge, Button, Input, Modal, useToast } from "@/components/ui";
 import { registrarRecebimento } from "./actions";
+import type { AcertoPendenteCard, AcertoHistoricoRow } from "./actions";
 
-export interface AcertoPendenteCard {
-	revendedor_id: string;
-	revendedor_nome: string;
-	modelo_acerto: "COMISSAO" | "VALOR_MINIMO";
-	total_pendente: number;
-	mais_antigo: string;
-	acertos: Array<{
-		acerto_id: string;
-		envio_id: string;
-		valor_calculado: number;
-		valor_a_receber: number | null;
-		valor_liquido: number | null;
-		comissao_calculada: number | null;
-		created_at: string;
-	}>;
-}
-
-export interface AcertoHistoricoRow {
-	acerto_id: string;
-	envio_id: string | null;
-	data_recebimento: string | null;
-	revendedor_nome: string;
-	modelo_acerto: "COMISSAO" | "VALOR_MINIMO";
-	valor: number;
-	observacao: string | null;
-}
+export type { AcertoPendenteCard, AcertoHistoricoRow };
 
 interface Props {
 	readonly pendentes: AcertoPendenteCard[];
@@ -74,7 +50,7 @@ export default function FinanceiroView({ pendentes, historico }: Props) {
 
 	async function confirmarRecebimento() {
 		if (!primeiroAcerto) return;
-		const valor = parseFloat(valorRecebido.replace(",", "."));
+		const valor = Number.parseFloat(valorRecebido.replace(",", "."));
 		if (!Number.isFinite(valor) || valor < 0) {
 			showToast("Valor recebido invalido", "error");
 			return;
@@ -297,10 +273,11 @@ export default function FinanceiroView({ pendentes, historico }: Props) {
 							</>
 						)}
 						<div className="flex flex-col gap-1">
-							<label className="text-[13px] text-gray-600 font-medium">
+							<label htmlFor="obs-recebimento" className="text-[13px] text-gray-600 font-medium">
 								Observacao
 							</label>
 							<textarea
+								id="obs-recebimento"
 								rows={3}
 								value={observacao}
 								onChange={e => setObservacao(e.target.value)}

@@ -501,20 +501,34 @@ export default function PedidoDetalhe({ pedido }: Props) {
 									</div>
 								)}
 								<div className="flex justify-between font-semibold text-gray-900 border-t border-[#B5D4F4] pt-1.5">
-									<span>Total</span>
+									<span>Total (receita)</span>
 									<span className="text-[#185FA5]">{fmt(total)}</span>
 								</div>
 
 								{hasCosts && (
 									<>
+										{/* Custos operacionais — itens + taxas numa só seção */}
 										<div className="flex flex-col gap-1 border-t border-[#B5D4F4] pt-1.5 mt-0.5">
-											<p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Custos</p>
-											{custoProducao > 0 && (
-												<div className="flex justify-between text-gray-500">
-													<span>Produção</span>
-													<span>−{fmt(custoProducao)}</span>
-												</div>
-											)}
+											<p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">
+												Custos operacionais
+											</p>
+
+											{/* Por item */}
+											{pedido.itens.map(it => {
+												const c = (it.custo_unit ?? 0) * (it.quantidade ?? 1);
+												if (c === 0) return null;
+												const nome = Array.isArray(it.modelo)
+													? it.modelo[0]?.nome
+													: it.modelo?.nome;
+												return (
+													<div key={it.item_id} className="flex justify-between text-gray-500">
+														<span className="uppercase text-xs">{nome ?? it.descricao_custom ?? "Item"}{it.quantidade > 1 ? ` ×${it.quantidade}` : ""}</span>
+														<span>−{fmt(c)}</span>
+													</div>
+												);
+											})}
+
+											{/* Taxas e encargos */}
 											{taxaMarketplace > 0 && (
 												<div className="flex justify-between text-gray-500">
 													<span>Taxa marketplace ({taxaPct}%)</span>
@@ -523,7 +537,7 @@ export default function PedidoDetalhe({ pedido }: Props) {
 											)}
 											{custoEnvio > 0 && (
 												<div className="flex justify-between text-gray-500">
-													<span>Envio</span>
+													<span>Custo de envio</span>
 													<span>−{fmt(custoEnvio)}</span>
 												</div>
 											)}
@@ -533,8 +547,15 @@ export default function PedidoDetalhe({ pedido }: Props) {
 													<span>−{fmt(outrosEncargos)}</span>
 												</div>
 											)}
+
+											<div className="flex justify-between text-gray-600 font-medium border-t border-[#E6F1FB] pt-1">
+												<span>Total custos</span>
+												<span>−{fmt(custoProducao + taxaMarketplace + custoEnvio + outrosEncargos)}</span>
+											</div>
 										</div>
-										<div className={`flex justify-between font-semibold border-t border-[#B5D4F4] pt-1.5 ${lucro >= 0 ? "text-green-700" : "text-red-600"}`}>
+
+										{/* Lucro final */}
+										<div className={`flex justify-between font-semibold border-t border-[#B5D4F4] pt-1.5 mt-0.5 ${lucro >= 0 ? "text-green-700" : "text-red-600"}`}>
 											<span>Lucro estimado</span>
 											<span>{fmt(lucro)}</span>
 										</div>

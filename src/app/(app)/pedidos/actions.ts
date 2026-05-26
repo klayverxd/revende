@@ -230,6 +230,8 @@ export async function patchPedido(
 		data_prazo: string | null;
 		cliente_nome: string | null;
 		prioridade: Prioridade;
+		forma_pagamento: FormaPagamento | null;
+		status_pagamento: StatusPagamento;
 	}>
 ) {
 	const supabase = await createClient();
@@ -281,7 +283,7 @@ export async function buscarPedidos(filtros?: {
 		.from("pedido")
 		.select(
 			`pedido_id, numero_pedido, data_pedido, data_prazo, canal, status, prioridade,
-			cliente_nome, status_pagamento, created_at,
+			cliente_nome, status_pagamento, forma_pagamento, created_at,
 			desconto_valor, taxa_marketplace_pct, custo_envio, outros_encargos,
 			itens:pedido_item(descricao_custom, preco_venda_unit, custo_unit, quantidade, modelo:modelo_id(nome))`
 		)
@@ -326,6 +328,7 @@ export async function buscarPedidos(filtros?: {
 			prioridade: p.prioridade as Prioridade,
 			cliente_nome: p.cliente_nome as string | null,
 			status_pagamento: p.status_pagamento as StatusPagamento,
+			forma_pagamento: (p.forma_pagamento as FormaPagamento | null) ?? null,
 			created_at: p.created_at as string,
 			produtos,
 			receita: receita > 0 ? receita : null,

@@ -8,7 +8,7 @@ import { Button, useToast } from "@/components/ui";
 import PedidoModal from "./PedidoModal";
 import { atualizarStatusPedido, patchPedido } from "./actions";
 import { fmtData } from "@/lib/utils/data";
-import type { PedidoStatus, CanalPedido, Prioridade, StatusPagamento } from "./actions";
+import type { PedidoStatus, CanalPedido, Prioridade, StatusPagamento, FormaPagamento } from "./actions";
 
 export interface PedidoRow {
 	pedido_id: string;
@@ -20,6 +20,7 @@ export interface PedidoRow {
 	prioridade: Prioridade;
 	cliente_nome: string | null;
 	status_pagamento: StatusPagamento;
+	forma_pagamento: FormaPagamento | null;
 	created_at: string;
 	produtos: string[];
 	receita: number | null;
@@ -103,17 +104,24 @@ function StatusDropdown({
 	readonly onSelect: (pedidoId: string, s: PedidoStatus) => void;
 	readonly loading: boolean;
 }) {
+	const [optimistic, setOptimistic] = useState(status);
+	useEffect(() => { setOptimistic(status); }, [status]);
+	const displayed = loading ? optimistic : status;
 	const [open, setOpen] = useState(false);
 	const [menuPos, setMenuPos] = useState<
 		{ flipUp: false; top: number; left: number } |
 		{ flipUp: true; bottom: number; left: number }
 	>({ flipUp: false, top: 0, left: 0 });
 	const btnRef = useRef<HTMLButtonElement>(null);
+	const menuRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
 		if (!open) return;
 		function handleClick(e: MouseEvent) {
-			if (btnRef.current && !btnRef.current.contains(e.target as Node)) setOpen(false);
+			const t = e.target as Node;
+			const insideBtn = btnRef.current?.contains(t);
+			const insideMenu = menuRef.current?.contains(t);
+			if (!insideBtn && !insideMenu) setOpen(false);
 		}
 		function handleScroll() { setOpen(false); }
 		document.addEventListener("mousedown", handleClick);
@@ -137,7 +145,7 @@ function StatusDropdown({
 		setOpen(v => !v);
 	}
 
-	const isFinal = status === "ENTREGUE" || status === "CANCELADO";
+	const isFinal = displayed === "ENTREGUE" || displayed === "CANCELADO";
 
 	return (
 		<>
@@ -146,28 +154,30 @@ function StatusDropdown({
 				type="button"
 				disabled={loading || isFinal}
 				onClick={handleToggle}
-				className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${STATUS_COLOR[status]} ${
+				className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${STATUS_COLOR[displayed]} ${
 					isFinal ? "cursor-default" : "cursor-pointer hover:brightness-95"
 				} ${loading ? "opacity-50" : ""}`}
 			>
-				{loading ? "…" : STATUS_LABEL[status]}
+				{loading ? "…" : STATUS_LABEL[displayed]}
 				{!isFinal && <span className="ml-1 opacity-60">▾</span>}
 			</button>
 
 			{open && createPortal(
 				<div
+					ref={menuRef}
 					style={menuPos.flipUp
 						? { position: "fixed", bottom: menuPos.bottom, left: menuPos.left }
 						: { position: "fixed", top: menuPos.top, left: menuPos.left }
 					}
 					className="z-50 bg-white border border-[#B5D4F4] rounded-xl shadow-lg py-1 min-w-40"
 				>
-					{ALL_STATUSES_WITH_CANCEL.filter(s => s !== status).map(s => (
+					{ALL_STATUSES_WITH_CANCEL.filter(s => s !== displayed).map(s => (
 						<button
 							key={s}
 							type="button"
 							onClick={() => {
 								setOpen(false);
+								setOptimistic(s);
 								onSelect(pedidoId, s);
 							}}
 							className={`w-full text-left px-3 py-1.5 text-xs font-medium hover:bg-[#F4F8FD] flex items-center gap-2 ${
@@ -186,6 +196,70 @@ function StatusDropdown({
 }
 
 const inlineSelect = "text-sm bg-transparent border-0 outline-none cursor-pointer hover:text-[#185FA5] text-gray-700 p-0 appearance-none";
+
+const STATUS_PAG_COLOR: Record<StatusPagamento, string> = {
+	PENDENTE: "text-amber-600",
+	SINAL_RECEBIDO: "text-blue-600",
+	PAGO: "text-green-600",
+};
+
+function FormaPagCell({
+	pedidoId,
+	forma,
+	onSave,
+}: {
+	readonly pedidoId: string;
+	readonly forma: FormaPagamento | null;
+	readonly onSave: (pedidoId: string, forma: FormaPagamento | null) => void;
+}) {
+	const [value, setValue] = useState(forma);
+	useEffect(() => { setValue(forma); }, [forma]);
+	return (
+		<select
+			value={value ?? ""}
+			onChange={e => {
+				const v = (e.target.value as FormaPagamento) || null;
+				setValue(v);
+				onSave(pedidoId, v);
+			}}
+			className={`${inlineSelect} text-xs`}
+		>
+			<option value="">—</option>
+			<option value="PIX">Pix</option>
+			<option value="DINHEIRO">Dinheiro</option>
+			<option value="CARTAO">Cartão</option>
+			<option value="OUTRO">Outro</option>
+		</select>
+	);
+}
+
+function StatusPagCell({
+	pedidoId,
+	statusPag,
+	onSave,
+}: {
+	readonly pedidoId: string;
+	readonly statusPag: StatusPagamento;
+	readonly onSave: (pedidoId: string, s: StatusPagamento) => void;
+}) {
+	const [value, setValue] = useState(statusPag);
+	useEffect(() => { setValue(statusPag); }, [statusPag]);
+	return (
+		<select
+			value={value}
+			onChange={e => {
+				const v = e.target.value as StatusPagamento;
+				setValue(v);
+				onSave(pedidoId, v);
+			}}
+			className={`${inlineSelect} text-xs font-medium ${STATUS_PAG_COLOR[value]}`}
+		>
+			<option value="PENDENTE">Pendente</option>
+			<option value="SINAL_RECEBIDO">Sinal</option>
+			<option value="PAGO">Pago</option>
+		</select>
+	);
+}
 
 function CanalCell({
 	pedidoId,
@@ -222,14 +296,27 @@ function PrazoCell({
 	readonly onSave: (pedidoId: string, data: string | null) => void;
 }) {
 	const ref = useRef<HTMLInputElement>(null);
-	const colorClass = atrasado ? "text-red-600 font-medium" : dataPrazo ? "text-gray-700" : "text-gray-400";
+	let colorClass = "text-gray-400";
+	if (atrasado) colorClass = "text-red-600 font-medium";
+	else if (dataPrazo) colorClass = "text-gray-700";
+
+	let label = "—";
+	if (dataPrazo) label = atrasado ? `${fmtData(dataPrazo)} ⚠` : fmtData(dataPrazo);
+
+	function handleClick() { ref.current?.showPicker?.(); ref.current?.focus(); }
+	function handleKeyDown(e: React.KeyboardEvent) {
+		if (e.key === "Enter" || e.key === " ") handleClick();
+	}
 
 	return (
 		<span
+			role="button"
+			tabIndex={0}
 			className={`relative inline-flex items-center gap-1 cursor-pointer hover:underline text-sm ${colorClass}`}
-			onClick={() => { ref.current?.showPicker?.(); ref.current?.focus(); }}
+			onClick={handleClick}
+			onKeyDown={handleKeyDown}
 		>
-			{dataPrazo ? `${fmtData(dataPrazo)}${atrasado ? " ⚠" : ""}` : "—"}
+			{label}
 			<input
 				ref={ref}
 				type="date"
@@ -288,8 +375,11 @@ export default function PedidosList({ pedidos }: Props) {
 				await atualizarStatusPedido(pedidoId, novoStatus);
 				showToast(`Status: "${STATUS_LABEL[novoStatus]}"`, "success");
 				router.refresh();
-			} catch {
-				showToast("Erro ao atualizar status", "error");
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err);
+				console.error("[handleStatusSelect]", msg);
+				showToast(`Erro: ${msg}`, "error");
+				router.refresh();
 			} finally {
 				setAdvancing(null);
 			}
@@ -353,6 +443,7 @@ export default function PedidosList({ pedidos }: Props) {
 							<th className="px-4 py-3 font-medium">Canal</th>
 							<th className="px-4 py-3 font-medium">Status</th>
 							<th className="px-4 py-3 font-medium">Prazo</th>
+							<th className="px-4 py-3 font-medium">Pagamento</th>
 							<th className="px-4 py-3 font-medium text-right">Financeiro</th>
 						</tr>
 					</thead>
@@ -360,7 +451,7 @@ export default function PedidosList({ pedidos }: Props) {
 						{exibidos.length === 0 && (
 							<tr>
 								<td
-									colSpan={6}
+									colSpan={7}
 									className="px-4 py-8 text-center text-gray-400 text-sm"
 								>
 									{"Nenhum pedido ativo. Crie um novo pedido."}
@@ -426,6 +517,20 @@ export default function PedidosList({ pedidos }: Props) {
 											onSave={(id, data) => handlePatch(id, { data_prazo: data })}
 										/>
 									</td>
+									<td className="px-4 py-3">
+										<div className="flex flex-col gap-0.5">
+											<FormaPagCell
+												pedidoId={p.pedido_id}
+												forma={p.forma_pagamento}
+												onSave={(id, forma) => handlePatch(id, { forma_pagamento: forma })}
+											/>
+											<StatusPagCell
+												pedidoId={p.pedido_id}
+												statusPag={p.status_pagamento}
+												onSave={(id, s) => handlePatch(id, { status_pagamento: s })}
+											/>
+										</div>
+									</td>
 									<td className="px-4 py-3 text-right">
 										{p.receita != null ? (
 											<div>
@@ -434,8 +539,7 @@ export default function PedidosList({ pedidos }: Props) {
 												</div>
 												{p.lucro != null && (
 													<div className={`text-xs font-medium ${p.lucro >= 0 ? "text-green-600" : "text-red-500"}`}>
-														{p.lucro >= 0 ? "+" : ""}
-														{p.lucro.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+														{p.lucro >= 0 ? `+${p.lucro.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}` : p.lucro.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
 													</div>
 												)}
 											</div>

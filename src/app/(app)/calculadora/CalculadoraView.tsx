@@ -39,7 +39,6 @@ interface PlacaIndividual {
 	tempoH: string;
 	tempoM: string;
 	peso: string;
-	unidades: string;
 }
 
 type ModoPlacas = "igual" | "individual";
@@ -78,6 +77,7 @@ interface PersistedState {
 	custoExtraId: string;
 	custoExtraVal: string;
 	modoPlacas?: ModoPlacas;
+	unidadesInd?: string;
 	placasInd?: PlacaIndividual[];
 }
 
@@ -137,7 +137,6 @@ const PLACA_DEFAULT: Omit<PlacaIndividual, "id"> = {
 	tempoH: "0",
 	tempoM: "0",
 	peso: "0",
-	unidades: "1",
 };
 
 const inputCls =
@@ -167,6 +166,7 @@ export default function CalculadoraView({
 	const [custoExtraId, setCustoExtraId] = useState("");
 	const [custoExtraVal, setCustoExtraVal] = useState("0");
 	const [modoPlacas, setModoPlacas] = useState<ModoPlacas>("igual");
+	const [unidadesInd, setUnidadesInd] = useState("1");
 	const [placasInd, setPlacasInd] = useState<PlacaIndividual[]>([
 		{ id: newPlacaId(), ...PLACA_DEFAULT },
 	]);
@@ -193,6 +193,7 @@ export default function CalculadoraView({
 		if (saved.custoExtraVal !== undefined)
 			setCustoExtraVal(saved.custoExtraVal);
 		if (saved.modoPlacas) setModoPlacas(saved.modoPlacas);
+		if (saved.unidadesInd !== undefined) setUnidadesInd(saved.unidadesInd);
 		if (
 			saved.placasInd &&
 			Array.isArray(saved.placasInd) &&
@@ -261,6 +262,7 @@ export default function CalculadoraView({
 			custoExtraId,
 			custoExtraVal,
 			modoPlacas,
+			unidadesInd,
 			placasInd,
 		};
 		localStorage.setItem(LS_KEY, JSON.stringify(state));
@@ -275,6 +277,7 @@ export default function CalculadoraView({
 		custoExtraId,
 		custoExtraVal,
 		modoPlacas,
+		unidadesInd,
 		placasInd,
 	]);
 
@@ -317,7 +320,6 @@ export default function CalculadoraView({
 	// === MODO INDIVIDUAL (soma de todas as placas) ===
 	let custoMatInd = 0;
 	let totalTempoHorasInd = 0;
-	let qtdTotalInd = 0;
 	for (const p of placasInd) {
 		totalTempoHorasInd +=
 			(Number.parseFloat(p.tempoH.replace(",", ".")) || 0) +
@@ -327,7 +329,6 @@ export default function CalculadoraView({
 				Number.parseFloat(p.peso.replace(",", ".")) || 0,
 				selectedMat?.unidade_medida
 			) * (selectedMat?.preco_por_unidade ?? 0);
-		qtdTotalInd += Number.parseFloat(p.unidades.replace(",", ".")) || 0;
 	}
 	const custoEnergiaInd = ((equip?.potencia_watts ?? 0) / 1000) * precoKwh * totalTempoHorasInd;
 	const custoDeprecInd = (equip?.depreciacao_hora ?? 0) * totalTempoHorasInd;
@@ -339,6 +340,7 @@ export default function CalculadoraView({
 	const custoDepreciacao = isIndividual ? custoDeprecInd : custoDeprecIgual;
 	const custoFalhas = isIndividual ? custoFalhasInd : custoFalhasIgual;
 	const custoExtraTotal = Number.parseFloat(custoExtraVal.replace(",", ".")) || 0;
+	const qtdTotalInd = Math.max(1, Number.parseFloat(unidadesInd.replace(",", ".")) || 1);
 	const qtdTotal = isIndividual ? qtdTotalInd : qtdTotalIgual;
 	const numPlacasEff = isIndividual ? placasInd.length : placas;
 
@@ -543,7 +545,7 @@ export default function CalculadoraView({
 					{modoPlacas === "individual" && (
 						<div className="flex flex-col gap-2">
 							{/* Cabeçalho da tabela */}
-							<div className="grid grid-cols-[1.2rem_1fr_5rem_4rem_1.5rem] gap-x-2 text-[11px] font-medium text-gray-400 px-0.5">
+							<div className="grid grid-cols-[1.2rem_1fr_5rem_1.5rem] gap-x-2 text-[11px] font-medium text-gray-400 px-0.5">
 								<span>#</span>
 								<span>Tempo</span>
 								<span className="text-center">
@@ -552,14 +554,13 @@ export default function CalculadoraView({
 										? "Peso (g)"
 										: "Qtd."}
 								</span>
-								<span className="text-center">Unid.</span>
 								<span />
 							</div>
 
 							{placasInd.map((placa, idx) => (
 								<div
 									key={placa.id}
-									className="grid grid-cols-[1.2rem_1fr_5rem_4rem_1.5rem] gap-x-2 items-center"
+									className="grid grid-cols-[1.2rem_1fr_5rem_1.5rem] gap-x-2 items-center"
 								>
 									<span className="text-xs text-gray-400 select-none">
 										{idx + 1}
@@ -594,16 +595,6 @@ export default function CalculadoraView({
 										className={`${inputCls} w-full`}
 									/>
 
-									{/* Unidades */}
-									<input
-										type="number"
-										min={1}
-										step="1"
-										value={placa.unidades}
-										onChange={e => updatePlaca(placa.id, "unidades", e.target.value)}
-										className={`${inputCls} w-full`}
-									/>
-
 									{/* Remover */}
 									<button
 										type="button"
@@ -617,13 +608,49 @@ export default function CalculadoraView({
 								</div>
 							))}
 
-							<button
-								type="button"
-								onClick={addPlaca}
-								className="mt-1 flex items-center gap-1 text-xs text-[#185FA5] hover:text-[#0C447C] font-medium transition-colors"
-							>
-								<span className="text-base leading-none">+</span> Adicionar placa
-							</button>
+							{/* Totais agregados */}
+							{placasInd.length > 1 && (() => {
+								const totalMin = Math.round(totalTempoHorasInd * 60);
+								const totalH = Math.floor(totalMin / 60);
+								const totalM = totalMin % 60;
+								const totalPesoDisplay = placasInd.reduce((s, p) => {
+									return s + (Number.parseFloat(p.peso.replace(",", ".")) || 0);
+								}, 0);
+								const pesoLabel = selectedMat?.unidade_medida === "kg" || selectedMat?.unidade_medida === "litro" ? "g" : selectedMat?.unidade_medida ?? "";
+								return (
+									<div className="grid grid-cols-[1.2rem_1fr_5rem_1.5rem] gap-x-2 items-center border-t border-[#B5D4F4] pt-1.5 mt-0.5">
+										<span />
+										<span className="text-[11px] font-semibold text-gray-500">
+											{totalH > 0 ? `${totalH}h ` : ""}{totalM}min
+										</span>
+										<span className="text-[11px] font-semibold text-gray-500 text-center">
+											{totalPesoDisplay}{pesoLabel}
+										</span>
+										<span />
+									</div>
+								);
+							})()}
+
+							<div className="flex items-center justify-between mt-1">
+								<button
+									type="button"
+									onClick={addPlaca}
+									className="flex items-center gap-1 text-xs text-[#185FA5] hover:text-[#0C447C] font-medium transition-colors"
+								>
+									<span className="text-base leading-none">+</span> Adicionar placa
+								</button>
+								<div className="flex items-center gap-1.5">
+									<span className="text-[11px] text-gray-500">Unidades:</span>
+									<input
+										type="number"
+										min={1}
+										step="1"
+										value={unidadesInd}
+										onChange={e => setUnidadesInd(e.target.value)}
+										className={`${inputCls} w-12`}
+									/>
+								</div>
+							</div>
 						</div>
 					)}
 				</div>
@@ -733,7 +760,7 @@ export default function CalculadoraView({
 					{(() => {
 						let resumoLote: string;
 						if (isIndividual) {
-							resumoLote = `${numPlacasEff} placa${numPlacasEff !== 1 ? "s" : ""} individuais → ${qtdTotalInd} peças`;
+							resumoLote = `${numPlacasEff} placa${numPlacasEff !== 1 ? "s" : ""} individuais → ${qtdTotalInd} peça${qtdTotalInd !== 1 ? "s" : ""}`;
 						} else if (placas > 1) {
 							resumoLote = `${placas} placas × ${qtdPorPlaca} un. = ${qtdTotal} peças`;
 						} else if (qtdPorPlaca === 1) {
@@ -787,8 +814,15 @@ export default function CalculadoraView({
 						</div>
 					)}
 
-					{/* Subtotais: apenas em modo igual */}
-					{!isIndividual && (
+					{/* Subtotais */}
+					{isIndividual ? (
+						<div className="flex justify-between text-sm text-gray-600 border-t border-[#B5D4F4] pt-2 mt-1">
+							<span>Total ({numPlacasEff} placa{numPlacasEff !== 1 ? "s" : ""})</span>
+							<strong className="text-gray-800">
+								{fmtCurrency(custoTotalGeral)}
+							</strong>
+						</div>
+					) : (
 						<>
 							<div className="flex justify-between text-sm text-gray-600 border-t border-[#B5D4F4] pt-2 mt-1">
 								<span>1 placa</span>
@@ -978,7 +1012,69 @@ export default function CalculadoraView({
 					</table>
 				</div>
 
-				{/* Bloco: Salvar produto */}
+				{/* Bloco: Preço para revendedoras (30% comissão) */}
+				<div className="rounded-xl border border-[#B5D4F4] bg-white p-4 flex flex-col gap-3">
+					<div>
+						<h2 className="text-xs font-semibold uppercase tracking-wide text-[#185FA5]">
+							Preço para revendedoras
+						</h2>
+						<p className="text-[11px] text-gray-400 mt-0.5">30% de comissão — você recebe 70% do preço</p>
+					</div>
+
+					{lucroCustomPct > 0 && custoUnitario > 0 && (() => {
+						const precoVenda = (custoUnitario * (1 + lucroCustomPct / 100)) / 0.7;
+						const comissao = precoVenda * 0.3;
+						const lucroLiq = precoVenda * 0.7 - custoUnitario;
+						return (
+							<div className="rounded-lg bg-[#F4F8FD] border border-[#185FA5] px-3 py-2 flex justify-between items-center gap-2">
+								<span className="text-xs text-gray-600">{lucroCustomPct}% de lucro</span>
+								<div className="text-right shrink-0">
+									<strong className="text-[#185FA5] text-sm block">{fmtCurrency(precoVenda)}</strong>
+									<span className="text-[10px] text-gray-400 block">comissão {fmtCurrency(comissao)}</span>
+									<span className="text-[10px] text-green-700">+{fmtCurrency(lucroLiq)} líquido</span>
+								</div>
+							</div>
+						);
+					})()}
+
+					<table className="w-full text-xs">
+						<thead>
+							<tr className="border-b border-[#B5D4F4]">
+								<th className="pb-1 text-left font-medium text-gray-500">Lucro</th>
+								<th className="pb-1 text-right font-medium text-gray-500">Cobrar</th>
+								<th className="pb-1 text-right font-medium text-gray-500">Comissão</th>
+								<th className="pb-1 text-right font-medium text-gray-500">Líquido</th>
+							</tr>
+						</thead>
+						<tbody>
+							{LUCROS_PADRAO.map(pct => {
+								if (custoUnitario <= 0) {
+									return (
+										<tr key={pct} className="border-b border-[#E6F1FB] last:border-0">
+											<td className="py-1 text-gray-600 font-medium">{pct}%</td>
+											<td className="py-1 text-right">—</td>
+											<td className="py-1 text-right">—</td>
+											<td className="py-1 text-right">—</td>
+										</tr>
+									);
+								}
+								const precoVenda = (custoUnitario * (1 + pct / 100)) / 0.7;
+								const comissao = precoVenda * 0.3;
+								const lucroLiq = precoVenda * 0.7 - custoUnitario;
+								return (
+									<tr key={pct} className="border-b border-[#E6F1FB] last:border-0">
+										<td className="py-1 text-gray-600 font-medium">{pct}%</td>
+										<td className="py-1 text-right font-semibold text-gray-900">{fmtCurrency(precoVenda)}</td>
+										<td className="py-1 text-right text-gray-400">{fmtCurrency(comissao)}</td>
+										<td className="py-1 text-right text-green-700">+{fmtCurrency(lucroLiq)}</td>
+									</tr>
+								);
+							})}
+						</tbody>
+					</table>
+				</div>
+
+			{/* Bloco: Salvar produto */}
 				<div className="rounded-xl border border-[#B5D4F4] bg-white p-4 flex flex-col gap-3">
 					<h2 className="text-xs font-semibold uppercase tracking-wide text-[#185FA5]">
 						Salvar como produto

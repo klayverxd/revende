@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { buscarEquipe } from "./actions";
 import ConfiguracoesView, {
 	type ConferenciaRecente,
 	type AcertoRecebidoRecente,
@@ -49,5 +50,13 @@ export default async function ConfiguracoesPage() {
 			(r.revendedor as unknown as { nome: string } | null)?.nome ?? "—",
 	}));
 
-	return <ConfiguracoesView conferencias={conferencias} acertos={acertos} />;
+	const equipe = await buscarEquipe();
+
+	return (
+		<ConfiguracoesView
+			conferencias={conferencias}
+			acertos={acertos}
+			equipe={equipe}
+		/>
+	);
 }

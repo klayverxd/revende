@@ -221,3 +221,55 @@ export async function limparDados(grupo: GrupoLimpeza) {
 	];
 	for (const p of paths) revalidatePath(p);
 }
+
+// ─── Equipe ──────────────────────────────────────────────────────────────────
+
+export interface MembroEquipe {
+	id: string;
+	email_convidado: string;
+	membro_id: string | null;
+	created_at: string;
+}
+
+export async function buscarEquipe(): Promise<MembroEquipe[]> {
+	const supabase = await createClient();
+	const { data, error } = await supabase
+		.from("membro_equipe")
+		.select("id, email_convidado, membro_id, created_at")
+		.order("created_at", { ascending: true });
+	if (error) throw new Error(error.message);
+	return data ?? [];
+}
+
+export async function convidarMembro(email: string): Promise<MembroEquipe> {
+	const email_norm = email.trim().toLowerCase();
+	if (!email_norm) throw new Error("E-mail inválido");
+
+	const supabase = await createClient();
+	const { data: { user } } = await supabase.auth.getUser();
+	if (!user) throw new Error("Não autenticado");
+
+	const { data, error } = await supabase
+		.from("membro_equipe")
+		.insert({ dono_id: user.id, email_convidado: email_norm })
+		.select("id, email_convidado, membro_id, created_at")
+		.single();
+
+	if (error) {
+		if (error.code === "23505") throw new Error("Este e-mail já foi convidado.");
+		throw new Error(error.message);
+	}
+
+	revalidatePath("/configuracoes");
+	return data;
+}
+
+export async function removerMembro(membroEquipeId: string) {
+	const supabase = await createClient();
+	const { error } = await supabase
+		.from("membro_equipe")
+		.delete()
+		.eq("id", membroEquipeId);
+	if (error) throw new Error(error.message);
+	revalidatePath("/configuracoes");
+}

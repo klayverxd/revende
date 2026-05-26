@@ -6,7 +6,10 @@ import {
 	desfazerConferencia,
 	desfazerRecebimento,
 	limparDados,
+	convidarMembro,
+	removerMembro,
 	type GrupoLimpeza,
+	type MembroEquipe,
 } from "./actions";
 
 export interface ConferenciaRecente {
@@ -28,9 +31,10 @@ export interface AcertoRecebidoRecente {
 interface Props {
 	readonly conferencias: ConferenciaRecente[];
 	readonly acertos: AcertoRecebidoRecente[];
+	readonly equipe: MembroEquipe[];
 }
 
-type Tab = "DESFAZER" | "LIMPAR";
+type Tab = "DESFAZER" | "LIMPAR" | "EQUIPE";
 
 function fmtDate(d: string | null) {
 	if (!d) return "—";
@@ -90,7 +94,7 @@ const GRUPOS: Array<{
 ];
 
 // ─── Componente principal ───────────────────────────────────────────────────
-export default function ConfiguracoesView({ conferencias, acertos }: Props) {
+export default function ConfiguracoesView({ conferencias, acertos, equipe }: Props) {
 	const { showToast } = useToast();
 	const [tab, setTab] = useState<Tab>("DESFAZER");
 
@@ -109,6 +113,12 @@ export default function ConfiguracoesView({ conferencias, acertos }: Props) {
 	const [confirmLimpar, setConfirmLimpar] = useState<GrupoLimpeza | null>(null);
 	const [confirmLimparTudo, setConfirmLimparTudo] = useState(false);
 	const [isPending, startTransition] = useTransition();
+
+	// Equipe states
+	const [membros, setMembros] = useState<MembroEquipe[]>(equipe);
+	const [emailConvite, setEmailConvite] = useState("");
+	const [convidando, setConvidando] = useState(false);
+	const [removendoId, setRemovendoId] = useState<string | null>(null);
 
 	// ── Handlers ────────────────────────────────────────────────────────────
 
@@ -168,6 +178,40 @@ export default function ConfiguracoesView({ conferencias, acertos }: Props) {
 		});
 	}
 
+	async function handleConvidar() {
+		if (!emailConvite.trim()) return;
+		setConvidando(true);
+		try {
+			const novo = await convidarMembro(emailConvite);
+			setMembros(prev => [...prev, novo]);
+			setEmailConvite("");
+			showToast("Convite registrado", "success");
+		} catch (err) {
+			showToast(
+				err instanceof Error ? err.message : "Erro ao convidar",
+				"error"
+			);
+		} finally {
+			setConvidando(false);
+		}
+	}
+
+	async function handleRemover(id: string) {
+		setRemovendoId(id);
+		try {
+			await removerMembro(id);
+			setMembros(prev => prev.filter(m => m.id !== id));
+			showToast("Membro removido", "success");
+		} catch (err) {
+			showToast(
+				err instanceof Error ? err.message : "Erro ao remover",
+				"error"
+			);
+		} finally {
+			setRemovendoId(null);
+		}
+	}
+
 	// ── Renderização ─────────────────────────────────────────────────────────
 	return (
 		<div className="flex flex-col gap-6">
@@ -177,6 +221,7 @@ export default function ConfiguracoesView({ conferencias, acertos }: Props) {
 					[
 						{ id: "DESFAZER" as Tab, label: "Desfazer Ações" },
 						{ id: "LIMPAR" as Tab, label: "Limpar Dados" },
+						{ id: "EQUIPE" as Tab, label: "Equipe" },
 					] as const
 				).map(({ id, label }) => (
 					<button
@@ -338,6 +383,80 @@ export default function ConfiguracoesView({ conferencias, acertos }: Props) {
 						>
 							Limpar tudo
 						</Button>
+					</div>
+				</div>
+			)}
+
+			{/* ── Aba: Equipe ─────────────────────────────────────────────────── */}
+			{tab === "EQUIPE" && (
+				<div className="flex flex-col gap-6">
+					<div>
+						<h2 className="text-sm font-semibold text-gray-700 mb-1">
+							Convidar pessoa
+						</h2>
+						<p className="text-xs text-gray-500 mb-3">
+							Insira o e-mail de quem vai usar o painel. Ela deve criar uma conta
+							em <strong>/register</strong> com esse mesmo e-mail.
+						</p>
+						<div className="flex gap-2">
+							<input
+								type="email"
+								value={emailConvite}
+								onChange={e => setEmailConvite(e.target.value)}
+								placeholder="email@exemplo.com"
+								className="flex-1 rounded-lg border border-[#B5D4F4] bg-[#F4F8FD] px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#185FA5] focus:border-transparent"
+								onKeyDown={e => e.key === "Enter" && handleConvidar()}
+							/>
+							<Button
+								size="sm"
+								loading={convidando}
+								onClick={handleConvidar}
+							>
+								Convidar
+							</Button>
+						</div>
+					</div>
+
+					<div>
+						<h2 className="text-sm font-semibold text-gray-700 mb-3">
+							Membros do time
+						</h2>
+						{membros.length === 0 ? (
+							<p className="text-sm text-gray-500">
+								Nenhum membro convidado ainda.
+							</p>
+						) : (
+							<div className="flex flex-col gap-2">
+								{membros.map(m => (
+									<div
+										key={m.id}
+										className="rounded-xl border border-[#B5D4F4] bg-white px-4 py-3 flex items-center justify-between gap-3"
+									>
+										<div className="flex flex-col gap-0.5">
+											<p className="text-sm font-medium text-gray-900">
+												{m.email_convidado}
+											</p>
+											<p className="text-xs text-gray-500">
+												{m.membro_id ? "Conta ativa" : "Aguardando cadastro"}
+											</p>
+										</div>
+										<div className="flex items-center gap-2 shrink-0">
+											<Badge variant={m.membro_id ? "success" : "warning"}>
+												{m.membro_id ? "Ativo" : "Pendente"}
+											</Badge>
+											<Button
+												variant="danger"
+												size="sm"
+												loading={removendoId === m.id}
+												onClick={() => handleRemover(m.id)}
+											>
+												Remover
+											</Button>
+										</div>
+									</div>
+								))}
+							</div>
+						)}
 					</div>
 				</div>
 			)}

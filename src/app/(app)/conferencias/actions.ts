@@ -300,3 +300,52 @@ export async function confirmarConferenciaRevendedor(
 	revalidatePath("/financeiro");
 	revalidatePath("/estoque");
 }
+
+export interface SalvarPrecoInput {
+	modelo_id: string;
+	revendedor_id: string;
+	preco: number;
+	tipo: "COMISSAO" | "VALOR_MINIMO";
+}
+
+export async function salvarPrecoNoCadastro(itens: SalvarPrecoInput[]) {
+	if (!itens.length) return;
+	const supabase = await createClient();
+
+	for (const item of itens) {
+		const { data: existing } = await supabase
+			.from("revendedor_modelo_preco")
+			.select("rev_preco_id")
+			.eq("revendedor_id", item.revendedor_id)
+			.eq("modelo_id", item.modelo_id)
+			.eq("quantidade_minima", 1)
+			.eq("eh_promocao", false)
+			.is("deleted_at", null)
+			.maybeSingle();
+
+		if (existing) {
+			await supabase
+				.from("revendedor_modelo_preco")
+				.update(
+					item.tipo === "VALOR_MINIMO"
+						? { valor_minimo: item.preco }
+						: { preco: item.preco }
+				)
+				.eq("rev_preco_id", existing.rev_preco_id);
+		} else {
+			await supabase.from("revendedor_modelo_preco").insert({
+				revendedor_id: item.revendedor_id,
+				modelo_id: item.modelo_id,
+				rotulo: "Padrão",
+				quantidade_minima: 1,
+				preco: item.tipo === "COMISSAO" ? item.preco : null,
+				valor_minimo: item.tipo === "VALOR_MINIMO" ? item.preco : null,
+				eh_promocao: false,
+				ativo: true,
+			});
+		}
+	}
+
+	revalidatePath("/revendedores");
+	revalidatePath("/envios");
+}

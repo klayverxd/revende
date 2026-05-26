@@ -21,6 +21,8 @@ export interface RevendedorResumo {
 	revendedor_id: string;
 	nome: string;
 	modelo_acerto: "COMISSAO" | "VALOR_MINIMO";
+	comissao_fixa?: number | null;
+	comissao_pct?: number | null;
 }
 
 interface Props {
@@ -97,6 +99,7 @@ export default function ConferenciaForm({
 		let totalRemanentes = 0;
 		let totalReceberValorMinimo = 0;
 		let totalSugeridoComissao = 0;
+		const linhas: { nome: string; qtd: number; valor: number }[] = [];
 
 		for (const item of itens) {
 			const qtdRestante =
@@ -111,11 +114,21 @@ export default function ConferenciaForm({
 			totalVendidaNova += qtdVendidaNova;
 			totalRemanentes += qtdContada;
 
+			let valorItem = 0;
 			if (revendedor.modelo_acerto === "VALOR_MINIMO") {
 				const valorUnit = item.valor_minimo_unit ?? 0;
-				totalReceberValorMinimo += qtdVendidaNova * valorUnit;
+				valorItem = qtdVendidaNova * valorUnit;
+				totalReceberValorMinimo += valorItem;
 			} else {
-				totalSugeridoComissao += precoPadraoComissao(item, qtdVendidaNova);
+				valorItem = precoPadraoComissao(item, qtdVendidaNova);
+				totalSugeridoComissao += valorItem;
+			}
+
+			if (qtdVendidaNova > 0) {
+				const nome = item.modelo_codigo
+					? `${item.modelo_codigo} - ${item.modelo_nome}`
+					: item.modelo_nome;
+				linhas.push({ nome, qtd: qtdVendidaNova, valor: valorItem });
 			}
 		}
 
@@ -125,6 +138,7 @@ export default function ConferenciaForm({
 			hasRemanentes: totalRemanentes > 0,
 			totalReceberValorMinimo,
 			totalSugeridoComissao,
+			linhas,
 		};
 	}, [itens, revendedor.modelo_acerto, state]);
 
@@ -255,6 +269,7 @@ export default function ConferenciaForm({
 
 								<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 									<Input
+										id={`qtd-${item.envio_item_id}`}
 										label="Ainda com revendedor"
 										type="number"
 										placeholder="0"
@@ -306,17 +321,41 @@ export default function ConferenciaForm({
 					})}
 				</div>
 
+				{resumo.linhas.length > 0 && (
+					<div className="rounded-xl border border-[#B5D4F4] bg-white overflow-hidden">
+						<div className="px-4 py-2 bg-[#F4F8FD] border-b border-[#B5D4F4]">
+							<p className="text-xs font-semibold text-[#0C447C] uppercase tracking-wide">Vendidos</p>
+						</div>
+						<div className="text-xs">
+							{resumo.linhas.map(l => (
+								<div key={l.nome} className="flex items-center justify-between px-4 py-2.5 border-b border-[#E6F1FB] last:border-0">
+									<span className="text-gray-800 flex-1 truncate">{l.nome}</span>
+									<span className="text-gray-500 mx-3">{l.qtd} un.</span>
+									<span className="font-medium text-[#185FA5]">{fmtCurrency(l.valor)}</span>
+								</div>
+							))}
+							<div className="flex items-center justify-between px-4 py-2.5 bg-[#E6F1FB] font-semibold text-[#0C447C]">
+								<span>Total</span>
+								<span className="mx-3">{resumo.totalVendidaNova} un.</span>
+								<span>
+									{fmtCurrency(
+										revendedor.modelo_acerto === "VALOR_MINIMO"
+											? resumo.totalReceberValorMinimo
+											: resumo.totalSugeridoComissao
+									)}
+								</span>
+							</div>
+						</div>
+					</div>
+				)}
+
 				{allFilled && revendedor.modelo_acerto === "VALOR_MINIMO" && (
-					<div className="rounded-xl border border-[#B5D4F4] bg-[#E6F1FB] p-4 flex flex-col gap-2">
-						<p className="text-sm text-[#0C447C]">
-							A receber nesta conferencia:{" "}
-							<strong>{fmtCurrency(resumo.totalReceberValorMinimo)}</strong>
-						</p>
-						<p className="text-xs text-[#185FA5]">
-							{resumo.totalVendidaNova} un. vendidas x valor por produto.
-							{resumo.hasRemanentes &&
-								` · ${resumo.totalRemanentes} un. ainda com o revendedor.`}
-						</p>
+					<div className="rounded-xl border border-[#B5D4F4] bg-[#E6F1FB] p-4 flex flex-col gap-3">
+						{resumo.hasRemanentes && (
+							<p className="text-xs text-[#185FA5]">
+								{resumo.totalRemanentes} un. ainda com o revendedor.
+							</p>
+						)}
 						<Button onClick={onConfirmar} loading={saving}>
 							{resumo.hasRemanentes
 								? "Registrar conferencia parcial"
@@ -327,10 +366,6 @@ export default function ConferenciaForm({
 
 				{allFilled && revendedor.modelo_acerto === "COMISSAO" && (
 					<div className="rounded-xl border border-[#B5D4F4] bg-[#E6F1FB] p-4 flex flex-col gap-3">
-						<p className="text-sm text-[#0C447C]">
-							Valor sugerido nesta conferencia:{" "}
-							<strong>{fmtCurrency(resumo.totalSugeridoComissao)}</strong>
-						</p>
 						{resumo.hasRemanentes && (
 							<p className="text-xs text-[#185FA5]">
 								{resumo.totalRemanentes} un. ainda com o revendedor — o acerto

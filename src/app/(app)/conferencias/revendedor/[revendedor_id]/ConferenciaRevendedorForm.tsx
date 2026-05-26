@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Input, useToast } from "@/components/ui";
-import { confirmarConferenciaRevendedor } from "../../actions";
+import { confirmarConferenciaRevendedor, salvarPrecoNoCadastro } from "../../actions";
 import type { RevendedorResumo } from "../../[envio_id]/ConferenciaForm";
 
 export interface ConferenciaItemMulti {
@@ -152,6 +152,36 @@ export default function ConferenciaRevendedorForm({
 			)
 	);
 
+	// State: modelo_id → preço editável (fallback quando não havia preço no envio)
+	const [precoState, setPrecoState] = useState<Record<string, string>>(() =>
+		Object.fromEntries(
+			computeMergedItems(envios).map(m => {
+				const preco =
+					revendedor.modelo_acerto === "VALOR_MINIMO"
+						? (m.valor_minimo_unit ?? 0)
+						: (m.preco_unitario ?? 0);
+				return [m.modelo_id, preco > 0 ? String(preco) : ""];
+			})
+		)
+	);
+
+	// State: modelo_id → salvar preço no cadastro ao confirmar
+	const [salvarPrecoState, setSalvarPrecoState] = useState<Record<string, boolean>>(() =>
+		Object.fromEntries(
+			computeMergedItems(envios).map(m => {
+				const precoOriginal =
+					revendedor.modelo_acerto === "VALOR_MINIMO"
+						? (m.valor_minimo_unit ?? 0)
+						: (m.preco_unitario ?? 0);
+				return [m.modelo_id, precoOriginal === 0];
+			})
+		)
+	);
+
+	function setPreco(modeloId: string, value: string) {
+		setPrecoState(prev => ({ ...prev, [modeloId]: value }));
+	}
+
 	const allFilled = useMemo(
 		() =>
 			mergedItems
@@ -166,6 +196,7 @@ export default function ConferenciaRevendedorForm({
 		let totalDevolvida = 0;
 		let totalReceberValorMinimo = 0;
 		let totalSugeridoComissao = 0;
+		const linhas: { nome: string; qtd: number; valor: number; semPreco: boolean }[] = [];
 
 		for (const m of mergedItems) {
 			const contada = clamp(
@@ -182,12 +213,31 @@ export default function ConferenciaRevendedorForm({
 			totalVendida += vendida;
 			totalContada += contada;
 			totalDevolvida += devolvida;
+
+			const precoUnit = toNumber(precoState[m.modelo_id] ?? "0");
+			let valorItem = 0;
 			if (revendedor.modelo_acerto === "VALOR_MINIMO") {
-				totalReceberValorMinimo += vendida * (m.valor_minimo_unit ?? 0);
+				valorItem = vendida * precoUnit;
+				totalReceberValorMinimo += valorItem;
 			} else {
-				totalSugeridoComissao += vendida * (m.preco_unitario ?? 0);
+				valorItem = vendida * precoUnit;
+				totalSugeridoComissao += valorItem;
+			}
+
+			if (vendida > 0) {
+				const nome = m.modelo_codigo
+					? `${m.modelo_codigo} - ${m.modelo_nome}`
+					: m.modelo_nome;
+				linhas.push({ nome, qtd: vendida, valor: valorItem, semPreco: precoUnit === 0 });
 			}
 		}
+
+		const comissaoTotal =
+			revendedor.modelo_acerto === "COMISSAO"
+				? (revendedor.comissao_fixa ?? 0) +
+				  totalSugeridoComissao * ((revendedor.comissao_pct ?? 0) / 100)
+				: 0;
+		const liquidoTotal = totalSugeridoComissao - comissaoTotal;
 
 		return {
 			totalVendida,
@@ -196,8 +246,11 @@ export default function ConferenciaRevendedorForm({
 			hasRemanentes: totalContada > 0,
 			totalReceberValorMinimo,
 			totalSugeridoComissao,
+			comissaoTotal,
+			liquidoTotal,
+			linhas,
 		};
-	}, [mergedItems, revendedor.modelo_acerto, state, devolvidaState]);
+	}, [mergedItems, revendedor, state, devolvidaState, precoState]);
 
 	function setQtd(modeloId: string, value: string) {
 		setState(prev => ({ ...prev, [modeloId]: value }));
@@ -278,12 +331,24 @@ export default function ConferenciaRevendedorForm({
 		const perItem = distribuirQuantidades(mergedItems, state, devolvidaState);
 		const enviosInput = buildEnviosInput(globalManual, perItem);
 
+		const itensSalvar = mergedItems
+			.filter(m => salvarPrecoState[m.modelo_id] && toNumber(precoState[m.modelo_id] ?? "0") > 0)
+			.map(m => ({
+				modelo_id: m.modelo_id,
+				revendedor_id: revendedor.revendedor_id,
+				preco: toNumber(precoState[m.modelo_id] ?? "0"),
+				tipo: revendedor.modelo_acerto,
+			}));
+
 		setSaving(true);
 		try {
 			await confirmarConferenciaRevendedor(
 				revendedor.revendedor_id,
 				enviosInput
 			);
+			if (itensSalvar.length > 0) {
+				await salvarPrecoNoCadastro(itensSalvar);
+			}
 			const valorFinal =
 				revendedor.modelo_acerto === "VALOR_MINIMO"
 					? resumoGlobal.totalReceberValorMinimo
@@ -373,8 +438,15 @@ export default function ConferenciaRevendedorForm({
 							</p>
 						</div>
 
+						{toNumber(precoState[m.modelo_id] ?? "0") === 0 && (
+							<p className="text-xs text-amber-700 font-medium bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+								Preço não registrado no envio — informe abaixo para calcular o valor
+							</p>
+						)}
+
 						<div className="grid grid-cols-2 gap-3">
 							<Input
+								id={`qtd-${m.modelo_id}`}
 								label="Ainda com revendedor"
 								type="number"
 								placeholder="0"
@@ -398,6 +470,7 @@ export default function ConferenciaRevendedorForm({
 								}}
 							/>
 							<Input
+								id={`dev-${m.modelo_id}`}
 								label="Devolver ao estoque"
 								type="number"
 								placeholder="0"
@@ -417,22 +490,90 @@ export default function ConferenciaRevendedorForm({
 									);
 								}}
 							/>
-							<div className="rounded-md border border-[#B5D4F4] bg-[#F4F8FD] px-3 py-2 flex flex-col justify-center col-span-2 sm:col-span-1">
+							<div className="rounded-md border border-[#B5D4F4] bg-[#F4F8FD] px-3 py-2 flex flex-col justify-center">
 								<span className="text-xs text-gray-700">Vendido</span>
 								<span className="text-lg font-semibold text-[#185FA5]">
 									{vendida} un.
 								</span>
 							</div>
+							<Input
+								id={`preco-${m.modelo_id}`}
+								label={revendedor.modelo_acerto === "VALOR_MINIMO" ? "Valor mínimo / un." : "Preço / un."}
+								type="number"
+								step="0.01"
+								min={0}
+								placeholder="0,00"
+								value={precoState[m.modelo_id] ?? ""}
+								onChange={e => setPreco(m.modelo_id, e.target.value)}
+								onBlur={e => {
+									if (e.target.value !== "" && toNumber(e.target.value) < 0)
+										setPreco(m.modelo_id, "0");
+								}}
+							/>
 						</div>
 
-						{revendedor.modelo_acerto === "VALOR_MINIMO" && vendida > 0 && (
-							<p className="text-xs text-gray-700">
-								= {fmtCurrency(vendida * (m.valor_minimo_unit ?? 0))}
-							</p>
+						{toNumber(precoState[m.modelo_id] ?? "0") > 0 && (
+							<label className="flex items-center gap-2 cursor-pointer select-none">
+								<input
+									type="checkbox"
+									checked={salvarPrecoState[m.modelo_id] ?? false}
+									onChange={e =>
+										setSalvarPrecoState(prev => ({
+											...prev,
+											[m.modelo_id]: e.target.checked,
+										}))
+									}
+									className="w-4 h-4 rounded border-[#B5D4F4] accent-[#185FA5]"
+								/>
+								<span className="text-xs text-gray-600">Salvar preço no cadastro</span>
+							</label>
 						)}
 					</div>
 				);
 			})}
+
+			{/* Tabela em tempo real */}
+			{resumoGlobal.linhas.length > 0 && (
+				<div className="rounded-xl border border-[#B5D4F4] bg-white overflow-hidden">
+					<div className="px-4 py-2 bg-[#F4F8FD] border-b border-[#B5D4F4]">
+						<p className="text-xs font-semibold text-[#0C447C] uppercase tracking-wide">Vendidos</p>
+					</div>
+					<div className="text-xs">
+						{resumoGlobal.linhas.map(l => (
+							<div key={l.nome} className="flex items-center justify-between px-4 py-2.5 border-b border-[#E6F1FB]">
+								<span className="text-gray-800 flex-1 truncate">{l.nome}</span>
+								<span className="text-gray-500 mx-3">{l.qtd} un.</span>
+								<span className="font-medium text-[#185FA5]">{fmtCurrency(l.valor)}</span>
+							</div>
+						))}
+						{revendedor.modelo_acerto === "COMISSAO" ? (
+							<>
+								<div className="flex items-center justify-between px-4 py-2 bg-[#F4F8FD]">
+									<span className="text-gray-600">Total vendas</span>
+									<span className="mx-3 text-gray-500">{resumoGlobal.totalVendida} un.</span>
+									<span className="font-medium text-gray-800">{fmtCurrency(resumoGlobal.totalSugeridoComissao)}</span>
+								</div>
+								<div className="flex items-center justify-between px-4 py-2 bg-[#F4F8FD] border-t border-[#E6F1FB]">
+									<span className="text-gray-600">Comissão</span>
+									<span className="mx-3" />
+									<span className="text-amber-700">− {fmtCurrency(resumoGlobal.comissaoTotal)}</span>
+								</div>
+								<div className="flex items-center justify-between px-4 py-2.5 bg-[#E6F1FB] font-semibold text-[#0C447C] border-t border-[#B5D4F4]">
+									<span>Líquido a receber</span>
+									<span className="mx-3" />
+									<span>{fmtCurrency(resumoGlobal.liquidoTotal)}</span>
+								</div>
+							</>
+						) : (
+							<div className="flex items-center justify-between px-4 py-2.5 bg-[#E6F1FB] font-semibold text-[#0C447C]">
+								<span>Total a receber</span>
+								<span className="mx-3">{resumoGlobal.totalVendida} un.</span>
+								<span>{fmtCurrency(resumoGlobal.totalReceberValorMinimo)}</span>
+							</div>
+						)}
+					</div>
+				</div>
+			)}
 
 			{/* Confirmation panel — VALOR_MINIMO */}
 			{allFilled && revendedor.modelo_acerto === "VALOR_MINIMO" && (

@@ -19,7 +19,7 @@ export default async function ConferenciaRevendedorPage({
 	// Busca dados do revendedor
 	const { data: revendedor } = await supabase
 		.from("revendedor")
-		.select("revendedor_id, nome, modelo_acerto")
+		.select("revendedor_id, nome, modelo_acerto, comissao_fixa, comissao_pct")
 		.eq("revendedor_id", revendedor_id)
 		.is("deleted_at", null)
 		.single();
@@ -89,6 +89,8 @@ export default async function ConferenciaRevendedorPage({
 		revendedor_id: revendedor.revendedor_id as string,
 		nome: revendedor.nome as string,
 		modelo_acerto: revendedor.modelo_acerto as "COMISSAO" | "VALOR_MINIMO",
+		comissao_fixa: (revendedor.comissao_fixa as number | null) ?? null,
+		comissao_pct: (revendedor.comissao_pct as number | null) ?? null,
 	};
 
 	return (

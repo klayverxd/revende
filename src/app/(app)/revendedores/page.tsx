@@ -20,7 +20,8 @@ export default async function RevendedoresPage() {
 			supabase
 				.from("acerto")
 				.select("revendedor_id, valor_a_receber, valor_liquido, modelo_acerto")
-				.eq("status", "PENDENTE"),
+				.eq("status", "PENDENTE")
+				.is("deleted_at", null),
 		]);
 
 	// Aggregate stats per revendedor

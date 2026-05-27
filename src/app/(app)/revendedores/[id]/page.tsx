@@ -55,7 +55,8 @@ export default async function RevendedorVisaoGeralPage({ params }: Props) {
 			.select(
 				"valor_a_receber, valor_liquido, valor_repassado, status, modelo_acerto"
 			)
-			.eq("revendedor_id", id),
+			.eq("revendedor_id", id)
+			.is("deleted_at", null),
 	]);
 
 	// KPI calculations

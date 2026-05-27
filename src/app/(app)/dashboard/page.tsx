@@ -151,6 +151,7 @@ export default async function DashboardPage({
 				"data_recebimento, valor_repassado, revendedor:revendedor_id(nome)"
 			)
 			.eq("status", "RECEBIDO")
+			.is("deleted_at", null)
 			.order("data_recebimento", { ascending: false })
 			.limit(10),
 		supabase

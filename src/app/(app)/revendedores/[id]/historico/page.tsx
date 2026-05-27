@@ -51,6 +51,7 @@ export default async function RevendedorHistoricoPage({ params }: Props) {
 				"acerto_id, envio_id, status, modelo_acerto, valor_a_receber, valor_liquido, comissao_calculada, valor_repassado, data_recebimento, observacao, created_at"
 			)
 			.eq("revendedor_id", id)
+			.is("deleted_at", null)
 			.order("created_at", { ascending: false }),
 	]);
 

@@ -235,7 +235,7 @@ export default function ConferenciaRevendedorForm({
 		const comissaoTotal =
 			revendedor.modelo_acerto === "COMISSAO"
 				? (revendedor.comissao_fixa ?? 0) +
-				  totalSugeridoComissao * ((revendedor.comissao_pct ?? 0) / 100)
+				  totalSugeridoComissao * (revendedor.comissao_pct ?? 0)
 				: 0;
 		const liquidoTotal = totalSugeridoComissao - comissaoTotal;
 

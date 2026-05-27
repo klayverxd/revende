@@ -224,39 +224,97 @@ export default function ConferenciasView({
 							Nenhum acerto pendente.
 						</div>
 					)}
-					{pendentes.map(card => (
-						<div
-							key={card.revendedor_id}
-							className="rounded-xl border border-[#B5D4F4] bg-white p-4 flex flex-col gap-2"
-						>
-							<div className="flex items-start justify-between gap-2">
-								<div>
-									<p className="text-sm font-semibold text-gray-900">
-										{card.revendedor_nome}
-									</p>
-									<p className="text-xs text-gray-700">
-										Mais antigo: {fmtDate(card.mais_antigo)}
-									</p>
+					{pendentes.map(card => {
+						const totalComissao = card.acertos.reduce(
+							(s, a) => s + (a.comissao_calculada ?? 0),
+							0
+						);
+						const totalBruto = card.total_pendente + totalComissao;
+
+						return (
+							<div
+								key={card.revendedor_id}
+								className="rounded-xl border border-[#B5D4F4] bg-white p-4 flex flex-col gap-3"
+							>
+								{/* Header */}
+								<div className="flex items-start justify-between gap-2">
+									<div>
+										<p className="text-sm font-semibold text-gray-900">
+											{card.revendedor_nome}
+										</p>
+										<p className="text-xs text-gray-500">
+											{card.acertos.length} acerto{card.acertos.length !== 1 ? "s" : ""}{" "}
+											· desde {fmtDate(card.mais_antigo)}
+										</p>
+									</div>
+									<Badge variant={card.modelo_acerto === "COMISSAO" ? "info" : "success"}>
+										{card.modelo_acerto === "COMISSAO" ? "% Comissão" : "Valor por produto"}
+									</Badge>
 								</div>
-								<Badge
-									variant={
-										card.modelo_acerto === "COMISSAO" ? "info" : "success"
-									}
-								>
-									{card.modelo_acerto === "COMISSAO"
-										? "% Comissao"
-										: "Valor por produto"}
-								</Badge>
+
+								{/* Breakdown */}
+								<div className="rounded-lg border border-[#E6F1FB] bg-[#F4F8FD] text-xs divide-y divide-[#E6F1FB]">
+									{card.modelo_acerto === "COMISSAO" ? (
+										<>
+											{card.acertos.length > 1 && card.acertos.map((a, i) => {
+												const brutoAcerto = (a.valor_liquido ?? 0) + (a.comissao_calculada ?? 0);
+												return (
+													<div key={a.acerto_id} className="px-3 py-2 flex items-start justify-between gap-2 text-gray-500">
+														<Link href={`/envios/${a.envio_id}`} className="text-[#378ADD] hover:underline shrink-0">
+															Envio {i + 1}
+														</Link>
+														<div className="flex flex-col items-end gap-0.5 text-right">
+															<span className="text-gray-700">{fmtCurrency(brutoAcerto)}</span>
+															<span className="text-amber-600">− {fmtCurrency(a.comissao_calculada ?? 0)} com.</span>
+															<span className="font-medium text-[#0C447C]">{fmtCurrency(a.valor_liquido ?? 0)}</span>
+														</div>
+													</div>
+												);
+											})}
+											<div className="flex justify-between px-3 py-2 text-gray-600">
+												<span>{card.acertos.length > 1 ? "Total vendas" : "Total de vendas"}</span>
+												<span className="font-medium text-gray-800">{fmtCurrency(totalBruto)}</span>
+											</div>
+											<div className="flex justify-between px-3 py-2 text-gray-600">
+												<span>Comissão</span>
+												<span className="text-amber-700">− {fmtCurrency(totalComissao)}</span>
+											</div>
+											<div className="flex justify-between px-3 py-2 font-semibold text-[#0C447C]">
+												<span>Líquido a receber</span>
+												<span>{fmtCurrency(card.total_pendente)}</span>
+											</div>
+										</>
+									) : (
+										<>
+											{card.acertos.length > 1 && card.acertos.map((a, i) => (
+												<div key={a.acerto_id} className="px-3 py-2 flex items-center justify-between gap-2 text-gray-500">
+													<Link href={`/envios/${a.envio_id}`} className="text-[#378ADD] hover:underline">
+														Envio {i + 1}
+													</Link>
+													<span className="font-medium text-gray-700">{fmtCurrency(a.valor_calculado)}</span>
+												</div>
+											))}
+											<div className="flex justify-between px-3 py-2 font-semibold text-[#0C447C]">
+												<span>A receber</span>
+												<span>{fmtCurrency(card.total_pendente)}</span>
+											</div>
+										</>
+									)}
+								</div>
+
+								{/* Link único quando só um acerto */}
+								{card.acertos.length === 1 && card.acertos[0].envio_id && (
+									<Link href={`/envios/${card.acertos[0].envio_id}`} className="text-xs text-[#378ADD] hover:underline">
+										Ver envio
+									</Link>
+								)}
+
+								<Button size="sm" onClick={() => abrirRecebimento(card)}>
+									Registrar recebimento
+								</Button>
 							</div>
-							<p className="text-sm text-gray-700">
-								Total pendente:{" "}
-								<strong>{fmtCurrency(card.total_pendente)}</strong>
-							</p>
-							<Button size="sm" onClick={() => abrirRecebimento(card)}>
-								Registrar recebimento
-							</Button>
-						</div>
-					))}
+						);
+					})}
 				</div>
 			)}
 

@@ -14,6 +14,7 @@ export default function RevendedorTabs({ revendedorId }: Props) {
 		{ label: "Visão geral", href: `/revendedores/${revendedorId}` },
 		{ label: "Preços", href: `/revendedores/${revendedorId}/precos` },
 		{ label: "Histórico", href: `/revendedores/${revendedorId}/historico` },
+		{ label: "Cadastro", href: `/revendedores/${revendedorId}/cadastro` },
 	];
 
 	return (

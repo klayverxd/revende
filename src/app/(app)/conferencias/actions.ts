@@ -180,23 +180,24 @@ async function processarUmEnvio(
 	}
 
 	if (modeloAcerto === "COMISSAO" && Number.isFinite(valorManual as number)) {
-		const manual = Math.max(0, valorManual as number);
+		const manual = Number(Math.max(0, valorManual as number).toFixed(2));
 		if (totalCalculadoComissao > 0) {
 			const fator = manual / totalCalculadoComissao;
-			for (const item of updates) {
-				item.valor_total_venda = Number(
-					((item.valor_total_venda ?? 0) * fator).toFixed(2)
-				);
-				item.modo_valor = "MANUAL";
+			let distribuido = 0;
+			for (let i = 0; i < updates.length - 1; i++) {
+				const v = Number(((updates[i].valor_total_venda ?? 0) * fator).toFixed(2));
+				updates[i].valor_total_venda = v;
+				updates[i].modo_valor = "MANUAL";
+				distribuido = Number((distribuido + v).toFixed(2));
 			}
+			// último item absorve o centavo restante para soma exata
+			updates[updates.length - 1].valor_total_venda = Number((manual - distribuido).toFixed(2));
+			updates[updates.length - 1].modo_valor = "MANUAL";
 		} else if (updates.length > 0) {
 			updates[0].valor_total_venda = manual;
 			updates[0].modo_valor = "MANUAL";
 		}
-		totalCalculadoComissao = updates.reduce(
-			(acc, item) => acc + (item.valor_total_venda ?? 0),
-			0
-		);
+		totalCalculadoComissao = manual;
 	}
 
 	for (const up of updates) {

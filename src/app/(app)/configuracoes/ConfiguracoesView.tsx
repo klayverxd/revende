@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Badge, Button, Modal, useToast } from "@/components/ui";
 import {
 	desfazerConferencia,
@@ -14,10 +14,17 @@ import {
 
 export interface ConferenciaRecente {
 	envio_id: string;
+	revendedor_id: string;
 	status: "CONFERIDO" | "ENCERRADO";
 	data_envio: string;
 	updated_at: string;
 	revendedor_nome: string;
+}
+
+interface ConferenciaRevendedor {
+	revendedor_id: string;
+	revendedor_nome: string;
+	envios: ConferenciaRecente[];
 }
 
 export interface AcertoRecebidoRecente {
@@ -98,12 +105,28 @@ export default function ConfiguracoesView({ conferencias, acertos, equipe }: Pro
 	const { showToast } = useToast();
 	const [tab, setTab] = useState<Tab>("DESFAZER");
 
+	// Agrupa conferências por revendedor
+	const conferenciasPorRevendedor: ConferenciaRevendedor[] = useMemo(() => {
+		const map = new Map<string, ConferenciaRevendedor>();
+		for (const c of conferencias) {
+			if (!map.has(c.revendedor_id)) {
+				map.set(c.revendedor_id, {
+					revendedor_id: c.revendedor_id,
+					revendedor_nome: c.revendedor_nome,
+					envios: [],
+				});
+			}
+			map.get(c.revendedor_id)!.envios.push(c);
+		}
+		return [...map.values()];
+	}, [conferencias]);
+
 	// Undo states
 	const [desfazendoConferencia, setDesfazendoConferencia] = useState<
 		string | null
 	>(null);
 	const [confirmConferencia, setConfirmConferencia] =
-		useState<ConferenciaRecente | null>(null);
+		useState<ConferenciaRevendedor | null>(null);
 
 	const [desfazendoAcerto, setDesfazendoAcerto] = useState<string | null>(null);
 	const [confirmAcerto, setConfirmAcerto] =
@@ -122,11 +145,15 @@ export default function ConfiguracoesView({ conferencias, acertos, equipe }: Pro
 
 	// ── Handlers ────────────────────────────────────────────────────────────
 
-	async function handleDesfazerConferencia(envioId: string) {
-		setDesfazendoConferencia(envioId);
+	async function handleDesfazerConferencia(grupo: ConferenciaRevendedor) {
+		setDesfazendoConferencia(grupo.revendedor_id);
 		try {
-			await desfazerConferencia(envioId);
-			showToast("Conferência desfeita — envio voltou para ABERTO", "success");
+			await desfazerConferencia(grupo.revendedor_id);
+			const n = grupo.envios.length;
+			showToast(
+				`${n} envio${n !== 1 ? "s" : ""} de ${grupo.revendedor_nome} voltaram para ABERTO`,
+				"success"
+			);
 			setConfirmConferencia(null);
 		} catch (err) {
 			showToast(
@@ -247,41 +274,34 @@ export default function ConfiguracoesView({ conferencias, acertos, equipe }: Pro
 						<h2 className="text-sm font-semibold text-gray-700 mb-3">
 							Últimas conferências
 						</h2>
-						{conferencias.length === 0 ? (
+						{conferenciasPorRevendedor.length === 0 ? (
 							<p className="text-sm text-gray-500">
 								Nenhuma conferência recente encontrada.
 							</p>
 						) : (
 							<div className="flex flex-col gap-2">
-								{conferencias.map(c => (
+								{conferenciasPorRevendedor.map(grupo => (
 									<div
-										key={c.envio_id}
+										key={grupo.revendedor_id}
 										className="rounded-xl border border-[#B5D4F4] bg-white px-4 py-3 flex items-center justify-between gap-3"
 									>
 										<div className="flex flex-col gap-0.5">
 											<p className="text-sm font-medium text-gray-900">
-												{c.revendedor_nome}
+												{grupo.revendedor_nome}
 											</p>
 											<p className="text-xs text-gray-500">
-												Envio de {fmtDate(c.data_envio)} · Conferido em{" "}
-												{fmtDate(c.updated_at)}
+												{grupo.envios.length} envio{grupo.envios.length !== 1 ? "s" : ""}{" "}
+												· mais recente: {fmtDate(grupo.envios[0].updated_at)}
 											</p>
 										</div>
-										<div className="flex items-center gap-2 shrink-0">
-											<Badge
-												variant={c.status === "ENCERRADO" ? "neutral" : "info"}
-											>
-												{c.status}
-											</Badge>
-											<Button
-												variant="danger"
-												size="sm"
-												loading={desfazendoConferencia === c.envio_id}
-												onClick={() => setConfirmConferencia(c)}
-											>
-												Desfazer
-											</Button>
-										</div>
+										<Button
+											variant="danger"
+											size="sm"
+											loading={desfazendoConferencia === grupo.revendedor_id}
+											onClick={() => setConfirmConferencia(grupo)}
+										>
+											Desfazer
+										</Button>
 									</div>
 								))}
 							</div>
@@ -478,10 +498,10 @@ export default function ConfiguracoesView({ conferencias, acertos, equipe }: Pro
 						<Button
 							variant="danger"
 							size="sm"
-							loading={desfazendoConferencia === confirmConferencia?.envio_id}
+							loading={desfazendoConferencia === confirmConferencia?.revendedor_id}
 							onClick={() =>
 								confirmConferencia &&
-								handleDesfazerConferencia(confirmConferencia.envio_id)
+								handleDesfazerConferencia(confirmConferencia)
 							}
 						>
 							Confirmar desfazer
@@ -490,10 +510,10 @@ export default function ConfiguracoesView({ conferencias, acertos, equipe }: Pro
 				}
 			>
 				<p className="text-sm text-gray-700">
-					O envio de <strong>{confirmConferencia?.revendedor_nome}</strong> de{" "}
-					{fmtDate(confirmConferencia?.data_envio ?? null)} voltará para o
-					status <strong>ABERTO</strong> e todas as quantidades contadas serão
-					zeradas. O acerto financeiro associado também será removido.
+					Todos os <strong>{confirmConferencia?.envios.length} envio{(confirmConferencia?.envios.length ?? 0) === 1 ? "" : "s"}</strong> de{" "}
+					<strong>{confirmConferencia?.revendedor_nome}</strong> voltarão para{" "}
+					<strong>ABERTO</strong>. As quantidades contadas serão zeradas e os
+					acertos financeiros removidos.
 				</p>
 				<p className="text-xs text-amber-700 mt-2">
 					Esta ação não pode ser desfeita automaticamente.

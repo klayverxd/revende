@@ -4,67 +4,92 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
 // ─── Desfazer Conferência ────────────────────────────────────────────────────
-// Reverte um envio CONFERIDO ou ENCERRADO de volta para ABERTO,
-// zerando as quantidades vendidas/devolvidas nos itens e
-// apagando (soft delete) o acerto associado.
-export async function desfazerConferencia(envioId: string) {
-	if (!envioId) throw new Error("Envio inválido");
+// Reverte todos os envios com conferência pendente de um revendedor:
+// - Busca via acertos PENDENTE (cobre envios ABERTO com conferência parcial)
+// - Busca via envios CONFERIDO/ENCERRADO (sem acerto pendente)
+// - Zera itens, apaga acertos, reverte status para ABERTO
+export async function desfazerConferencia(revendedorId: string) {
+	if (!revendedorId) throw new Error("Revendedor inválido");
 
 	const supabase = await createClient();
+	const deletedAt = new Date().toISOString();
 
-	const { data: envio, error: envioError } = await supabase
+	// Acertos pendentes (inclui conferências parciais onde envio ficou ABERTO)
+	const { data: acertosPendentes, error: acertosError } = await supabase
+		.from("acerto")
+		.select("acerto_id, envio_id")
+		.eq("revendedor_id", revendedorId)
+		.eq("status", "PENDENTE")
+		.is("deleted_at", null);
+
+	if (acertosError) throw new Error(acertosError.message);
+
+	// Envios CONFERIDO/ENCERRADO (podem não ter acerto pendente se já foi recebido)
+	const { data: enviosConferidos, error: enviosError } = await supabase
 		.from("envio")
-		.select("envio_id, status")
-		.eq("envio_id", envioId)
-		.is("deleted_at", null)
-		.single();
+		.select("envio_id")
+		.eq("revendedor_id", revendedorId)
+		.in("status", ["CONFERIDO", "ENCERRADO"])
+		.is("deleted_at", null);
 
-	if (envioError || !envio) throw new Error("Envio não encontrado");
-	if (!["CONFERIDO", "ENCERRADO"].includes(envio.status as string)) {
-		throw new Error("Apenas envios CONFERIDO ou ENCERRADO podem ser desfeitos");
+	if (enviosError) throw new Error(enviosError.message);
+
+	const envioIdsSet = new Set<string>([
+		...(acertosPendentes ?? []).map(a => a.envio_id as string).filter(Boolean),
+		...(enviosConferidos ?? []).map(e => e.envio_id as string),
+	]);
+
+	if ((acertosPendentes ?? []).length === 0 && envioIdsSet.size === 0) {
+		throw new Error("Nenhuma conferência encontrada para este revendedor");
 	}
 
-	// Soft delete do acerto associado
-	const { error: acertoError } = await supabase
-		.from("acerto")
-		.update({ deleted_at: new Date().toISOString() })
-		.eq("envio_id", envioId)
-		.is("deleted_at", null);
+	// Soft delete dos acertos pendentes
+	if (acertosPendentes && acertosPendentes.length > 0) {
+		const ids = acertosPendentes.map(a => a.acerto_id as string);
+		const { error } = await supabase
+			.from("acerto")
+			.update({ deleted_at: deletedAt })
+			.in("acerto_id", ids);
+		if (error) throw new Error(error.message);
+	}
 
-	if (acertoError) throw new Error(acertoError.message);
+	const envioIds = [...envioIdsSet];
 
-	// Zerar quantidades vendidas/devolvidas e valores nos itens
-	const { error: itensError } = await supabase
-		.from("envio_item")
-		.update({
-			qtd_vendida: 0,
-			qtd_devolvida: null,
-			valor_total_venda: null,
-			valor_a_receber: null,
-			preco_cliente: null,
-			modo_valor: "CALCULADO",
-		})
-		.eq("envio_id", envioId)
-		.is("deleted_at", null);
+	if (envioIds.length > 0) {
+		// Zerar dados de conferência nos itens
+		const { error: itensError } = await supabase
+			.from("envio_item")
+			.update({
+				qtd_vendida: 0,
+				qtd_devolvida: null,
+				valor_total_venda: null,
+				valor_a_receber: null,
+				preco_cliente: null,
+				modo_valor: "CALCULADO",
+			})
+			.in("envio_id", envioIds)
+			.is("deleted_at", null);
 
-	if (itensError) throw new Error(itensError.message);
+		if (itensError) throw new Error(itensError.message);
 
-	// Voltar status do envio para ABERTO
-	const { error: envioUpdateError } = await supabase
-		.from("envio")
-		.update({ status: "ABERTO" })
-		.eq("envio_id", envioId);
+		// Só reverte CONFERIDO/ENCERRADO para ABERTO (ABERTO já está correto)
+		const { error: envioUpdateError } = await supabase
+			.from("envio")
+			.update({ status: "ABERTO" })
+			.in("envio_id", envioIds)
+			.in("status", ["CONFERIDO", "ENCERRADO"]);
 
-	if (envioUpdateError) throw new Error(envioUpdateError.message);
+		if (envioUpdateError) throw new Error(envioUpdateError.message);
+	}
 
 	revalidatePath("/configuracoes");
 	revalidatePath("/conferencias");
 	revalidatePath("/financeiro");
+	revalidatePath("/financeiro", "layout");
+	revalidatePath("/dashboard");
 }
 
 // ─── Desfazer Recebimento de Acerto ─────────────────────────────────────────
-// Reverte um acerto RECEBIDO de volta para PENDENTE e,
-// se o envio estava ENCERRADO, volta para CONFERIDO.
 export async function desfazerRecebimento(acertoId: string) {
 	if (!acertoId) throw new Error("Acerto inválido");
 
@@ -82,7 +107,6 @@ export async function desfazerRecebimento(acertoId: string) {
 		throw new Error("Apenas acertos RECEBIDO podem ser desfeitos");
 	}
 
-	// Voltar acerto para PENDENTE
 	const { error: updateAcertoError } = await supabase
 		.from("acerto")
 		.update({
@@ -95,7 +119,7 @@ export async function desfazerRecebimento(acertoId: string) {
 
 	if (updateAcertoError) throw new Error(updateAcertoError.message);
 
-	// Se o envio estava ENCERRADO, volta para CONFERIDO
+	// Se envio estava ENCERRADO, volta para CONFERIDO
 	const { error: envioUpdateError } = await supabase
 		.from("envio")
 		.update({ status: "CONFERIDO" })
@@ -112,6 +136,7 @@ export async function desfazerRecebimento(acertoId: string) {
 // ─── Limpar Dados por Grupo ──────────────────────────────────────────────────
 
 export type GrupoLimpeza =
+	| "conferencias"
 	| "envios"
 	| "modelos"
 	| "revendedores"
@@ -119,6 +144,80 @@ export type GrupoLimpeza =
 	| "producoes"
 	| "calculadora"
 	| "tudo";
+
+async function limparConferenciasInterno(
+	supabase: Awaited<ReturnType<typeof createClient>>,
+	revendedorId: string | null
+) {
+	const deletedAt = new Date().toISOString();
+
+	// Acertos pendentes (filtrando por revendedor se informado)
+	let acertoQuery = supabase
+		.from("acerto")
+		.select("acerto_id, envio_id")
+		.eq("status", "PENDENTE")
+		.is("deleted_at", null);
+	if (revendedorId) acertoQuery = acertoQuery.eq("revendedor_id", revendedorId);
+	const { data: acertosPendentes } = await acertoQuery;
+
+	// Envios CONFERIDO/ENCERRADO
+	let envioQuery = supabase
+		.from("envio")
+		.select("envio_id")
+		.in("status", ["CONFERIDO", "ENCERRADO"])
+		.is("deleted_at", null);
+	if (revendedorId) envioQuery = envioQuery.eq("revendedor_id", revendedorId);
+	const { data: enviosConferidos } = await envioQuery;
+
+	const envioIdsSet = new Set<string>([
+		...(acertosPendentes ?? []).map(a => a.envio_id as string).filter(Boolean),
+		...(enviosConferidos ?? []).map(e => e.envio_id as string),
+	]);
+
+	// Soft delete acertos pendentes
+	if (acertosPendentes && acertosPendentes.length > 0) {
+		const ids = acertosPendentes.map(a => a.acerto_id as string);
+		await supabase
+			.from("acerto")
+			.update({ deleted_at: deletedAt })
+			.in("acerto_id", ids);
+	}
+
+	const envioIds = [...envioIdsSet];
+	if (envioIds.length === 0) return;
+
+	// Zera dados de conferência nos itens
+	await supabase
+		.from("envio_item")
+		.update({
+			qtd_vendida: 0,
+			qtd_devolvida: null,
+			valor_total_venda: null,
+			valor_a_receber: null,
+			preco_cliente: null,
+			modo_valor: "CALCULADO",
+		})
+		.in("envio_id", envioIds)
+		.is("deleted_at", null);
+
+	// Reverte envios CONFERIDO/ENCERRADO para ABERTO
+	await supabase
+		.from("envio")
+		.update({ status: "ABERTO" })
+		.in("envio_id", envioIds)
+		.in("status", ["CONFERIDO", "ENCERRADO"]);
+}
+
+export async function limparConferenciasRevendedor(revendedorId: string) {
+	if (!revendedorId) throw new Error("Revendedor inválido");
+	const supabase = await createClient();
+	await limparConferenciasInterno(supabase, revendedorId);
+	revalidatePath("/configuracoes");
+	revalidatePath("/conferencias");
+	revalidatePath("/financeiro");
+	revalidatePath("/financeiro", "layout");
+	revalidatePath("/dashboard");
+}
 
 async function softDeleteAll(
 	supabase: Awaited<ReturnType<typeof createClient>>,
@@ -135,15 +234,17 @@ export async function limparDados(grupo: GrupoLimpeza) {
 	const supabase = await createClient();
 
 	switch (grupo) {
+		case "conferencias": {
+			await limparConferenciasInterno(supabase, null);
+			break;
+		}
 		case "envios": {
-			// acerto → envio_item → envio
 			await softDeleteAll(supabase, "acerto");
 			await softDeleteAll(supabase, "envio_item");
 			await softDeleteAll(supabase, "envio");
 			break;
 		}
 		case "modelos": {
-			// revendedor_modelo_preco → modelo_preco → modelo
 			await softDeleteAll(supabase, "revendedor_modelo_preco");
 			await softDeleteAll(supabase, "modelo_preco");
 			await softDeleteAll(supabase, "modelo");
@@ -167,19 +268,15 @@ export async function limparDados(grupo: GrupoLimpeza) {
 			await softDeleteAll(supabase, "calculo_custo");
 			await softDeleteAll(supabase, "config_equipamento");
 			await softDeleteAll(supabase, "config_materia_prima");
-			// config_energia não tem deleted_at — apagar diretamente
 			const { error: energiaError } = await supabase
 				.from("config_energia")
 				.delete()
-				.neq("id", "00000000-0000-0000-0000-000000000000"); // deleta tudo do usuário
+				.neq("id", "00000000-0000-0000-0000-000000000000");
 			if (energiaError)
-				throw new Error(
-					`Erro ao limpar config_energia: ${energiaError.message}`
-				);
+				throw new Error(`Erro ao limpar config_energia: ${energiaError.message}`);
 			break;
 		}
 		case "tudo": {
-			// Ordem: dependentes primeiro
 			await softDeleteAll(supabase, "acerto");
 			await softDeleteAll(supabase, "envio_item");
 			await softDeleteAll(supabase, "envio");
@@ -194,9 +291,7 @@ export async function limparDados(grupo: GrupoLimpeza) {
 				.delete()
 				.neq("id", "00000000-0000-0000-0000-000000000000");
 			if (energiaError)
-				throw new Error(
-					`Erro ao limpar config_energia: ${energiaError.message}`
-				);
+				throw new Error(`Erro ao limpar config_energia: ${energiaError.message}`);
 			await softDeleteAll(supabase, "revendedor_modelo_preco");
 			await softDeleteAll(supabase, "modelo_preco");
 			await softDeleteAll(supabase, "modelo");
@@ -208,16 +303,9 @@ export async function limparDados(grupo: GrupoLimpeza) {
 	}
 
 	const paths = [
-		"/configuracoes",
-		"/dashboard",
-		"/envios",
-		"/conferencias",
-		"/financeiro",
-		"/estoque",
-		"/produtos",
-		"/revendedores",
-		"/venda-direta",
-		"/calculadora",
+		"/configuracoes", "/dashboard", "/envios", "/conferencias",
+		"/financeiro", "/estoque", "/produtos", "/revendedores",
+		"/venda-direta", "/calculadora",
 	];
 	for (const p of paths) revalidatePath(p);
 }

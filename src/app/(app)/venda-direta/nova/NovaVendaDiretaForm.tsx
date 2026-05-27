@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Input, useToast } from "@/components/ui";
 import { criarVendaDireta, resolverPrecoVendaDireta } from "../actions";
+import CustoCalculadoraInline, { type ConfigCalculadora } from "./CustoCalculadoraInline";
 
 export interface ProdutoDisponivel {
 modelo_id: string;
@@ -27,6 +28,7 @@ estoque_disponivel: number;
 
 interface Props {
 readonly produtos: ProdutoDisponivel[];
+readonly configCalculadora: ConfigCalculadora;
 }
 
 type Canal =
@@ -55,7 +57,7 @@ function uid() {
 return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-export default function NovaVendaDiretaForm({ produtos }: Props) {
+export default function NovaVendaDiretaForm({ produtos, configCalculadora }: Props) {
 const { showToast } = useToast();
 const router = useRouter();
 
@@ -77,6 +79,7 @@ const [vendaConcluida, setVendaConcluida] = useState(false);
 const [customDesc, setCustomDesc] = useState("");
 const [customQtd, setCustomQtd] = useState("1");
 const [customPreco, setCustomPreco] = useState("");
+const [calcOpen, setCalcOpen] = useState(false);
 
 const produtosFiltrados = useMemo(() => {
 const term = searchProduto.toLowerCase();
@@ -362,6 +365,20 @@ value={customPreco}
 onChange={e => setCustomPreco(e.target.value)}
 />
 </div>
+<button
+type="button"
+onClick={() => setCalcOpen(v => !v)}
+className="text-xs text-[#378ADD] hover:underline self-start"
+>
+{calcOpen ? "Ocultar calculadora" : "Calcular custo"}
+</button>
+{calcOpen && (
+<CustoCalculadoraInline
+config={configCalculadora}
+quantidade={Math.max(1, Number.parseInt(customQtd, 10) || 1)}
+onUsarPreco={preco => setCustomPreco(String(preco))}
+/>
+)}
 <Button
 variant="secondary"
 onClick={adicionarItemPersonalizado}

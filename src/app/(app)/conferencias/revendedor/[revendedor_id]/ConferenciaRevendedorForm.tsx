@@ -288,11 +288,15 @@ export default function ConferenciaRevendedorForm({
 					qtdContada: qtdRestante(item),
 					qtdDevolvida: 0,
 				};
+				const vendidaItem = qtdRestante(item) - dist.qtdContada - dist.qtdDevolvida;
+				const preco = precoMap[item.modelo_id] ?? (item.preco_unitario ?? 0);
+				const valorVenda = vendidaItem * preco;
 				return {
 					envioItemId: item.envio_item_id,
 					qtdContada: dist.qtdContada,
 					qtdDevolvida: dist.qtdDevolvida,
 					precoCliente: null,
+					valorVenda: valorVenda > 0 ? valorVenda : undefined,
 				};
 			});
 

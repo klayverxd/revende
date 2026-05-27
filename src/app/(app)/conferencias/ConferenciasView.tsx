@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Badge, Button, Input, Modal, useToast } from "@/components/ui";
 import { registrarRecebimento } from "../financeiro/actions";
+import { buscarDetalheConferencia } from "./actions";
 
 export interface RevendedorConferencia {
 	revendedor_id: string;
@@ -73,11 +74,72 @@ export default function ConferenciasView({
 	const [valorRecebido, setValorRecebido] = useState("0");
 	const [observacao, setObservacao] = useState("");
 	const [saving, setSaving] = useState(false);
+	const [copiandoId, setCopiandoId] = useState<string | null>(null);
 
 	const primeiroAcerto = useMemo(
 		() => selectedCard?.acertos[0] ?? null,
 		[selectedCard]
 	);
+
+	function fmtR(v: number): string {
+		if (Number.isInteger(v)) return `R$${v}`;
+		return `R$${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+	}
+
+	async function copiarRelatorio(card: AcertoPendenteCard) {
+		setCopiandoId(card.revendedor_id);
+		try {
+			const envioIds = card.acertos.map(a => a.envio_id);
+			const detalhes = await buscarDetalheConferencia(envioIds);
+
+			const linhas: string[] = [];
+			linhas.push(`Resumo das vendas — ${card.revendedor_nome}:`);
+			linhas.push("");
+
+			const totalComissao = card.acertos.reduce((s, a) => s + (a.comissao_calculada ?? 0), 0);
+			const totalBruto = card.total_pendente + totalComissao;
+
+			const enviosComItens = detalhes.filter(e => e.itens.length > 0);
+
+			for (let ei = 0; ei < enviosComItens.length; ei++) {
+				const envio = enviosComItens[ei];
+				if (enviosComItens.length > 1) {
+					linhas.push(`📦 Envio ${ei + 1} (enviado em ${fmtDate(envio.data_envio)}):`);
+				}
+				let subtotal = 0;
+				for (const item of envio.itens) {
+					const valor =
+						item.modelo_acerto === "COMISSAO"
+							? (item.valor_total_venda ?? 0)
+							: (item.valor_a_receber ?? 0);
+					subtotal += valor;
+					linhas.push(`* ${item.qtd_vendida} ${item.modelo_nome} — ${fmtR(valor)}`);
+				}
+				if (enviosComItens.length > 1) {
+					linhas.push(`Subtotal: ${fmtR(subtotal)}`);
+				}
+				if (ei < enviosComItens.length - 1) linhas.push("");
+			}
+
+			linhas.push("");
+
+			if (card.modelo_acerto === "COMISSAO") {
+				linhas.push(`💰 Total vendido: ${fmtR(totalBruto)}`);
+				const pct = totalBruto > 0 ? Math.round((totalComissao / totalBruto) * 100) : 0;
+				linhas.push(`📌 Comissão de ${pct}%: ${fmtR(totalComissao)}`);
+				linhas.push(`💵 Valor a receber: ${fmtR(card.total_pendente)}`);
+			} else {
+				linhas.push(`💰 Total a receber: ${fmtR(card.total_pendente)}`);
+			}
+
+			await navigator.clipboard.writeText(linhas.join("\n"));
+			showToast("Relatório copiado!", "success");
+		} catch {
+			showToast("Erro ao gerar relatório", "error");
+		} finally {
+			setCopiandoId(null);
+		}
+	}
 
 	function abrirRecebimento(card: AcertoPendenteCard) {
 		setSelectedCard(card);
@@ -309,9 +371,19 @@ export default function ConferenciasView({
 									</Link>
 								)}
 
-								<Button size="sm" onClick={() => abrirRecebimento(card)}>
-									Registrar recebimento
-								</Button>
+								<div className="flex gap-2">
+									<Button
+										size="sm"
+										variant="secondary"
+										loading={copiandoId === card.revendedor_id}
+										onClick={() => copiarRelatorio(card)}
+									>
+										Copiar relatório
+									</Button>
+									<Button size="sm" onClick={() => abrirRecebimento(card)}>
+										Registrar recebimento
+									</Button>
+								</div>
 							</div>
 						);
 					})}

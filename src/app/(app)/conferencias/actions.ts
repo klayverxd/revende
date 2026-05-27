@@ -8,6 +8,8 @@ export interface ConfirmarConferenciaItemInput {
 	qtdContada: number;
 	qtdDevolvida?: number;
 	precoCliente?: number | null;
+	/** Valor total pré-calculado pelo cliente (qtd_vendida × preço editado pelo usuário). */
+	valorVenda?: number;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -144,10 +146,11 @@ async function processarUmEnvio(
 		if (modeloAcerto === "COMISSAO") {
 			const existingValorVenda =
 				(dbItem.valor_total_venda as number | null) ?? 0;
-			const valorNovo = precoPorFaixa(
-				qtdVendidaNova,
-				(dbItem.preco_unitario as number | null) ?? null
-			);
+			// Prefer client-provided value (uses user-edited prices); fall back to DB snapshot.
+			const valorNovo =
+				input.valorVenda !== undefined
+					? input.valorVenda
+					: precoPorFaixa(qtdVendidaNova, (dbItem.preco_unitario as number | null) ?? null);
 			const valorItemTotal = existingValorVenda + valorNovo;
 			totalCalculadoComissao += valorItemTotal;
 			updates.push({
@@ -156,8 +159,8 @@ async function processarUmEnvio(
 				qtd_devolvida: qtdDevolvida,
 				valor_total_venda: valorItemTotal,
 				valor_a_receber: null,
-				preco_cliente: Number.isFinite(input.precoCliente as number)
-					? (input.precoCliente as number)
+				preco_cliente: typeof input.precoCliente === "number" && Number.isFinite(input.precoCliente)
+					? input.precoCliente
 					: null,
 				modo_valor: "CALCULADO",
 			});
@@ -171,16 +174,16 @@ async function processarUmEnvio(
 				qtd_devolvida: qtdDevolvida,
 				valor_total_venda: null,
 				valor_a_receber: valorReceberTotal,
-				preco_cliente: Number.isFinite(input.precoCliente as number)
-					? (input.precoCliente as number)
+				preco_cliente: typeof input.precoCliente === "number" && Number.isFinite(input.precoCliente)
+					? input.precoCliente
 					: null,
 				modo_valor: "CALCULADO",
 			});
 		}
 	}
 
-	if (modeloAcerto === "COMISSAO" && Number.isFinite(valorManual as number)) {
-		const manual = Number(Math.max(0, valorManual as number).toFixed(2));
+	if (modeloAcerto === "COMISSAO" && Number.isFinite(valorManual ?? NaN)) {
+		const manual = Number(Math.max(0, valorManual!).toFixed(2));
 		if (totalCalculadoComissao > 0) {
 			const fator = manual / totalCalculadoComissao;
 			let distribuido = 0;
@@ -190,9 +193,9 @@ async function processarUmEnvio(
 				updates[i].modo_valor = "MANUAL";
 				distribuido = Number((distribuido + v).toFixed(2));
 			}
-			// último item absorve o centavo restante para soma exata
-			updates[updates.length - 1].valor_total_venda = Number((manual - distribuido).toFixed(2));
-			updates[updates.length - 1].modo_valor = "MANUAL";
+			const last = updates.at(-1)!;
+			last.valor_total_venda = Number((manual - distribuido).toFixed(2));
+			last.modo_valor = "MANUAL";
 		} else if (updates.length > 0) {
 			updates[0].valor_total_venda = manual;
 			updates[0].modo_valor = "MANUAL";
@@ -300,6 +303,81 @@ export async function confirmarConferenciaRevendedor(
 	revalidatePath(`/conferencias/revendedor/${revendedorId}`);
 	revalidatePath("/financeiro");
 	revalidatePath("/estoque");
+}
+
+// ─── Detalhe de conferência para relatório ───────────────────────────────────
+
+export interface ConferenciaDetalheItem {
+	modelo_nome: string;
+	modelo_codigo: string | null;
+	qtd_enviada: number;
+	qtd_vendida: number;
+	qtd_devolvida: number;
+	preco_unitario: number | null;
+	valor_minimo_unit: number | null;
+	valor_total_venda: number | null;
+	valor_a_receber: number | null;
+	modelo_acerto: "COMISSAO" | "VALOR_MINIMO";
+}
+
+export interface ConferenciaDetalheEnvio {
+	envio_id: string;
+	data_envio: string;
+	updated_at: string;
+	itens: ConferenciaDetalheItem[];
+}
+
+export async function buscarDetalheConferencia(
+	envioIds: string[]
+): Promise<ConferenciaDetalheEnvio[]> {
+	if (!envioIds.length) return [];
+	const supabase = await createClient();
+
+	const { data, error } = await supabase
+		.from("envio")
+		.select(
+			`envio_id, data_envio, updated_at,
+			 envio_item(
+				modelo_acerto, qtd_enviada, qtd_vendida, qtd_devolvida,
+				preco_unitario, valor_minimo_unit, valor_total_venda, valor_a_receber,
+				modelo:modelo_id(nome, codigo)
+			 )`
+		)
+		.in("envio_id", envioIds)
+		.is("deleted_at", null)
+		.order("data_envio", { ascending: true });
+
+	if (error) throw new Error(error.message);
+
+	return (data ?? []).map(e => ({
+		envio_id: e.envio_id as string,
+		data_envio: e.data_envio as string,
+		updated_at: e.updated_at as string,
+		itens: ((e.envio_item as unknown as Array<{
+			modelo_acerto: string;
+			qtd_enviada: number;
+			qtd_vendida: number | null;
+			qtd_devolvida: number | null;
+			preco_unitario: number | null;
+			valor_minimo_unit: number | null;
+			valor_total_venda: number | null;
+			valor_a_receber: number | null;
+			modelo: { nome: string; codigo: string | null } | null;
+		}>) ?? [])
+			.filter(i => (i.qtd_vendida ?? 0) > 0)
+			.map(i => ({
+				modelo_nome: i.modelo?.nome ?? "—",
+				modelo_codigo: i.modelo?.codigo ?? null,
+				qtd_enviada: i.qtd_enviada ?? 0,
+				qtd_vendida: i.qtd_vendida ?? 0,
+				qtd_devolvida: i.qtd_devolvida ?? 0,
+				preco_unitario: i.preco_unitario,
+				valor_minimo_unit: i.valor_minimo_unit,
+				valor_total_venda: i.valor_total_venda,
+				valor_a_receber: i.valor_a_receber,
+				modelo_acerto: i.modelo_acerto as "COMISSAO" | "VALOR_MINIMO",
+			})),
+	}));
 }
 
 export interface SalvarPrecoInput {

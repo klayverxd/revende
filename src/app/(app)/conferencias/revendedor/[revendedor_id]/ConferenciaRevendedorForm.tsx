@@ -262,9 +262,11 @@ export default function ConferenciaRevendedorForm({
 
 	function buildEnviosInput(
 		globalManual: number | undefined,
-		perItem: Record<string, { qtdContada: number; qtdDevolvida: number }>
+		perItem: Record<string, { qtdContada: number; qtdDevolvida: number }>,
+		precoMap: Record<string, number>
 	) {
-		const valorAutoByEnvio: Record<string, number> = {};
+		// Compute per-envio total using precoMap (user-edited prices take precedence over DB)
+		const valorByEnvio: Record<string, number> = {};
 		for (const envio of envios) {
 			let total = 0;
 			for (const item of envio.itens) {
@@ -272,16 +274,13 @@ export default function ConferenciaRevendedorForm({
 					qtdContada: qtdRestante(item),
 					qtdDevolvida: 0,
 				};
-				const vendidaItem =
-					qtdRestante(item) - dist.qtdContada - dist.qtdDevolvida;
-				total += vendidaItem * (item.preco_unitario ?? 0);
+				const vendidaItem = qtdRestante(item) - dist.qtdContada - dist.qtdDevolvida;
+				const preco = precoMap[item.modelo_id] ?? (item.preco_unitario ?? 0);
+				total += vendidaItem * preco;
 			}
-			valorAutoByEnvio[envio.envio_id] = total;
+			valorByEnvio[envio.envio_id] = total;
 		}
-		const totalAutoComissao = Object.values(valorAutoByEnvio).reduce(
-			(a, b) => a + b,
-			0
-		);
+		const totalComissao = Object.values(valorByEnvio).reduce((a, b) => a + b, 0);
 
 		return envios.map((envio, idx) => {
 			const itens = envio.itens.map(item => {
@@ -296,19 +295,17 @@ export default function ConferenciaRevendedorForm({
 					precoCliente: null,
 				};
 			});
+
 			let valorManualEnvio: number | undefined;
-			if (globalManual !== undefined) {
-				if (totalAutoComissao > 0) {
-					valorManualEnvio = Number(
-						(
-							globalManual *
-							((valorAutoByEnvio[envio.envio_id] ?? 0) / totalAutoComissao)
-						).toFixed(2)
-					);
-				} else if (idx === 0) {
-					valorManualEnvio = globalManual;
-				}
+			const baseTotal = globalManual ?? totalComissao;
+			if (totalComissao > 0) {
+				valorManualEnvio = Number(
+					(baseTotal * ((valorByEnvio[envio.envio_id] ?? 0) / totalComissao)).toFixed(2)
+				);
+			} else if (idx === 0) {
+				valorManualEnvio = baseTotal;
 			}
+
 			return { envioId: envio.envio_id, itens, valorManual: valorManualEnvio };
 		});
 	}
@@ -329,7 +326,10 @@ export default function ConferenciaRevendedorForm({
 				: undefined;
 
 		const perItem = distribuirQuantidades(mergedItems, state, devolvidaState);
-		const enviosInput = buildEnviosInput(globalManual, perItem);
+		const precoMap = Object.fromEntries(
+			mergedItems.map(m => [m.modelo_id, toNumber(precoState[m.modelo_id] ?? "0")])
+		);
+		const enviosInput = buildEnviosInput(globalManual, perItem, precoMap);
 
 		const itensSalvar = mergedItems
 			.filter(m => salvarPrecoState[m.modelo_id] && toNumber(precoState[m.modelo_id] ?? "0") > 0)

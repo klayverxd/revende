@@ -13,7 +13,10 @@ const schema = z.object({
 	descricao: z.string().optional(),
 	custo_producao: z.string().optional(),
 	estoque_minimo: z.string().optional(),
-	preco_unitario: z.string().optional(),
+	preco_unitario: z
+		.string()
+		.min(1, "Preço de varejo é obrigatório")
+		.refine(v => Number.parseFloat(v.replace(",", ".")) > 0, "Informe um preço maior que zero"),
 	preco_atacado: z.string().optional(),
 	qtd_minima_atacado: z.string().optional(),
 });
@@ -202,6 +205,7 @@ export default function ProdutoModal({
 						placeholder="Ex: 10,00"
 						type="text"
 						inputMode="decimal"
+						required
 						error={errors.preco_unitario?.message}
 						{...register("preco_unitario")}
 					/>

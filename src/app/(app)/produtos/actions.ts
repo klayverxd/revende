@@ -30,6 +30,9 @@ async function gerarCodigo(): Promise<string> {
 }
 
 export async function criarProduto(data: ProdutoData) {
+	if (!data.preco_unitario || data.preco_unitario <= 0)
+		throw new Error("Preço de varejo é obrigatório");
+
 	const supabase = await createClient();
 	const codigo = data.codigo?.trim() || (await gerarCodigo());
 

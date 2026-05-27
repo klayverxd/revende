@@ -58,6 +58,84 @@ function fmtDate(d: string | null) {
 	return new Date(d).toLocaleDateString("pt-BR");
 }
 
+function fmtR(v: number): string {
+	if (Number.isInteger(v)) return `R$${v}`;
+	return `R$${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+type DetalheItem = Awaited<ReturnType<typeof buscarDetalheConferencia>>[number]["itens"][number];
+
+function linhaItem(item: DetalheItem): string {
+	const valor = item.modelo_acerto === "COMISSAO"
+		? (item.valor_total_venda ?? 0)
+		: (item.valor_a_receber ?? 0);
+	if (valor <= 0) return `* ${item.modelo_nome} — ${item.qtd_vendida} un. — (sem preço)`;
+	const precoUnit = item.qtd_vendida > 1 ? Number((valor / item.qtd_vendida).toFixed(2)) : null;
+	const detalhe = precoUnit === null
+		? `${item.qtd_vendida} un.`
+		: `${item.qtd_vendida} un. × ${fmtR(precoUnit)}`;
+	return `* ${item.modelo_nome} — ${detalhe} = ${fmtR(valor)}`;
+}
+
+function linhasEnvio(
+	envio: Awaited<ReturnType<typeof buscarDetalheConferencia>>[number],
+	idx: number,
+	total: number
+): string[] {
+	const header = total > 1 ? [`📦 Envio ${idx + 1} (enviado em ${fmtDate(envio.data_envio)}):`] : [];
+	let subtotal = 0;
+	let temSemPreco = false;
+	const itensLinhas = envio.itens.map(item => {
+		const valor = item.modelo_acerto === "COMISSAO"
+			? (item.valor_total_venda ?? 0)
+			: (item.valor_a_receber ?? 0);
+		if (valor > 0) subtotal += valor;
+		else temSemPreco = true;
+		return linhaItem(item);
+	});
+	const aviso = temSemPreco ? ["⚠️ Itens sem preço não foram contabilizados"] : [];
+	const sub = total > 1 ? [`Subtotal: ${fmtR(subtotal)}`] : [];
+	return [...header, ...itensLinhas, ...aviso, ...sub];
+}
+
+function buildRelatorio(
+	card: AcertoPendenteCard,
+	detalhes: Awaited<ReturnType<typeof buscarDetalheConferencia>>
+): string {
+	const totalComissao = card.acertos.reduce((s, a) => s + (a.comissao_calculada ?? 0), 0);
+	const totalBruto = card.total_pendente + totalComissao;
+	const enviosComItens = detalhes.filter(e => e.itens.length > 0);
+	const totalUnidades = enviosComItens.reduce(
+		(s, e) => s + e.itens.reduce((si, i) => si + i.qtd_vendida, 0),
+		0
+	);
+
+	const blocos = enviosComItens.flatMap((envio, ei) => {
+		const bloco = linhasEnvio(envio, ei, enviosComItens.length);
+		return ei < enviosComItens.length - 1 ? [...bloco, ""] : bloco;
+	});
+
+	const totais = card.modelo_acerto === "COMISSAO"
+		? [
+			`📦 Total de unidades: ${totalUnidades} un.`,
+			`💰 Total vendido: ${fmtR(totalBruto)}`,
+			`📌 Comissão de ${totalBruto > 0 ? Math.round((totalComissao / totalBruto) * 100) : 0}%: ${fmtR(totalComissao)}`,
+			`💵 Valor a receber: ${fmtR(card.total_pendente)}`,
+		]
+		: [
+			`📦 Total de unidades: ${totalUnidades} un.`,
+			`💰 Total a receber: ${fmtR(card.total_pendente)}`,
+		];
+
+	return [
+		`Resumo das vendas — ${card.revendedor_nome}:`,
+		"",
+		...blocos,
+		"",
+		...totais,
+	].join("\n");
+}
+
 type Tab = "CONFERIR" | "PENDENTES" | "HISTORICO";
 
 export default function ConferenciasView({
@@ -68,9 +146,7 @@ export default function ConferenciasView({
 	const { showToast } = useToast();
 	const [tab, setTab] = useState<Tab>("CONFERIR");
 	const [receberOpen, setReceberOpen] = useState(false);
-	const [selectedCard, setSelectedCard] = useState<AcertoPendenteCard | null>(
-		null
-	);
+	const [selectedCard, setSelectedCard] = useState<AcertoPendenteCard | null>(null);
 	const [valorRecebido, setValorRecebido] = useState("0");
 	const [observacao, setObservacao] = useState("");
 	const [saving, setSaving] = useState(false);
@@ -81,58 +157,12 @@ export default function ConferenciasView({
 		[selectedCard]
 	);
 
-	function fmtR(v: number): string {
-		if (Number.isInteger(v)) return `R$${v}`;
-		return `R$${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-	}
-
 	async function copiarRelatorio(card: AcertoPendenteCard) {
 		setCopiandoId(card.revendedor_id);
 		try {
 			const envioIds = card.acertos.map(a => a.envio_id);
 			const detalhes = await buscarDetalheConferencia(envioIds);
-
-			const linhas: string[] = [];
-			linhas.push(`Resumo das vendas — ${card.revendedor_nome}:`);
-			linhas.push("");
-
-			const totalComissao = card.acertos.reduce((s, a) => s + (a.comissao_calculada ?? 0), 0);
-			const totalBruto = card.total_pendente + totalComissao;
-
-			const enviosComItens = detalhes.filter(e => e.itens.length > 0);
-
-			for (let ei = 0; ei < enviosComItens.length; ei++) {
-				const envio = enviosComItens[ei];
-				if (enviosComItens.length > 1) {
-					linhas.push(`📦 Envio ${ei + 1} (enviado em ${fmtDate(envio.data_envio)}):`);
-				}
-				let subtotal = 0;
-				for (const item of envio.itens) {
-					const valor =
-						item.modelo_acerto === "COMISSAO"
-							? (item.valor_total_venda ?? 0)
-							: (item.valor_a_receber ?? 0);
-					subtotal += valor;
-					linhas.push(`* ${item.qtd_vendida} ${item.modelo_nome} — ${fmtR(valor)}`);
-				}
-				if (enviosComItens.length > 1) {
-					linhas.push(`Subtotal: ${fmtR(subtotal)}`);
-				}
-				if (ei < enviosComItens.length - 1) linhas.push("");
-			}
-
-			linhas.push("");
-
-			if (card.modelo_acerto === "COMISSAO") {
-				linhas.push(`💰 Total vendido: ${fmtR(totalBruto)}`);
-				const pct = totalBruto > 0 ? Math.round((totalComissao / totalBruto) * 100) : 0;
-				linhas.push(`📌 Comissão de ${pct}%: ${fmtR(totalComissao)}`);
-				linhas.push(`💵 Valor a receber: ${fmtR(card.total_pendente)}`);
-			} else {
-				linhas.push(`💰 Total a receber: ${fmtR(card.total_pendente)}`);
-			}
-
-			await navigator.clipboard.writeText(linhas.join("\n"));
+			await navigator.clipboard.writeText(buildRelatorio(card, detalhes));
 			showToast("Relatório copiado!", "success");
 		} catch {
 			showToast("Erro ao gerar relatório", "error");
@@ -150,7 +180,7 @@ export default function ConferenciasView({
 
 	async function confirmarRecebimento() {
 		if (!primeiroAcerto) return;
-		const valor = parseFloat(valorRecebido.replace(",", "."));
+		const valor = Number.parseFloat(valorRecebido.replace(",", "."));
 		if (!Number.isFinite(valor) || valor < 0) {
 			showToast("Valor recebido invalido", "error");
 			return;
@@ -178,16 +208,8 @@ export default function ConferenciasView({
 	}
 
 	const tabs: { key: Tab; label: string; count: number | null }[] = [
-		{
-			key: "CONFERIR",
-			label: "Para conferir",
-			count: revendedoresComEnvios.length,
-		},
-		{
-			key: "PENDENTES",
-			label: "Recebimento pendente",
-			count: pendentes.length,
-		},
+		{ key: "CONFERIR", label: "Para conferir", count: revendedoresComEnvios.length },
+		{ key: "PENDENTES", label: "Recebimento pendente", count: pendentes.length },
 		{ key: "HISTORICO", label: "Historico", count: null },
 	];
 
@@ -264,14 +286,8 @@ export default function ConferenciasView({
 										</span>
 									))}
 								</div>
-								<Badge
-									variant={
-										r.modelo_acerto === "VALOR_MINIMO" ? "success" : "info"
-									}
-								>
-									{r.modelo_acerto === "VALOR_MINIMO"
-										? "Valor mínimo"
-										: "Comissão"}
+								<Badge variant={r.modelo_acerto === "VALOR_MINIMO" ? "success" : "info"}>
+									{r.modelo_acerto === "VALOR_MINIMO" ? "Valor mínimo" : "Comissão"}
 								</Badge>
 							</div>
 						</Link>
@@ -395,48 +411,27 @@ export default function ConferenciasView({
 					<table className="w-full text-sm">
 						<thead>
 							<tr className="border-b border-[#B5D4F4] bg-[#F4F8FD]">
-								<th className="px-3 py-2.5 text-left font-medium text-gray-600">
-									Data
-								</th>
-								<th className="px-3 py-2.5 text-left font-medium text-gray-600">
-									Revendedor
-								</th>
-								<th className="px-3 py-2.5 text-left font-medium text-gray-600">
-									Tipo
-								</th>
-								<th className="px-3 py-2.5 text-right font-medium text-gray-600">
-									Valor
-								</th>
-								<th className="px-3 py-2.5 text-left font-medium text-gray-600">
-									Observacao
-								</th>
+								<th className="px-3 py-2.5 text-left font-medium text-gray-600">Data</th>
+								<th className="px-3 py-2.5 text-left font-medium text-gray-600">Revendedor</th>
+								<th className="px-3 py-2.5 text-left font-medium text-gray-600">Tipo</th>
+								<th className="px-3 py-2.5 text-right font-medium text-gray-600">Valor</th>
+								<th className="px-3 py-2.5 text-left font-medium text-gray-600">Observacao</th>
 							</tr>
 						</thead>
 						<tbody>
 							{historico.length === 0 && (
 								<tr>
-									<td
-										colSpan={5}
-										className="px-3 py-10 text-center text-gray-600"
-									>
+									<td colSpan={5} className="px-3 py-10 text-center text-gray-600">
 										Sem recebimentos no historico.
 									</td>
 								</tr>
 							)}
 							{historico.map(row => (
-								<tr
-									key={row.acerto_id}
-									className="border-b border-[#B5D4F4] last:border-0"
-								>
-									<td className="px-3 py-2.5 text-gray-700">
-										{fmtDate(row.data_recebimento)}
-									</td>
+								<tr key={row.acerto_id} className="border-b border-[#B5D4F4] last:border-0">
+									<td className="px-3 py-2.5 text-gray-700">{fmtDate(row.data_recebimento)}</td>
 									<td className="px-3 py-2.5 text-gray-900 font-medium">
 										{row.envio_id ? (
-											<Link
-												href={`/envios/${row.envio_id}`}
-												className="text-[#378ADD] hover:underline"
-											>
+											<Link href={`/envios/${row.envio_id}`} className="text-[#378ADD] hover:underline">
 												{row.revendedor_nome}
 											</Link>
 										) : (
@@ -444,16 +439,12 @@ export default function ConferenciasView({
 										)}
 									</td>
 									<td className="px-3 py-2.5 text-gray-700">
-										{row.modelo_acerto === "COMISSAO"
-											? "% Comissão"
-											: "V. por produto"}
+										{row.modelo_acerto === "COMISSAO" ? "% Comissão" : "V. por produto"}
 									</td>
 									<td className="px-3 py-2.5 text-right text-gray-900 font-semibold">
 										{fmtCurrency(row.valor)}
 									</td>
-									<td className="px-3 py-2.5 text-gray-700">
-										{row.observacao ?? "-"}
-									</td>
+									<td className="px-3 py-2.5 text-gray-700">{row.observacao ?? "-"}</td>
 								</tr>
 							))}
 						</tbody>
@@ -498,7 +489,7 @@ export default function ConferenciasView({
 									value={valorRecebido}
 									onChange={e => setValorRecebido(e.target.value)}
 									onBlur={e => {
-										const n = parseFloat(e.target.value);
+										const n = Number.parseFloat(e.target.value);
 										if (!Number.isFinite(n) || n < 0) setValorRecebido("0");
 									}}
 								/>
@@ -508,32 +499,23 @@ export default function ConferenciasView({
 								<p className="text-sm text-gray-700">
 									Valor liquido:{" "}
 									<strong>
-										{fmtCurrency(
-											selectedCard.acertos.reduce(
-												(a, c) => a + (c.valor_liquido ?? 0),
-												0
-											)
-										)}
+										{fmtCurrency(selectedCard.acertos.reduce((a, c) => a + (c.valor_liquido ?? 0), 0))}
 									</strong>
 								</p>
 								<p className="text-sm text-gray-700">
 									Comissao calculada:{" "}
 									<strong>
-										{fmtCurrency(
-											selectedCard.acertos.reduce(
-												(a, c) => a + (c.comissao_calculada ?? 0),
-												0
-											)
-										)}
+										{fmtCurrency(selectedCard.acertos.reduce((a, c) => a + (c.comissao_calculada ?? 0), 0))}
 									</strong>
 								</p>
 							</>
 						)}
 						<div className="flex flex-col gap-1">
-							<label className="text-[13px] text-gray-600 font-medium">
+							<label htmlFor="obs-recebimento" className="text-[13px] text-gray-600 font-medium">
 								Observacao
 							</label>
 							<textarea
+								id="obs-recebimento"
 								rows={3}
 								value={observacao}
 								onChange={e => setObservacao(e.target.value)}

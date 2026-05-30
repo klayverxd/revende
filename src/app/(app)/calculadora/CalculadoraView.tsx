@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button, Input, Select, SearchableSelect, useToast } from "@/components/ui";
 import {
 	salvarComoNovoProduto,
@@ -207,6 +207,24 @@ export default function CalculadoraView({
 	const [salvando, setSalvando] = useState(false);
 	const [novoNome, setNovoNome] = useState("");
 	const [modeloExistente, setModeloExistente] = useState("");
+
+	const similaresAoNovo = useMemo(() => {
+		const q = novoNome
+			.trim()
+			.normalize("NFD")
+			.replaceAll(/[̀-ͯ]/g, "")
+			.toLowerCase();
+		if (q.length < 2) return [];
+		const palavras = q.split(/\s+/).filter(p => p.length > 2);
+		return modelos.filter(m => {
+			const nome = m.nome
+				.normalize("NFD")
+				.replaceAll(/[̀-ͯ]/g, "")
+				.toLowerCase();
+			if (nome.includes(q) || q.includes(nome)) return true;
+			return palavras.some(p => nome.includes(p));
+		});
+	}, [novoNome, modelos]);
 	const [lucroCustom, setLucroCustom] = useState("");
 
 	// Carrega calculo gravado de outro local (ex: página de produto)
@@ -1084,6 +1102,32 @@ export default function CalculadoraView({
 						value={novoNome}
 						onChange={e => setNovoNome(e.target.value)}
 					/>
+					{similaresAoNovo.length > 0 && (
+						<div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 flex flex-col gap-2">
+							<p className="text-xs font-semibold text-amber-800">
+								Produtos similares já existem:
+							</p>
+							<ul className="flex flex-col gap-1">
+								{similaresAoNovo.map(m => (
+									<li key={m.modelo_id} className="flex items-center justify-between gap-2">
+										<span className="text-xs text-amber-900 truncate">
+											{m.codigo ? `${m.codigo} — ` : ""}{m.nome}
+										</span>
+										<button
+											type="button"
+											onClick={() => {
+												setModeloExistente(m.modelo_id);
+												setNovoNome("");
+											}}
+											className="text-xs text-[#185FA5] hover:underline shrink-0"
+										>
+											Usar este
+										</button>
+									</li>
+								))}
+							</ul>
+						</div>
+					)}
 					<Button loading={salvando} onClick={salvarNovoProduto}>
 						Salvar como novo produto
 					</Button>

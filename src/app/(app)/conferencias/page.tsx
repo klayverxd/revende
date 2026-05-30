@@ -17,7 +17,7 @@ function diasEmAberto(dataEnvio: string) {
 export default async function ConferenciasPage() {
 	const supabase = await createClient();
 
-	const [{ data: enviosRaw }, { data: pendentesRaw }, { data: historicoRaw }] =
+	const [{ data: enviosRaw }, { data: pendentesRaw }, { data: historicoRaw }, { data: itensAbertosRaw }] =
 		await Promise.all([
 			supabase
 				.from("envio")
@@ -43,7 +43,19 @@ export default async function ConferenciasPage() {
 				.eq("status", "RECEBIDO")
 				.is("deleted_at", null)
 				.order("data_recebimento", { ascending: false }),
+			supabase
+				.from("envio_item")
+				.select("envio_id, qtd_enviada, qtd_vendida, qtd_devolvida")
+				.is("deleted_at", null),
 		]);
+
+	// Índice: envio_id → unidades restantes (baseado em query separada para não quebrar o select principal)
+	const restanteByEnvio = new Map<string, number>();
+	for (const i of itensAbertosRaw ?? []) {
+		const envioId = i.envio_id as string;
+		const r = ((i.qtd_enviada as number) ?? 0) - ((i.qtd_vendida as number | null) ?? 0) - ((i.qtd_devolvida as number | null) ?? 0);
+		restanteByEnvio.set(envioId, (restanteByEnvio.get(envioId) ?? 0) + r);
+	}
 
 	// Agrupar envios abertos por revendedor
 	const revMap = new Map<string, RevendedorConferencia>();
@@ -56,6 +68,7 @@ export default async function ConferenciasPage() {
 		const revId = (rev?.revendedor_id ?? e.revendedor_id) as string;
 		const itens = e.envio_item as Array<{ envio_item_id: string }> | null;
 		const numItens = itens?.length ?? 0;
+		const restante = restanteByEnvio.get(e.envio_id as string) ?? 0;
 		const diasAberto = diasEmAberto(e.data_envio as string);
 
 		if (!revMap.has(revId)) {
@@ -67,6 +80,7 @@ export default async function ConferenciasPage() {
 					| "VALOR_MINIMO",
 				num_envios: 0,
 				total_itens: 0,
+				total_restante: 0,
 				dias_mais_antigo: 0,
 				envios: [],
 			});
@@ -74,6 +88,7 @@ export default async function ConferenciasPage() {
 		const card = revMap.get(revId)!;
 		card.num_envios += 1;
 		card.total_itens += numItens;
+		card.total_restante += restante;
 		card.dias_mais_antigo = Math.max(card.dias_mais_antigo, diasAberto);
 		card.envios.push({
 			envio_id: e.envio_id as string,

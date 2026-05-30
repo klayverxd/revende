@@ -12,6 +12,7 @@ export interface RevendedorConferencia {
 	modelo_acerto: "COMISSAO" | "VALOR_MINIMO";
 	num_envios: number;
 	total_itens: number;
+	total_restante: number;
 	dias_mais_antigo: number;
 	envios: Array<{ envio_id: string; data_envio: string; num_itens: number }>;
 }
@@ -157,6 +158,11 @@ export default function ConferenciasView({
 		[selectedCard]
 	);
 
+	const revsComEnviosSet = useMemo(
+		() => new Set(revendedoresComEnvios.map(r => r.revendedor_id)),
+		[revendedoresComEnvios]
+	);
+
 	async function copiarRelatorio(card: AcertoPendenteCard) {
 		setCopiandoId(card.revendedor_id);
 		try {
@@ -264,9 +270,9 @@ export default function ConferenciasView({
 										{r.revendedor_nome}
 									</p>
 									<p className="text-xs text-gray-700 mt-0.5">
-										{r.num_envios === 1
-											? `1 envio · ${r.total_itens} item(ns)`
-											: `${r.num_envios} envios · ${r.total_itens} item(ns) no total`}
+										{r.num_envios === 1 ? "1 envio" : `${r.num_envios} envios`}
+										{" · "}
+										<span className="font-medium text-[#185FA5]">{r.total_restante} un. para conferir</span>
 									</p>
 								</div>
 								{r.dias_mais_antigo > 30 ? (
@@ -384,6 +390,16 @@ export default function ConferenciasView({
 								{card.acertos.length === 1 && card.acertos[0].envio_id && (
 									<Link href={`/envios/${card.acertos[0].envio_id}`} className="text-xs text-[#378ADD] hover:underline">
 										Ver envio
+									</Link>
+								)}
+
+								{revsComEnviosSet.has(card.revendedor_id) && (
+									<Link
+										href={`/conferencias/revendedor/${card.revendedor_id}`}
+										className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 hover:bg-amber-100 transition-colors"
+									>
+										<span className="font-medium">Há itens em aberto para conferir</span>
+										<span className="ml-auto text-amber-600">→ Conferir</span>
 									</Link>
 								)}
 

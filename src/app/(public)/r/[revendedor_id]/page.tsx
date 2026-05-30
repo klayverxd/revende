@@ -128,10 +128,8 @@ export default async function RevendedorExtrato({ params }: Props) {
 		return s + val;
 	}, 0);
 
-	// ── Histórico de conferências ────────────────────────────────────────────
-	const conferidos = envios
-		.filter(e => ["CONFERIDO", "ENCERRADO"].includes(e.status))
-		.slice(0, 10);
+	// ── Histórico completo de envios ─────────────────────────────────────────
+	const historicoEnvios = envios.slice(0, 15);
 
 	const agora = new Date().toLocaleString("pt-BR");
 
@@ -246,23 +244,29 @@ export default async function RevendedorExtrato({ params }: Props) {
 					)}
 				</section>
 
-				{/* ── Histórico de conferências ── */}
-				{conferidos.length > 0 && (
+				{/* ── Histórico de envios ── */}
+				{historicoEnvios.length > 0 && (
 					<section className="flex flex-col gap-3">
 						<h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
 							Histórico recente
 						</h2>
 
 						<div className="bg-white rounded-xl border border-[#B5D4F4] overflow-hidden">
-							{conferidos.map((envio, i) => {
-								const totalVendido = envio.itens.reduce((s, it) => s + (it.qtd_vendida ?? 0), 0);
-								const totalEnviado = envio.itens.reduce((s, it) => s + (it.qtd_enviada ?? 0), 0);
+							{historicoEnvios.map((envio: Envio, i: number) => {
+								const totalEnviado = envio.itens.reduce((s: number, it: EnvioItem) => s + (it.qtd_enviada ?? 0), 0);
+								const totalVendido = envio.itens.reduce((s: number, it: EnvioItem) => s + (it.qtd_vendida ?? 0), 0);
+								const totalRestante = totalEnviado - totalVendido - envio.itens.reduce((s: number, it: EnvioItem) => s + (it.qtd_devolvida ?? 0), 0);
+								const isAberto = envio.status === "ABERTO";
 								const acerto = acertoByEnvio.get(envio.envio_id);
 								const isComissao = acerto?.modelo_acerto === "COMISSAO";
-								const totalVendas = envio.itens.reduce((s, it) => s + (it.valor_total_venda ?? 0), 0);
+								const totalVendas = envio.itens.reduce((s: number, it: EnvioItem) => s + (it.valor_total_venda ?? 0), 0);
 								const comissao = acerto?.comissao_calculada ?? 0;
 								const liquido = acerto?.valor_liquido ?? null;
 								const valorMinimo = acerto?.valor_a_receber ?? null;
+
+								const statusLabels: Record<string, string> = { ENCERRADO: "Encerrado", CONFERIDO: "Conferido", ABERTO: "Em aberto" };
+								const statusLabel = statusLabels[envio.status] ?? "Em aberto";
+
 								return (
 									<div
 										key={envio.envio_id}
@@ -270,11 +274,36 @@ export default async function RevendedorExtrato({ params }: Props) {
 									>
 										<div className="flex items-center justify-between gap-2">
 											<p className="text-sm font-medium text-gray-900">{fmtData(envio.data_envio)}</p>
-											<p className="text-[11px] text-gray-400">
-												{totalVendido}/{totalEnviado} vendidos · {envio.status === "ENCERRADO" ? "Encerrado" : "Conferido"}
+											<p className={`text-[11px] ${isAberto ? "text-amber-600 font-medium" : "text-gray-400"}`}>
+												{isAberto
+													? `${totalEnviado} enviados · aguardando conferência`
+													: `${totalVendido}/${totalEnviado} vendidos · ${statusLabel}`}
 											</p>
 										</div>
-										{isComissao ? (
+
+										{/* Itens enviados (abertos) ou vendidos (conferidos) */}
+										<div className="flex flex-wrap gap-1">
+											{isAberto
+												? envio.itens
+													.filter((it: EnvioItem) => (it.qtd_enviada ?? 0) > 0)
+													.map((it: EnvioItem) => (
+														<span key={it.modelo_id} className="text-[11px] bg-amber-50 text-amber-700 border border-amber-200 rounded px-2 py-0.5">
+															{it.modelo?.nome ?? "Produto"} × {it.qtd_enviada}
+															{totalRestante > 0 && <span className="text-amber-500"> (restam {it.qtd_enviada - (it.qtd_vendida ?? 0) - (it.qtd_devolvida ?? 0)})</span>}
+														</span>
+													))
+												: envio.itens
+													.filter((it: EnvioItem) => (it.qtd_vendida ?? 0) > 0)
+													.map((it: EnvioItem) => (
+														<span key={it.modelo_id} className="text-[11px] bg-[#E6F1FB] text-[#185FA5] rounded px-2 py-0.5">
+															{it.modelo?.nome ?? "Produto"} × {it.qtd_vendida}
+														</span>
+													))
+											}
+										</div>
+
+										{/* Breakdown financeiro (apenas conferidos/encerrados) */}
+										{!isAberto && (isComissao ? (
 											<div className="flex flex-col gap-0.5 text-xs">
 												<div className="flex justify-between text-gray-500">
 													<span>Total de vendas</span>
@@ -294,7 +323,7 @@ export default async function RevendedorExtrato({ params }: Props) {
 												<span>Valor a repassar</span>
 												<span className="text-[#0C447C]">{fmtBRL(valorMinimo)}</span>
 											</div>
-										)}
+										))}
 									</div>
 								);
 							})}

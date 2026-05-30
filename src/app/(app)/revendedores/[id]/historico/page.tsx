@@ -266,9 +266,9 @@ export default async function RevendedorHistoricoPage({ params }: Props) {
 				</section>
 			)}
 
-			{/* ── Envios ── */}
+			{/* ── Histórico de envios ── */}
 			<section className="flex flex-col gap-3">
-				<h2 className="text-base font-semibold text-gray-900">Envios</h2>
+				<h2 className="text-base font-semibold text-gray-900">Histórico de envios</h2>
 				{envios.length === 0 ? (
 					<Empty msg="Nenhum envio registrado." />
 				) : (
@@ -276,124 +276,80 @@ export default async function RevendedorHistoricoPage({ params }: Props) {
 						<table className="w-full text-sm">
 							<thead>
 								<tr className="border-b border-[#B5D4F4] bg-[#F4F8FD] text-xs text-gray-500 uppercase tracking-wide">
-									<th className="px-4 py-2.5 text-left font-medium">Data</th>
-									<th className="px-4 py-2.5 text-left font-medium">Produtos</th>
-									<th className="px-4 py-2.5 text-right font-medium">Enviados</th>
-									<th className="px-4 py-2.5 text-center font-medium">Status</th>
-									<th className="px-4 py-2.5 text-right font-medium">Ver</th>
-								</tr>
-							</thead>
-							<tbody>
-								{envios.map(envio => {
-									const totalEnviadoEnvio = envio.itens.reduce(
-										(s, i) => s + (i.qtd_enviada ?? 0), 0
-									);
-									const nomes = [
-										...new Set(
-											envio.itens
-												.map(i => i.modelo?.nome)
-												.filter(Boolean) as string[]
-										),
-									];
-									return (
-										<tr key={envio.envio_id} className="border-b border-[#E6F1FB] last:border-0 hover:bg-[#F4F8FD]">
-											<td className="px-4 py-2.5 text-gray-700 whitespace-nowrap">
-												{fmtData(envio.data_envio)}
-											</td>
-											<td className="px-4 py-2.5 text-gray-700">
-												<div className="flex flex-wrap gap-1">
-													{nomes.slice(0, 3).map(n => (
-														<span key={n} className="text-xs uppercase bg-[#E6F1FB] text-[#185FA5] rounded px-1.5 py-0.5">
-															{n}
-														</span>
-													))}
-													{nomes.length > 3 && (
-														<span className="text-xs text-gray-400">+{nomes.length - 3}</span>
-													)}
-												</div>
-											</td>
-											<td className="px-4 py-2.5 text-right text-gray-700">{totalEnviadoEnvio}</td>
-											<td className="px-4 py-2.5 text-center">
-												<Badge variant={statusEnvioVariant(envio.status)}>
-													{statusEnvioLabel(envio.status)}
-												</Badge>
-											</td>
-											<td className="px-4 py-2.5 text-right">
-												<Link
-													href={`/envios/${envio.envio_id}`}
-													className="text-xs text-[#378ADD] hover:underline"
-												>
-													Abrir
-												</Link>
-											</td>
-										</tr>
-									);
-								})}
-							</tbody>
-						</table>
-					</div>
-				)}
-			</section>
-
-			{/* ── Conferências ── */}
-			<section className="flex flex-col gap-3">
-				<h2 className="text-base font-semibold text-gray-900">Conferências</h2>
-				{conferidos.length === 0 ? (
-					<Empty msg="Nenhuma conferência registrada." />
-				) : (
-					<div className="bg-white rounded-xl border border-[#B5D4F4] overflow-x-auto">
-						<table className="w-full text-sm">
-							<thead>
-								<tr className="border-b border-[#B5D4F4] bg-[#F4F8FD] text-xs text-gray-500 uppercase tracking-wide">
-									<th className="px-4 py-2.5 text-left font-medium">Data envio</th>
 									<th className="px-4 py-2.5 text-left font-medium">Produto</th>
-									<th className="px-4 py-2.5 text-right font-medium">Enviado</th>
-									<th className="px-4 py-2.5 text-right font-medium">Vendido</th>
-									<th className="px-4 py-2.5 text-right font-medium">Devolvido</th>
+									<th className="px-4 py-2.5 text-right font-medium">Env.</th>
+									<th className="px-4 py-2.5 text-right font-medium">Vend.</th>
+									<th className="px-4 py-2.5 text-right font-medium">Dev.</th>
+									<th className="px-4 py-2.5 text-right font-medium">Restam</th>
 									<th className="px-4 py-2.5 text-right font-medium">Valor</th>
 								</tr>
 							</thead>
-							<tbody>
-								{conferidos.flatMap(envio =>
-									envio.itens.map(item => {
-										const valor =
-											item.valor_total_venda ?? item.valor_a_receber ?? null;
-										return (
-											<tr key={item.envio_item_id} className="border-b border-[#E6F1FB] last:border-0 hover:bg-[#F4F8FD]">
-												<td className="px-4 py-2.5 text-gray-700 whitespace-nowrap">
-													{fmtData(envio.data_envio)}
-												</td>
-												<td className="px-4 py-2.5">
-													{item.modelo ? (
-														<div>
-															<span className="font-medium text-gray-900 uppercase">
-																{item.modelo.nome}
-															</span>
-															<span className="text-xs text-gray-400 ml-1 font-mono">
-																{item.modelo.codigo}
-															</span>
-														</div>
-													) : (
-														<span className="text-gray-400">—</span>
+							{envios.map(envio => {
+									const restante = envio.itens.reduce(
+										(s, i) => s + itemRestante(i), 0
+									);
+									return (
+										<tbody key={envio.envio_id}>
+											{/* Linha separadora por envio */}
+											<tr className="bg-[#F4F8FD] border-t border-[#B5D4F4]">
+												<td colSpan={6} className="px-4 py-2 flex items-center gap-2 flex-wrap">
+													<span className="text-xs font-semibold text-gray-700">
+														{fmtData(envio.data_envio)}
+													</span>
+													<Badge variant={statusEnvioVariant(envio.status)}>
+														{statusEnvioLabel(envio.status)}
+													</Badge>
+													{restante > 0 && (
+														<span className="text-xs text-amber-700 font-medium">
+															{restante} un. com revendedor
+														</span>
 													)}
-												</td>
-												<td className="px-4 py-2.5 text-right text-gray-700">
-													{item.qtd_enviada}
-												</td>
-												<td className="px-4 py-2.5 text-right text-gray-700">
-													{item.qtd_vendida ?? "—"}
-												</td>
-												<td className="px-4 py-2.5 text-right text-gray-700">
-													{item.qtd_devolvida ?? "—"}
-												</td>
-												<td className="px-4 py-2.5 text-right font-medium text-gray-900">
-													{fmtBRL(valor)}
+													<Link
+														href={`/envios/${envio.envio_id}`}
+														className="text-xs text-[#378ADD] hover:underline ml-auto"
+													>
+														Ver envio →
+													</Link>
 												</td>
 											</tr>
-										);
-									})
-								)}
-							</tbody>
+											{/* Linhas por item */}
+											{envio.itens.map(item => {
+												const valor = item.valor_total_venda ?? item.valor_a_receber ?? null;
+												const rest = itemRestante(item);
+												return (
+													<tr key={item.envio_item_id} className="border-t border-[#E6F1FB] hover:bg-[#F4F8FD]">
+														<td className="px-4 py-2.5">
+															{item.modelo ? (
+																<>
+																	<span className="font-medium text-gray-900 uppercase">{item.modelo.nome}</span>
+																	<span className="text-xs text-gray-400 ml-1 font-mono">{item.modelo.codigo}</span>
+																</>
+															) : (
+																<span className="text-gray-400">—</span>
+															)}
+														</td>
+														<td className="px-4 py-2.5 text-right text-gray-600">{item.qtd_enviada}</td>
+														<td className="px-4 py-2.5 text-right text-gray-700 font-medium">
+															{(item.qtd_vendida ?? 0) > 0 ? item.qtd_vendida : <span className="text-gray-300">—</span>}
+														</td>
+														<td className="px-4 py-2.5 text-right text-gray-600">
+															{(item.qtd_devolvida ?? 0) > 0 ? item.qtd_devolvida : <span className="text-gray-300">—</span>}
+														</td>
+														<td className="px-4 py-2.5 text-right">
+															{rest > 0
+																? <span className="text-amber-700 font-semibold">{rest}</span>
+																: <span className="text-green-700 text-xs">✓</span>
+															}
+														</td>
+														<td className="px-4 py-2.5 text-right font-medium text-gray-900">
+															{valor != null ? fmtBRL(valor) : <span className="text-gray-300">—</span>}
+														</td>
+													</tr>
+												);
+											})}
+										</tbody>
+									);
+								})}
 						</table>
 					</div>
 				)}

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import ConferenciaRevendedorForm, {
 	type EnvioComItens,
 	type ConferenciaItemMulti,
+	type HistoricoEnvio,
 } from "./ConferenciaRevendedorForm";
 import type { RevendedorResumo } from "../../[envio_id]/ConferenciaForm";
 
@@ -16,56 +17,98 @@ export default async function ConferenciaRevendedorPage({
 	const { revendedor_id } = await params;
 	const supabase = await createClient();
 
-	// Busca dados do revendedor
-	const { data: revendedor } = await supabase
-		.from("revendedor")
-		.select("revendedor_id, nome, modelo_acerto, comissao_fixa, comissao_pct")
-		.eq("revendedor_id", revendedor_id)
-		.is("deleted_at", null)
-		.single();
+	const [{ data: revendedor }, { data: todosEnviosRaw }, { data: acertosRaw }] =
+		await Promise.all([
+			supabase
+				.from("revendedor")
+				.select("revendedor_id, nome, modelo_acerto, comissao_fixa, comissao_pct")
+				.eq("revendedor_id", revendedor_id)
+				.is("deleted_at", null)
+				.single(),
+			supabase
+				.from("envio")
+				.select("envio_id, data_envio, status")
+				.eq("revendedor_id", revendedor_id)
+				.is("deleted_at", null)
+				.order("data_envio", { ascending: false }),
+			supabase
+				.from("acerto")
+				.select("envio_id, status, valor_a_receber, valor_liquido")
+				.eq("revendedor_id", revendedor_id)
+				.is("deleted_at", null),
+		]);
 
 	if (!revendedor) notFound();
+	if (!todosEnviosRaw?.length) notFound();
 
-	// Busca todos os envios ABERTOS do revendedor
-	const { data: enviosRaw } = await supabase
-		.from("envio")
-		.select("envio_id, data_envio, status")
-		.eq("revendedor_id", revendedor_id)
-		.in("status", ["ABERTO", "CONFERIDO"])
-		.is("deleted_at", null)
-		.order("data_envio", { ascending: true });
+	const allEnvioIds = todosEnviosRaw.map(e => e.envio_id as string);
 
-	if (!enviosRaw || enviosRaw.length === 0) notFound();
-
-	const envioIds = enviosRaw.map(e => e.envio_id as string);
-
-	// Busca todos os itens de todos os envios abertos
-	const { data: itensRaw } = await supabase
+	const { data: todosItensRaw } = await supabase
 		.from("envio_item")
 		.select(
 			"envio_item_id, envio_id, modelo_id, qtd_enviada, qtd_vendida, qtd_devolvida, preco_unitario, valor_minimo_unit, modelo:modelo_id(nome, codigo)"
 		)
-		.in("envio_id", envioIds)
+		.in("envio_id", allEnvioIds)
 		.is("deleted_at", null);
 
-	// Monta estrutura agrupada por envio
+	// Índice: acerto por envio_id
+	const acertoByEnvio = new Map<string, { valor: number; status: string }>();
+	for (const a of acertosRaw ?? []) {
+		const valor = ((a.valor_liquido ?? a.valor_a_receber) as number | null) ?? 0;
+		acertoByEnvio.set(a.envio_id as string, {
+			valor,
+			status: a.status as string,
+		});
+	}
+
+	// Índice: itens por envio_id
+	type ItemRaw = NonNullable<typeof todosItensRaw>[number];
+	const itensByEnvio = new Map<string, ItemRaw[]>();
+	for (const i of todosItensRaw ?? []) {
+		const eid = i.envio_id as string;
+		if (!itensByEnvio.has(eid)) itensByEnvio.set(eid, []);
+		itensByEnvio.get(eid)!.push(i);
+	}
+
+	// Histórico completo (todos os envios, mais recentes primeiro)
+	const historicoEnvios: HistoricoEnvio[] = todosEnviosRaw.map(e => {
+		const envioId = e.envio_id as string;
+		const itens = (itensByEnvio.get(envioId) ?? []).map(i => {
+			const modelo = i.modelo as unknown as { nome: string; codigo: string | null } | null;
+			return {
+				modelo_nome: modelo?.nome ?? "Produto",
+				modelo_codigo: modelo?.codigo ?? null,
+				qtd_enviada: (i.qtd_enviada as number) ?? 0,
+				qtd_vendida: (i.qtd_vendida as number | null) ?? 0,
+				qtd_devolvida: (i.qtd_devolvida as number | null) ?? 0,
+			};
+		});
+		const acerto = acertoByEnvio.get(envioId);
+		return {
+			envio_id: envioId,
+			data_envio: e.data_envio as string,
+			status: e.status as "ABERTO" | "CONFERIDO" | "ENCERRADO",
+			itens,
+			acerto_valor: acerto ? acerto.valor : null,
+			acerto_status: (acerto?.status as "PENDENTE" | "RECEBIDO") ?? null,
+		};
+	});
+
+	// Envios ativos (com itens restantes) para o formulário de conferência
 	const envioMap = new Map<string, EnvioComItens>();
-	for (const e of enviosRaw) {
+	for (const e of todosEnviosRaw) {
+		if (!["ABERTO", "CONFERIDO"].includes(e.status as string)) continue;
 		envioMap.set(e.envio_id as string, {
 			envio_id: e.envio_id as string,
 			data_envio: e.data_envio as string,
 			itens: [],
 		});
 	}
-
-	for (const i of itensRaw ?? []) {
+	for (const i of todosItensRaw ?? []) {
 		const envioId = i.envio_id as string;
 		const envioEntry = envioMap.get(envioId);
 		if (!envioEntry) continue;
-		const modelo = i.modelo as unknown as {
-			nome: string;
-			codigo: string | null;
-		} | null;
+		const modelo = i.modelo as unknown as { nome: string; codigo: string | null } | null;
 		const item: ConferenciaItemMulti = {
 			envio_item_id: i.envio_item_id as string,
 			envio_id: envioId,
@@ -80,7 +123,6 @@ export default async function ConferenciaRevendedorPage({
 		};
 		envioEntry.itens.push(item);
 	}
-
 	const envios: EnvioComItens[] = Array.from(envioMap.values()).filter(
 		e => e.itens.some(i => i.qtd_enviada - i.qtd_vendida - i.qtd_devolvida > 0)
 	);
@@ -107,7 +149,11 @@ export default async function ConferenciaRevendedorPage({
 						: `${envios.length} envios em aberto`}
 				</p>
 			</div>
-			<ConferenciaRevendedorForm revendedor={rev} envios={envios} />
+			<ConferenciaRevendedorForm
+				revendedor={rev}
+				envios={envios}
+				historicoEnvios={historicoEnvios}
+			/>
 		</div>
 	);
 }

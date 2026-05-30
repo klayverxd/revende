@@ -36,9 +36,29 @@ interface ItemMerged {
 	envio_items: ConferenciaItemMulti[];
 }
 
+export interface HistoricoEnvio {
+	envio_id: string;
+	data_envio: string;
+	status: "ABERTO" | "CONFERIDO" | "ENCERRADO";
+	itens: Array<{
+		modelo_nome: string;
+		modelo_codigo: string | null;
+		qtd_enviada: number;
+		qtd_vendida: number;
+		qtd_devolvida: number;
+	}>;
+	acerto_valor: number | null;
+	acerto_status: "PENDENTE" | "RECEBIDO" | null;
+}
+
 interface Props {
 	readonly revendedor: RevendedorResumo;
 	readonly envios: EnvioComItens[];
+	readonly historicoEnvios: HistoricoEnvio[];
+}
+
+function fmtDate(d: string) {
+	return new Date(`${d}T00:00:00`).toLocaleDateString("pt-BR");
 }
 
 function fmtCurrency(v: number) {
@@ -125,6 +145,7 @@ function distribuirQuantidades(
 export default function ConferenciaRevendedorForm({
 	revendedor,
 	envios,
+	historicoEnvios,
 }: Props) {
 	const { showToast } = useToast();
 	const router = useRouter();
@@ -133,6 +154,11 @@ export default function ConferenciaRevendedorForm({
 	const [valorManual, setValorManual] = useState("");
 
 	const mergedItems = useMemo(() => computeMergedItems(envios), [envios]);
+
+	const envioDateMap = useMemo(
+		() => Object.fromEntries(envios.map(e => [e.envio_id, e.data_envio])),
+		[envios]
+	);
 
 	// State: modelo_id → "qtd ainda com revendedor"
 	const [state, setState] = useState<Record<string, string>>(() =>
@@ -410,6 +436,41 @@ export default function ConferenciaRevendedorForm({
 				</div>
 			</header>
 
+			{/* Estoque atual com o revendedor */}
+			<div className="rounded-xl border border-[#B5D4F4] bg-white overflow-hidden">
+				<div className="px-4 py-2.5 bg-[#F4F8FD] border-b border-[#B5D4F4] flex items-center justify-between">
+					<p className="text-xs font-semibold text-[#0C447C] uppercase tracking-wide">Em consignação agora</p>
+					<span className="text-xs text-gray-500">
+						{itensPendentes.reduce((s, m) => s + m.total_restante, 0)} un. · {itensPendentes.length} produto(s)
+					</span>
+				</div>
+				<div className="divide-y divide-[#E6F1FB]">
+					{itensPendentes.map(m => {
+						const fontes = m.envio_items.filter(i => qtdRestante(i) > 0);
+						return (
+							<div key={m.modelo_id} className="px-4 py-3">
+								<div className="flex items-center justify-between gap-2">
+									<span className="text-sm text-gray-900 font-medium truncate">
+										{m.modelo_codigo && <span className="text-gray-400 font-normal mr-1">{m.modelo_codigo} —</span>}
+										{m.modelo_nome}
+									</span>
+									<span className="text-sm font-bold text-[#185FA5] shrink-0">{m.total_restante} un.</span>
+								</div>
+								{fontes.length > 1 && (
+									<div className="mt-1 flex flex-wrap gap-1">
+										{fontes.map(i => (
+											<span key={i.envio_item_id} className="text-xs bg-[#E6F1FB] text-[#185FA5] rounded px-2 py-0.5">
+												env. {fmtDate(envioDateMap[i.envio_id] ?? "")} — {qtdRestante(i)} un.
+											</span>
+										))}
+									</div>
+								)}
+							</div>
+						);
+					})}
+				</div>
+			</div>
+
 			{/* One card per merged model */}
 			{itensPendentes.map(m => {
 				const qtd = state[m.modelo_id] ?? "";
@@ -435,10 +496,9 @@ export default function ConferenciaRevendedorForm({
 								{m.modelo_codigo ? `${m.modelo_codigo} - ` : ""}
 								{m.modelo_nome}
 							</p>
-							<p className="text-xs text-gray-700 mt-0.5">
-								Total em aberto: {m.total_restante} un.
-								{m.envio_items.length > 1 &&
-									` (em ${m.envio_items.length} envios)`}
+							<p className="text-xs text-gray-500 mt-0.5">
+								{m.total_restante} un. para conferir
+								{m.envio_items.length > 1 && ` · ${m.envio_items.length} envios`}
 							</p>
 						</div>
 
@@ -638,6 +698,74 @@ export default function ConferenciaRevendedorForm({
 							? "Registrar conferencia parcial"
 							: "Confirmar conferencia"}
 					</Button>
+				</div>
+			)}
+
+			{/* Histórico de envios */}
+			{historicoEnvios.length > 0 && (
+				<div className="flex flex-col gap-3 pt-2">
+					<p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+						Histórico de envios
+					</p>
+					{historicoEnvios.map(e => {
+						const totalEnviado = e.itens.reduce((s, i) => s + i.qtd_enviada, 0);
+						const totalVendido = e.itens.reduce((s, i) => s + i.qtd_vendida, 0);
+						const totalDevolvido = e.itens.reduce((s, i) => s + i.qtd_devolvida, 0);
+						const totalRestante = totalEnviado - totalVendido - totalDevolvido;
+						const statusMap = {
+							ABERTO: { variant: "warning" as const, label: "Em aberto" },
+							CONFERIDO: { variant: "info" as const, label: "Acerto pendente" },
+							ENCERRADO: { variant: "success" as const, label: "Encerrado" },
+						};
+						const { variant, label } = statusMap[e.status] ?? { variant: "info" as const, label: e.status };
+						return (
+							<div key={e.envio_id} className="rounded-xl border border-[#B5D4F4] bg-white overflow-hidden">
+								<div className="px-4 py-2.5 flex items-center justify-between gap-2 border-b border-[#E6F1FB]">
+									<p className="text-sm font-semibold text-gray-900">Envio de {fmtDate(e.data_envio)}</p>
+									<Badge variant={variant}>{label}</Badge>
+								</div>
+								<div className="divide-y divide-[#E6F1FB]">
+									{e.itens.map(i => {
+										const restante = i.qtd_enviada - i.qtd_vendida - i.qtd_devolvida;
+										return (
+											<div key={`${e.envio_id}-${i.modelo_nome}`} className="px-4 py-2 flex items-start justify-between gap-3 text-xs">
+												<span className="text-gray-700 truncate">
+													{i.modelo_codigo ? `${i.modelo_codigo} — ` : ""}{i.modelo_nome}
+												</span>
+												<span className="text-right text-gray-500 shrink-0 whitespace-nowrap">
+													{i.qtd_enviada} env.
+													{i.qtd_vendida > 0 && <> · <span className="text-gray-800">{i.qtd_vendida} vend.</span></>}
+													{i.qtd_devolvida > 0 && <> · {i.qtd_devolvida} dev.</>}
+													{restante > 0 && <> · <span className="text-[#185FA5] font-semibold">{restante} restam</span></>}
+												</span>
+											</div>
+										);
+									})}
+								</div>
+								<div className="px-4 py-2.5 bg-[#F4F8FD] border-t border-[#B5D4F4] flex items-center justify-between text-xs text-gray-600">
+									<span>
+										{totalVendido > 0 && `${totalVendido} vendidos`}
+										{totalDevolvido > 0 && ` · ${totalDevolvido} devolvidos`}
+										{totalVendido === 0 && totalDevolvido === 0 && `${totalEnviado} enviados`}
+									</span>
+									{totalRestante > 0
+										? <span className="font-semibold text-[#185FA5]">{totalRestante} com revendedor</span>
+										: <span className="text-green-700 font-medium">Todos conferidos</span>
+									}
+								</div>
+								{e.acerto_valor !== null && (
+									<div className="px-4 py-2 border-t border-[#E6F1FB] flex items-center justify-between text-xs">
+										<span className="text-gray-500">
+											{e.acerto_status === "RECEBIDO" ? "Valor recebido" : "Valor a receber"}
+										</span>
+										<span className={`font-semibold ${e.acerto_status === "RECEBIDO" ? "text-green-700" : "text-[#0C447C]"}`}>
+											{fmtCurrency(e.acerto_valor)}
+										</span>
+									</div>
+								)}
+							</div>
+						);
+					})}
 				</div>
 			)}
 		</div>

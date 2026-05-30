@@ -90,20 +90,29 @@ export default async function RevendedorHistoricoPage({ params }: Props) {
 	const conferidos = envios.filter(e =>
 		["CONFERIDO", "ENCERRADO"].includes(e.status)
 	);
-	const abertos = envios.filter(e => e.status === "ABERTO");
+
+	function itemRestante(i: { qtd_enviada: number; qtd_vendida: number | null; qtd_devolvida: number | null }) {
+		return Math.max(0, (i.qtd_enviada ?? 0) - (i.qtd_vendida ?? 0) - (i.qtd_devolvida ?? 0));
+	}
+
+	// Envios com itens ainda em posse do revendedor (ABERTO ou CONFERIDO parcial)
+	const comRestante = envios.filter(e =>
+		["ABERTO", "CONFERIDO"].includes(e.status) &&
+		e.itens.some(i => itemRestante(i) > 0)
+	);
 
 	// ── Métricas gerais ──────────────────────────────────────────────────────
 	const totalEnviado = envios.reduce(
 		(s, e) => s + e.itens.reduce((si, i) => si + (i.qtd_enviada ?? 0), 0), 0
 	);
-	const totalVendido = conferidos.reduce(
+	const totalVendido = envios.reduce(
 		(s, e) => s + e.itens.reduce((si, i) => si + (i.qtd_vendida ?? 0), 0), 0
 	);
 	const totalDevolvido = conferidos.reduce(
 		(s, e) => s + e.itens.reduce((si, i) => si + (i.qtd_devolvida ?? 0), 0), 0
 	);
-	const emConsignacao = abertos.reduce(
-		(s, e) => s + e.itens.reduce((si, i) => si + (i.qtd_enviada ?? 0), 0), 0
+	const emConsignacao = comRestante.reduce(
+		(s, e) => s + e.itens.reduce((si, i) => si + itemRestante(i), 0), 0
 	);
 	const totalAcertos = acertos.length;
 	const pendentes = acertos.filter(a => a.status === "PENDENTE").length;
@@ -162,7 +171,7 @@ export default async function RevendedorHistoricoPage({ params }: Props) {
 				<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
 					<KpiCard label="Total enviado" value={String(totalEnviado)} sub={ultimoEnvio ? `Último: ${fmtData(ultimoEnvio)}` : undefined} />
 					<KpiCard label="Total vendido" value={String(totalVendido)} sub={`Taxa: ${pct(totalVendido, totalEnviado - emConsignacao)}`} />
-					<KpiCard label="Em consignação" value={String(emConsignacao)} alert={emConsignacao > 0} sub={emConsignacao > 0 ? `${abertos.length} envio${abertos.length > 1 ? "s" : ""} aberto${abertos.length > 1 ? "s" : ""}` : undefined} />
+					<KpiCard label="Em consignação" value={String(emConsignacao)} alert={emConsignacao > 0} sub={emConsignacao > 0 ? `${comRestante.length} envio${comRestante.length > 1 ? "s" : ""} com itens` : undefined} />
 					<KpiCard label="Tempo médio retorno" value={tempoMedio != null ? `${tempoMedio} dias` : "—"} sub={temposRetorno.length ? `${temposRetorno.length} acerto${temposRetorno.length > 1 ? "s" : ""}` : undefined} />
 				</div>
 				<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -174,7 +183,7 @@ export default async function RevendedorHistoricoPage({ params }: Props) {
 			</section>
 
 			{/* ── Estoque em consignação ── */}
-			{abertos.length > 0 && (
+			{comRestante.length > 0 && (
 				<section className="flex flex-col gap-3">
 					<h2 className="text-base font-semibold text-gray-900">Em consignação agora</h2>
 					<div className="bg-white rounded-xl border border-[#B5D4F4] overflow-x-auto">
@@ -183,37 +192,39 @@ export default async function RevendedorHistoricoPage({ params }: Props) {
 								<tr className="border-b border-[#B5D4F4] bg-[#F4F8FD] text-xs text-gray-500 uppercase tracking-wide">
 									<th className="px-4 py-2.5 text-left font-medium">Envio</th>
 									<th className="px-4 py-2.5 text-left font-medium">Produto</th>
-									<th className="px-4 py-2.5 text-right font-medium">Qtd</th>
+									<th className="px-4 py-2.5 text-right font-medium">Restante</th>
 									<th className="px-4 py-2.5 text-right font-medium">Ver</th>
 								</tr>
 							</thead>
 							<tbody>
-								{abertos.flatMap(envio =>
-									envio.itens.map(item => (
-										<tr key={item.envio_item_id} className="border-b border-[#E6F1FB] last:border-0 hover:bg-[#F4F8FD]">
-											<td className="px-4 py-2.5 text-gray-500 whitespace-nowrap text-xs">
-												{fmtData(envio.data_envio)}
-											</td>
-											<td className="px-4 py-2.5">
-												{item.modelo ? (
-													<span className="font-medium text-gray-900 uppercase">{item.modelo.nome}</span>
-												) : (
-													<span className="text-gray-400">—</span>
-												)}
-											</td>
-											<td className="px-4 py-2.5 text-right font-semibold text-amber-700">
-												{item.qtd_enviada}
-											</td>
-											<td className="px-4 py-2.5 text-right">
-												<Link
-													href={`/envios/${envio.envio_id}`}
-													className="text-xs text-[#378ADD] hover:underline"
-												>
-													Abrir
-												</Link>
-											</td>
-										</tr>
-									))
+								{comRestante.flatMap(envio =>
+									envio.itens
+										.filter(item => itemRestante(item) > 0)
+										.map(item => (
+											<tr key={item.envio_item_id} className="border-b border-[#E6F1FB] last:border-0 hover:bg-[#F4F8FD]">
+												<td className="px-4 py-2.5 text-gray-500 whitespace-nowrap text-xs">
+													{fmtData(envio.data_envio)}
+												</td>
+												<td className="px-4 py-2.5">
+													{item.modelo ? (
+														<span className="font-medium text-gray-900 uppercase">{item.modelo.nome}</span>
+													) : (
+														<span className="text-gray-400">—</span>
+													)}
+												</td>
+												<td className="px-4 py-2.5 text-right font-semibold text-amber-700">
+													{itemRestante(item)}
+												</td>
+												<td className="px-4 py-2.5 text-right">
+													<Link
+														href={`/envios/${envio.envio_id}`}
+														className="text-xs text-[#378ADD] hover:underline"
+													>
+														Abrir
+													</Link>
+												</td>
+											</tr>
+										))
 								)}
 							</tbody>
 						</table>

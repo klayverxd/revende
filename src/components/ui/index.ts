@@ -5,6 +5,8 @@ export { default as Modal } from "./Modal";
 export { ToastProvider, useToast } from "./Toast";
 export { default as BulkActionBar } from "./BulkActionBar";
 export { default as Select } from "./Select";
+export { default as SearchableSelect } from "./SearchableSelect";
+export type { SearchableSelectOption } from "./SearchableSelect";
 export { default as RowActionsMenu } from "./RowActionsMenu";
 export type { RowAction } from "./RowActionsMenu";
 export { default as FotoUpload } from "./FotoUpload";

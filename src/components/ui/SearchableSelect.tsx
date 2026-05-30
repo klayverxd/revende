@@ -17,6 +17,7 @@ interface SearchableSelectProps {
 	options: SearchableSelectOption[];
 	value: string;
 	onChange: (value: string) => void;
+	dropUp?: boolean;
 }
 
 function normalize(s: string) {
@@ -51,6 +52,7 @@ export default function SearchableSelect({
 	options,
 	value,
 	onChange,
+	dropUp = false,
 }: Readonly<SearchableSelectProps>) {
 	const [open, setOpen] = useState(false);
 	const [busca, setBusca] = useState("");
@@ -134,7 +136,8 @@ export default function SearchableSelect({
 				</label>
 			)}
 
-			{/* Trigger */}
+			{/* Trigger + Dropdown */}
+			<div className="relative">
 			<button
 				type="button"
 				onKeyDown={handleKeyDown}
@@ -178,8 +181,8 @@ export default function SearchableSelect({
 
 			{/* Dropdown */}
 			{open && (
-				<div className="relative z-50">
-					<div className="absolute top-1 left-0 right-0 rounded-md border border-[#B5D4F4] bg-white shadow-lg overflow-hidden">
+				<div className={`absolute left-0 right-0 z-50 ${dropUp ? "bottom-full pb-1" : "top-full pt-1"}`}>
+					<div className="rounded-md border border-[#B5D4F4] bg-white shadow-lg overflow-hidden">
 						{/* Search input */}
 						<div className="p-2 border-b border-[#E6F1FB]">
 							<div className="relative">
@@ -242,6 +245,7 @@ export default function SearchableSelect({
 					</div>
 				</div>
 			)}
+			</div>
 
 			{error && <p className="text-[12px] text-red-600">{error}</p>}
 		</div>

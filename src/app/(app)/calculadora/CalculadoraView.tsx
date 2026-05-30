@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Input, Select, useToast } from "@/components/ui";
+import { Button, Input, Select, SearchableSelect, useToast } from "@/components/ui";
 import {
 	salvarComoNovoProduto,
 	atualizarCustoProduto,
@@ -1092,17 +1092,18 @@ export default function CalculadoraView({
 						<p className="text-xs font-medium text-gray-600">
 							Ou atualizar existente
 						</p>
-						<Select
+						<SearchableSelect
 							label="Produto"
+							placeholder="Selecione..."
+							searchPlaceholder="Buscar produto..."
 							value={modeloExistente}
-							onChange={e => setModeloExistente(e.target.value)}
-							options={[
-								{ value: "", label: "Selecione..." },
-								...modelos.map(m => ({
-									value: m.modelo_id,
-									label: `${m.codigo} - ${m.nome}`,
-								})),
-							]}
+							onChange={setModeloExistente}
+							dropUp
+							options={modelos.map(m => ({
+								value: m.modelo_id,
+								label: m.nome,
+								sublabel: m.codigo,
+							}))}
 						/>
 						<Button
 							loading={salvando}

@@ -24,7 +24,7 @@ export default async function ConferenciasPage() {
 				.select(
 					"envio_id, data_envio, revendedor_id, revendedor:revendedor_id(revendedor_id, nome, modelo_acerto), envio_item(envio_item_id)"
 				)
-				.eq("status", "ABERTO")
+				.in("status", ["ABERTO", "CONFERIDO"])
 				.is("deleted_at", null)
 				.order("data_envio", { ascending: true }),
 			supabase
@@ -98,7 +98,7 @@ export default async function ConferenciasPage() {
 	}
 	const revendedoresComEnvios: RevendedorConferencia[] = Array.from(
 		revMap.values()
-	);
+	).filter(r => r.total_restante > 0);
 
 	const pendentesMap = new Map<string, AcertoPendenteCard>();
 	for (const a of pendentesRaw ?? []) {

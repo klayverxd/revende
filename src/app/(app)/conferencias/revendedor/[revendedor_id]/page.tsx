@@ -31,7 +31,7 @@ export default async function ConferenciaRevendedorPage({
 		.from("envio")
 		.select("envio_id, data_envio, status")
 		.eq("revendedor_id", revendedor_id)
-		.eq("status", "ABERTO")
+		.in("status", ["ABERTO", "CONFERIDO"])
 		.is("deleted_at", null)
 		.order("data_envio", { ascending: true });
 
@@ -82,8 +82,10 @@ export default async function ConferenciaRevendedorPage({
 	}
 
 	const envios: EnvioComItens[] = Array.from(envioMap.values()).filter(
-		e => e.itens.length > 0
+		e => e.itens.some(i => i.qtd_enviada - i.qtd_vendida - i.qtd_devolvida > 0)
 	);
+
+	if (envios.length === 0) notFound();
 
 	const rev: RevendedorResumo = {
 		revendedor_id: revendedor.revendedor_id as string,

@@ -90,8 +90,8 @@ async function processarUmEnvio(
 		.single();
 
 	if (envioError || !envio) throw new Error("Envio nao encontrado");
-	if ((envio.status as string) !== "ABERTO") {
-		throw new Error(`Envio ${envioId} nao esta ABERTO`);
+	if (!["ABERTO", "CONFERIDO"].includes(envio.status as string)) {
+		throw new Error(`Envio ${envioId} nao pode ser conferido`);
 	}
 
 	const { data: envioItens, error: itensError } = await supabase

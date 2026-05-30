@@ -24,28 +24,35 @@ export default async function RevendedorExtrato({ params }: Props) {
 
 	if (!revendedor) notFound();
 
-	const [{ data: enviosRaw }, { data: acertosRaw }] = await Promise.all([
+	// Step 1: envios e acertos em paralelo (ambos com deleted_at IS NULL)
+	const [{ data: enviosBaseRaw }, { data: acertosRaw }] = await Promise.all([
 		supabase
 			.from("envio")
-			.select(
-				`envio_id, data_envio, status,
-				itens:envio_item(
-					modelo_id, qtd_enviada, qtd_vendida, qtd_devolvida,
-					valor_total_venda, valor_a_receber,
-					modelo:modelo_id(nome, codigo)
-				)`
-			)
+			.select("envio_id, data_envio, status")
 			.eq("revendedor_id", revendedor_id)
 			.is("deleted_at", null)
 			.order("data_envio", { ascending: false }),
 		supabase
 			.from("acerto")
 			.select(
-				"acerto_id, envio_id, status, modelo_acerto, valor_a_receber, valor_liquido, valor_repassado, data_recebimento, created_at"
+				"acerto_id, envio_id, status, modelo_acerto, valor_a_receber, valor_liquido, comissao_calculada, valor_repassado, data_recebimento, created_at"
 			)
 			.eq("revendedor_id", revendedor_id)
+			.is("deleted_at", null)
 			.order("created_at", { ascending: false }),
 	]);
+
+	// Step 2: itens separados para aplicar deleted_at IS NULL corretamente
+	const envioIds = (enviosBaseRaw ?? []).map(e => e.envio_id as string);
+	const { data: itensRaw } = envioIds.length > 0
+		? await supabase
+			.from("envio_item")
+			.select(
+				"envio_item_id, envio_id, modelo_id, qtd_enviada, qtd_vendida, qtd_devolvida, valor_total_venda, valor_a_receber, modelo:modelo_id(nome, codigo)"
+			)
+			.in("envio_id", envioIds)
+			.is("deleted_at", null)
+		: { data: [] as unknown[] };
 
 	type EnvioItem = {
 		modelo_id: string;
@@ -64,7 +71,20 @@ export default async function RevendedorExtrato({ params }: Props) {
 		itens: EnvioItem[];
 	};
 
-	const envios = (enviosRaw ?? []) as unknown as Envio[];
+	// Monta itens por envio_id
+	const itensByEnvio = new Map<string, EnvioItem[]>();
+	for (const i of (itensRaw ?? []) as unknown as (EnvioItem & { envio_id: string })[]) {
+		if (!itensByEnvio.has(i.envio_id)) itensByEnvio.set(i.envio_id, []);
+		itensByEnvio.get(i.envio_id)!.push(i);
+	}
+
+	const envios: Envio[] = (enviosBaseRaw ?? []).map(e => ({
+		envio_id: e.envio_id as string,
+		data_envio: e.data_envio as string,
+		status: e.status as string,
+		itens: itensByEnvio.get(e.envio_id as string) ?? [],
+	}));
+
 	const acertos = (acertosRaw ?? []) as Array<{
 		acerto_id: string;
 		envio_id: string | null;
@@ -72,10 +92,13 @@ export default async function RevendedorExtrato({ params }: Props) {
 		modelo_acerto: string;
 		valor_a_receber: number | null;
 		valor_liquido: number | null;
+		comissao_calculada: number | null;
 		valor_repassado: number | null;
 		data_recebimento: string | null;
 		created_at: string;
 	}>;
+
+	const acertoByEnvio = new Map(acertos.map(a => [a.envio_id, a]));
 
 	// ── Consignação atual (ABERTO ou CONFERIDO com itens restantes) ─────────
 	const comRestante = envios.filter(e => ["ABERTO", "CONFERIDO"].includes(e.status));
@@ -234,24 +257,44 @@ export default async function RevendedorExtrato({ params }: Props) {
 							{conferidos.map((envio, i) => {
 								const totalVendido = envio.itens.reduce((s, it) => s + (it.qtd_vendida ?? 0), 0);
 								const totalEnviado = envio.itens.reduce((s, it) => s + (it.qtd_enviada ?? 0), 0);
-								const valor = envio.itens.reduce((s, it) => s + (it.valor_total_venda ?? it.valor_a_receber ?? 0), 0);
+								const acerto = acertoByEnvio.get(envio.envio_id);
+								const isComissao = acerto?.modelo_acerto === "COMISSAO";
+								const totalVendas = envio.itens.reduce((s, it) => s + (it.valor_total_venda ?? 0), 0);
+								const comissao = acerto?.comissao_calculada ?? 0;
+								const liquido = acerto?.valor_liquido ?? null;
+								const valorMinimo = acerto?.valor_a_receber ?? null;
 								return (
 									<div
 										key={envio.envio_id}
-										className={`px-4 py-3 flex items-center justify-between gap-3${i > 0 ? " border-t border-[#E6F1FB]" : ""}`}
+										className={`px-4 py-3 flex flex-col gap-2${i > 0 ? " border-t border-[#E6F1FB]" : ""}`}
 									>
-										<div>
+										<div className="flex items-center justify-between gap-2">
 											<p className="text-sm font-medium text-gray-900">{fmtData(envio.data_envio)}</p>
-											<p className="text-xs text-gray-400">
-												{totalVendido}/{totalEnviado} vendidos
-											</p>
-										</div>
-										<div className="text-right">
-											<p className="text-sm font-semibold text-gray-900">{fmtBRL(valor || null)}</p>
 											<p className="text-[11px] text-gray-400">
-												{envio.status === "ENCERRADO" ? "Encerrado" : "Conferido"}
+												{totalVendido}/{totalEnviado} vendidos · {envio.status === "ENCERRADO" ? "Encerrado" : "Conferido"}
 											</p>
 										</div>
+										{isComissao ? (
+											<div className="flex flex-col gap-0.5 text-xs">
+												<div className="flex justify-between text-gray-500">
+													<span>Total de vendas</span>
+													<span className="font-medium text-gray-800">{fmtBRL(totalVendas || null)}</span>
+												</div>
+												<div className="flex justify-between text-gray-500">
+													<span>Comissão</span>
+													<span className="text-amber-700">− {fmtBRL(comissao || null)}</span>
+												</div>
+												<div className="flex justify-between font-semibold text-gray-900 border-t border-[#E6F1FB] pt-0.5 mt-0.5">
+													<span>Valor a repassar</span>
+													<span className="text-[#0C447C]">{fmtBRL(liquido)}</span>
+												</div>
+											</div>
+										) : (
+											<div className="flex justify-between text-xs font-semibold text-gray-900">
+												<span>Valor a repassar</span>
+												<span className="text-[#0C447C]">{fmtBRL(valorMinimo)}</span>
+											</div>
+										)}
 									</div>
 								);
 							})}

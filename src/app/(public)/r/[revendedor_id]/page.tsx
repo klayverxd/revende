@@ -77,11 +77,11 @@ export default async function RevendedorExtrato({ params }: Props) {
 		created_at: string;
 	}>;
 
-	// ── Consignação atual (envios ABERTOS) ──────────────────────────────────
-	const abertos = envios.filter(e => e.status === "ABERTO");
+	// ── Consignação atual (ABERTO ou CONFERIDO com itens restantes) ─────────
+	const comRestante = envios.filter(e => ["ABERTO", "CONFERIDO"].includes(e.status));
 
 	const produtosMap = new Map<string, { nome: string; codigo: string | null; emMaos: number }>();
-	for (const envio of abertos) {
+	for (const envio of comRestante) {
 		for (const item of envio.itens) {
 			const key = item.modelo_id;
 			const existing = produtosMap.get(key) ?? {

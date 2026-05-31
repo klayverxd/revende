@@ -16,16 +16,16 @@ function fmtCurrency(v: number) {
 	return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function statusVariant(status: string) {
-	if (status === "ABERTO") return "warning" as const;
-	if (status === "CONFERIDO") return "info" as const;
-	return "success" as const;
+function situacaoVariant(restante: number, status: string) {
+	if (restante > 0) return "warning" as const;
+	if (status === "ENCERRADO") return "success" as const;
+	return "info" as const;
 }
 
-function statusLabel(status: string) {
-	if (status === "ABERTO") return "Aberto";
-	if (status === "CONFERIDO") return "Conferido";
-	return "Encerrado";
+function situacaoLabel(restante: number, status: string) {
+	if (restante > 0) return `${restante} un. com revendedor`;
+	if (status === "ENCERRADO") return "Encerrado";
+	return "Aguardando pagamento";
 }
 
 export default async function EnvioDetalhePage({ params }: Readonly<Props>) {
@@ -148,9 +148,9 @@ export default async function EnvioDetalhePage({ params }: Readonly<Props>) {
 					</p>
 				</div>
 				<div className="bg-white rounded-xl border border-[#B5D4F4] px-4 py-3">
-					<p className="text-xs text-gray-500 mb-1">Status</p>
-					<Badge variant={statusVariant(statusEnvio)}>
-						{statusLabel(statusEnvio)}
+					<p className="text-xs text-gray-500 mb-1">Situação</p>
+					<Badge variant={situacaoVariant(totalConsignado, statusEnvio)}>
+						{situacaoLabel(totalConsignado, statusEnvio)}
 					</Badge>
 				</div>
 				<div className="bg-white rounded-xl border border-[#B5D4F4] px-4 py-3">
@@ -360,12 +360,12 @@ export default async function EnvioDetalhePage({ params }: Readonly<Props>) {
 
 			{/* Actions */}
 			<div className="flex gap-2 flex-wrap">
-				{statusEnvio === "ABERTO" && (
+				{totalConsignado > 0 && (
 					<Link href={`/conferencias/revendedor/${revendedorId}`}>
 						<Button size="sm">Conferir envio</Button>
 					</Link>
 				)}
-				{statusEnvio === "ABERTO" && (
+				{totalConsignado > 0 && (
 					<EditarEnvioButton
 						envioId={id}
 						dataAtual={envio.data_envio as string}
@@ -374,7 +374,7 @@ export default async function EnvioDetalhePage({ params }: Readonly<Props>) {
 						revendedores={revendedores}
 					/>
 				)}
-				{(statusEnvio === "CONFERIDO" || statusEnvio === "ENCERRADO") && (
+				{totalConsignado === 0 && (
 					<Link href={`/envios/${id}/devolucao`}>
 						<Button variant="secondary" size="sm">
 							Registrar devolução

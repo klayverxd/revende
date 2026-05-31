@@ -19,7 +19,7 @@ export default async function EnviosPage({
 	let query = supabase
 		.from("envio")
 		.select(
-			"envio_id, revendedor_id, data_envio, status, revendedor:revendedor_id(nome), envio_item(envio_item_id, qtd_enviada)"
+			"envio_id, revendedor_id, data_envio, status, revendedor:revendedor_id(nome), envio_item(envio_item_id, qtd_enviada, qtd_vendida, qtd_devolvida)"
 		)
 		.is("deleted_at", null)
 		.order("data_envio", { ascending: false });
@@ -35,7 +35,13 @@ export default async function EnviosPage({
 		const itens = e.envio_item as Array<{
 			envio_item_id: string;
 			qtd_enviada: number | null;
+			qtd_vendida: number | null;
+			qtd_devolvida: number | null;
 		}> | null;
+		const totalRestante = itens?.reduce(
+			(acc, i) => acc + Math.max(0, (i.qtd_enviada ?? 0) - (i.qtd_vendida ?? 0) - (i.qtd_devolvida ?? 0)),
+			0
+		) ?? 0;
 		return {
 			envio_id: e.envio_id as string,
 			revendedor_id: e.revendedor_id as string,
@@ -43,8 +49,8 @@ export default async function EnviosPage({
 			data_envio: e.data_envio as string,
 			status: e.status as "ABERTO" | "CONFERIDO" | "ENCERRADO",
 			total_itens: itens?.length ?? 0,
-			total_unidades:
-				itens?.reduce((acc, i) => acc + (i.qtd_enviada ?? 0), 0) ?? 0,
+			total_unidades: itens?.reduce((acc, i) => acc + (i.qtd_enviada ?? 0), 0) ?? 0,
+			total_restante: totalRestante,
 		};
 	});
 

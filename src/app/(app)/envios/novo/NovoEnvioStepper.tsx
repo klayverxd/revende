@@ -7,8 +7,10 @@ import { criarEnvio, resolverPrecoEnvio } from "../actions";
 import {
 	salvarRascunhoServidor,
 	limparRascunhoServidor,
+	buscarProdutosDisponiveis,
 	type DraftState as ServerDraftState,
 } from "./draftActions";
+import ProdutoModal from "@/app/(app)/produtos/ProdutoModal";
 
 export interface RevendedorAtivo {
 	revendedor_id: string;
@@ -118,6 +120,8 @@ export default function NovoEnvioStepper({
 	const [openPrint, setOpenPrint] = useState(false);
 	const [dataEnvio, setDataEnvio] = useState(initialDraft.dataEnvio);
 	const [observacao, setObservacao] = useState(initialDraft.observacao);
+	const [produtosLocal, setProdutosLocal] = useState<ProdutoDisponivel[]>(produtos);
+	const [criarProdutoAberto, setCriarProdutoAberto] = useState(false);
 
 	const hasDraft = revendedorId !== "" || itens.length > 0;
 
@@ -158,8 +162,16 @@ export default function NovoEnvioStepper({
 		[revendedores]
 	);
 
+	async function handleProdutoCriado(modeloId: string) {
+		const novos = await buscarProdutosDisponiveis();
+		setProdutosLocal(novos);
+		const novo = novos.find(p => p.modelo_id === modeloId);
+		if (novo) await adicionarProduto(novo);
+		setCriarProdutoAberto(false);
+	}
+
 	const produtosFiltrados = useMemo(() => {
-		const bySearch = produtos.filter(p => {
+		const bySearch = produtosLocal.filter(p => {
 			const term = searchProduto.toLowerCase();
 			return (
 				p.nome.toLowerCase().includes(term) ||
@@ -167,7 +179,7 @@ export default function NovoEnvioStepper({
 			);
 		});
 		return bySearch.slice(0, 30);
-	}, [produtos, searchProduto]);
+	}, [produtosLocal, searchProduto]);
 
 	const total = useMemo(() => {
 		return itens.reduce((acc, item) => acc + item.preco * item.quantidade, 0);
@@ -419,11 +431,22 @@ export default function NovoEnvioStepper({
 							</Button>
 						</div>
 
-						<Input
-							placeholder="Buscar produto por nome ou codigo..."
-							value={searchProduto}
-							onChange={e => setSearchProduto(e.target.value)}
-						/>
+						<div className="flex items-center gap-2">
+							<div className="flex-1">
+								<Input
+									placeholder="Buscar produto por nome ou codigo..."
+									value={searchProduto}
+									onChange={e => setSearchProduto(e.target.value)}
+								/>
+							</div>
+							<button
+								type="button"
+								onClick={() => setCriarProdutoAberto(true)}
+								className="shrink-0 text-sm text-[#185FA5] hover:underline whitespace-nowrap"
+							>
+								+ Criar novo produto
+							</button>
+						</div>
 
 						<div className="rounded-lg border border-[#B5D4F4] overflow-auto">
 							<table className="w-full text-sm min-w-[760px]">
@@ -744,6 +767,12 @@ export default function NovoEnvioStepper({
 					</div>
 				</div>
 			</Modal>
+
+			<ProdutoModal
+				open={criarProdutoAberto}
+				onClose={() => setCriarProdutoAberto(false)}
+				onCreated={handleProdutoCriado}
+			/>
 		</>
 	);
 }

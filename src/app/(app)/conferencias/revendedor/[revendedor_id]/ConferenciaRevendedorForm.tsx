@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Input, useToast } from "@/components/ui";
-import { confirmarConferenciaRevendedor, salvarPrecoNoCadastro } from "../../actions";
+import { confirmarConferenciaRevendedor, salvarPrecoNoCadastro, editarDataEnvio, editarDataConferencia } from "../../actions";
 import type { RevendedorResumo } from "../../[envio_id]/ConferenciaForm";
 
 export interface ConferenciaItemMulti {
@@ -47,8 +47,10 @@ export interface HistoricoEnvio {
 		qtd_vendida: number;
 		qtd_devolvida: number;
 	}>;
+	acerto_id: string | null;
 	acerto_valor: number | null;
 	acerto_status: "PENDENTE" | "RECEBIDO" | null;
+	data_conferencia: string | null;
 }
 
 interface Props {
@@ -152,6 +154,40 @@ export default function ConferenciaRevendedorForm({
 	const [saving, setSaving] = useState(false);
 	const [usarValorManual, setUsarValorManual] = useState(false);
 	const [valorManual, setValorManual] = useState("");
+	const [dataConferencia, setDataConferencia] = useState(() => new Date().toISOString().slice(0, 10));
+	const [editingEnvioId, setEditingEnvioId] = useState<string | null>(null);
+	const [editingData, setEditingData] = useState("");
+	const [editingConferenciaId, setEditingConferenciaId] = useState<string | null>(null);
+	const [editingConferenciaData, setEditingConferenciaData] = useState("");
+	const [editingSaving, setEditingSaving] = useState(false);
+
+	async function salvarDataEnvio(envioId: string) {
+		if (!editingData) return;
+		setEditingSaving(true);
+		try {
+			await editarDataEnvio(envioId, editingData);
+			setEditingEnvioId(null);
+			router.refresh();
+		} catch {
+			showToast("Erro ao salvar data do envio", "error");
+		} finally {
+			setEditingSaving(false);
+		}
+	}
+
+	async function salvarDataConferencia(acertoId: string) {
+		if (!editingConferenciaData) return;
+		setEditingSaving(true);
+		try {
+			await editarDataConferencia(acertoId, editingConferenciaData);
+			setEditingConferenciaId(null);
+			router.refresh();
+		} catch {
+			showToast("Erro ao salvar data da conferência", "error");
+		} finally {
+			setEditingSaving(false);
+		}
+	}
 
 	const mergedItems = useMemo(() => computeMergedItems(envios), [envios]);
 
@@ -374,7 +410,8 @@ export default function ConferenciaRevendedorForm({
 		try {
 			await confirmarConferenciaRevendedor(
 				revendedor.revendedor_id,
-				enviosInput
+				enviosInput,
+				dataConferencia || undefined
 			);
 			if (itensSalvar.length > 0) {
 				await salvarPrecoNoCadastro(itensSalvar);
@@ -653,6 +690,12 @@ export default function ConferenciaRevendedorForm({
 						{resumoGlobal.hasRemanentes &&
 							` · ${resumoGlobal.totalContada} un. ainda com o revendedor.`}
 					</p>
+					<Input
+						label="Data da conferência"
+						type="date"
+						value={dataConferencia}
+						onChange={e => setDataConferencia(e.target.value)}
+					/>
 					<Button onClick={onConfirmar} loading={saving}>
 						{resumoGlobal.hasRemanentes
 							? "Registrar conferencia parcial"
@@ -673,6 +716,12 @@ export default function ConferenciaRevendedorForm({
 							{resumoGlobal.totalContada} un. ainda com o revendedor.
 						</p>
 					)}
+					<Input
+						label="Data da conferência"
+						type="date"
+						value={dataConferencia}
+						onChange={e => setDataConferencia(e.target.value)}
+					/>
 					<Button variant="ghost" onClick={() => setUsarValorManual(v => !v)}>
 						{usarValorManual
 							? "Usar valor calculado"
@@ -718,12 +767,33 @@ export default function ConferenciaRevendedorForm({
 							ENCERRADO: { variant: "success" as const, label: "Encerrado" },
 						};
 						const { variant, label } = statusMap[e.status] ?? { variant: "info" as const, label: e.status };
+						const isEditingEnvio = editingEnvioId === e.envio_id;
+						const isEditingConf = editingConferenciaId === e.acerto_id;
 						return (
 							<div key={e.envio_id} className="rounded-xl border border-[#B5D4F4] bg-white overflow-hidden">
+								{/* Header do envio */}
 								<div className="px-4 py-2.5 flex items-center justify-between gap-2 border-b border-[#E6F1FB]">
-									<p className="text-sm font-semibold text-gray-900">Envio de {fmtDate(e.data_envio)}</p>
+									{isEditingEnvio ? (
+										<div className="flex items-center gap-2 flex-1">
+											<input
+												type="date"
+												value={editingData}
+												onChange={ev => setEditingData(ev.target.value)}
+												className="rounded border border-[#B5D4F4] px-2 py-1 text-sm focus:outline-none focus:border-[#185FA5]"
+											/>
+											<button type="button" onClick={() => salvarDataEnvio(e.envio_id)} disabled={editingSaving} className="text-xs text-[#185FA5] hover:underline disabled:opacity-50">Salvar</button>
+											<button type="button" onClick={() => setEditingEnvioId(null)} className="text-xs text-gray-400 hover:underline">Cancelar</button>
+										</div>
+									) : (
+										<div className="flex items-center gap-2">
+											<p className="text-sm font-semibold text-gray-900">Envio de {fmtDate(e.data_envio)}</p>
+											<button type="button" onClick={() => { setEditingEnvioId(e.envio_id); setEditingData(e.data_envio); }} className="text-xs text-gray-400 hover:text-[#185FA5]">Editar</button>
+										</div>
+									)}
 									<Badge variant={variant}>{label}</Badge>
 								</div>
+
+								{/* Itens */}
 								<div className="divide-y divide-[#E6F1FB]">
 									{e.itens.map(i => {
 										const restante = i.qtd_enviada - i.qtd_vendida - i.qtd_devolvida;
@@ -742,6 +812,8 @@ export default function ConferenciaRevendedorForm({
 										);
 									})}
 								</div>
+
+								{/* Rodapé de totais */}
 								<div className="px-4 py-2.5 bg-[#F4F8FD] border-t border-[#B5D4F4] flex items-center justify-between text-xs text-gray-600">
 									<span>
 										{totalVendido > 0 && `${totalVendido} vendidos`}
@@ -753,6 +825,34 @@ export default function ConferenciaRevendedorForm({
 										: <span className="text-green-700 font-medium">Todos conferidos</span>
 									}
 								</div>
+
+								{/* Data da conferência */}
+								{e.acerto_id && (
+									<div className="px-4 py-2 border-t border-[#E6F1FB] flex items-center justify-between text-xs">
+										<span className="text-gray-500">Data da conferência</span>
+										{isEditingConf ? (
+											<div className="flex items-center gap-2">
+												<input
+													type="date"
+													value={editingConferenciaData}
+													onChange={ev => setEditingConferenciaData(ev.target.value)}
+													className="rounded border border-[#B5D4F4] px-2 py-1 text-xs focus:outline-none focus:border-[#185FA5]"
+												/>
+												<button type="button" onClick={() => salvarDataConferencia(e.acerto_id!)} disabled={editingSaving} className="text-[#185FA5] hover:underline disabled:opacity-50">Salvar</button>
+												<button type="button" onClick={() => setEditingConferenciaId(null)} className="text-gray-400 hover:underline">Cancelar</button>
+											</div>
+										) : (
+											<div className="flex items-center gap-2">
+												<span className="font-medium text-gray-800">
+													{e.data_conferencia ? fmtDate(e.data_conferencia) : <span className="text-gray-400 italic">não registrada</span>}
+												</span>
+												<button type="button" onClick={() => { setEditingConferenciaId(e.acerto_id); setEditingConferenciaData(e.data_conferencia ?? new Date().toISOString().slice(0, 10)); }} className="text-gray-400 hover:text-[#185FA5]">Editar</button>
+											</div>
+										)}
+									</div>
+								)}
+
+								{/* Valor do acerto */}
 								{e.acerto_valor !== null && (
 									<div className="px-4 py-2 border-t border-[#E6F1FB] flex items-center justify-between text-xs">
 										<span className="text-gray-500">

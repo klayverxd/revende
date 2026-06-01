@@ -31,6 +31,7 @@ async function salvarAcertoPorEnvio(
 		valor_liquido: number | null;
 		valor_a_receber: number | null;
 		status: "PENDENTE";
+		data_conferencia?: string | null;
 	}
 ) {
 	const { data: existente, error: buscaError } = await supabase
@@ -53,6 +54,7 @@ async function salvarAcertoPorEnvio(
 				valor_liquido: payload.valor_liquido,
 				valor_a_receber: payload.valor_a_receber,
 				status: payload.status,
+				data_conferencia: payload.data_conferencia ?? null,
 			})
 			.eq("acerto_id", existente.acerto_id);
 
@@ -68,6 +70,7 @@ async function salvarAcertoPorEnvio(
 		valor_liquido: payload.valor_liquido,
 		valor_a_receber: payload.valor_a_receber,
 		status: payload.status,
+		data_conferencia: payload.data_conferencia ?? null,
 	});
 
 	if (insertError) throw new Error(insertError.message);
@@ -78,7 +81,8 @@ async function processarUmEnvio(
 	supabase: Awaited<ReturnType<typeof createClient>>,
 	envioId: string,
 	itens: ConfirmarConferenciaItemInput[],
-	valorManual?: number
+	valorManual?: number,
+	dataConferencia?: string
 ) {
 	const { data: envio, error: envioError } = await supabase
 		.from("envio")
@@ -235,6 +239,7 @@ async function processarUmEnvio(
 			valor_liquido: Number(valorLiquido.toFixed(2)),
 			valor_a_receber: null,
 			status: "PENDENTE",
+			data_conferencia: dataConferencia ?? null,
 		});
 	} else {
 		await salvarAcertoPorEnvio(supabase, envioId, {
@@ -244,6 +249,7 @@ async function processarUmEnvio(
 			valor_liquido: null,
 			valor_a_receber: Number(totalValorMinimo.toFixed(2)),
 			status: "PENDENTE",
+			data_conferencia: dataConferencia ?? null,
 		});
 	}
 
@@ -282,7 +288,8 @@ export interface EnvioConferenciaInput {
 
 export async function confirmarConferenciaRevendedor(
 	revendedorId: string,
-	enviosInput: EnvioConferenciaInput[]
+	enviosInput: EnvioConferenciaInput[],
+	dataConferencia?: string
 ) {
 	if (!revendedorId) throw new Error("Revendedor invalido");
 	if (!enviosInput.length) throw new Error("Nenhum envio informado");
@@ -295,7 +302,8 @@ export async function confirmarConferenciaRevendedor(
 			supabase,
 			envio.envioId,
 			envio.itens,
-			envio.valorManual
+			envio.valorManual,
+			dataConferencia
 		);
 	}
 
@@ -426,5 +434,39 @@ export async function salvarPrecoNoCadastro(itens: SalvarPrecoInput[]) {
 	}
 
 	revalidatePath("/revendedores");
+	revalidatePath("/envios");
+}
+
+export async function editarDataConferencia(acertoId: string, novaData: string) {
+	if (!acertoId) throw new Error("Acerto inválido");
+	if (!novaData) throw new Error("Data inválida");
+
+	const supabase = await createClient();
+	const { error } = await supabase
+		.from("acerto")
+		.update({ data_conferencia: novaData })
+		.eq("acerto_id", acertoId)
+		.is("deleted_at", null);
+
+	if (error) throw new Error(error.message);
+
+	revalidatePath("/conferencias");
+}
+
+export async function editarDataEnvio(envioId: string, novaData: string) {
+	if (!envioId) throw new Error("Envio inválido");
+	if (!novaData) throw new Error("Data inválida");
+
+	const supabase = await createClient();
+	const { error } = await supabase
+		.from("envio")
+		.update({ data_envio: novaData })
+		.eq("envio_id", envioId)
+		.is("deleted_at", null);
+
+	if (error) throw new Error(error.message);
+
+	revalidatePath("/conferencias");
+	revalidatePath(`/envios/${envioId}`);
 	revalidatePath("/envios");
 }

@@ -33,7 +33,7 @@ export default async function ConferenciaRevendedorPage({
 				.order("data_envio", { ascending: false }),
 			supabase
 				.from("acerto")
-				.select("envio_id, status, valor_a_receber, valor_liquido")
+				.select("acerto_id, envio_id, status, valor_a_receber, valor_liquido, data_conferencia")
 				.eq("revendedor_id", revendedor_id)
 				.is("deleted_at", null),
 		]);
@@ -52,12 +52,14 @@ export default async function ConferenciaRevendedorPage({
 		.is("deleted_at", null);
 
 	// Índice: acerto por envio_id
-	const acertoByEnvio = new Map<string, { valor: number; status: string }>();
+	const acertoByEnvio = new Map<string, { acerto_id: string; valor: number; status: string; data_conferencia: string | null }>();
 	for (const a of acertosRaw ?? []) {
 		const valor = ((a.valor_liquido ?? a.valor_a_receber) as number | null) ?? 0;
 		acertoByEnvio.set(a.envio_id as string, {
+			acerto_id: a.acerto_id as string,
 			valor,
 			status: a.status as string,
+			data_conferencia: (a.data_conferencia as string | null) ?? null,
 		});
 	}
 
@@ -89,8 +91,10 @@ export default async function ConferenciaRevendedorPage({
 			data_envio: e.data_envio as string,
 			status: e.status as "ABERTO" | "CONFERIDO" | "ENCERRADO",
 			itens,
+			acerto_id: acerto?.acerto_id ?? null,
 			acerto_valor: acerto ? acerto.valor : null,
 			acerto_status: (acerto?.status as "PENDENTE" | "RECEBIDO") ?? null,
+			data_conferencia: acerto?.data_conferencia ?? null,
 		};
 	});
 

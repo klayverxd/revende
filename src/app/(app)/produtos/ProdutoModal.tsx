@@ -35,11 +35,17 @@ export interface ProdutoParaEditar {
 	qtd_minima_atacado?: number | null;
 }
 
+export interface ProdutoInitialValues {
+	nome?: string;
+	custo_producao?: string;
+}
+
 interface ProdutoModalProps {
 	readonly open: boolean;
 	readonly onClose: () => void;
 	readonly produto?: ProdutoParaEditar | null;
 	readonly onCreated?: (modeloId: string) => void;
+	readonly initialValues?: ProdutoInitialValues;
 }
 
 export default function ProdutoModal({
@@ -47,6 +53,7 @@ export default function ProdutoModal({
 	onClose,
 	produto,
 	onCreated,
+	initialValues,
 }: ProdutoModalProps) {
 	const { showToast } = useToast();
 	const isEdit = Boolean(produto);
@@ -75,10 +82,10 @@ export default function ProdutoModal({
 							qtd_minima_atacado: produto.qtd_minima_atacado?.toString() ?? "",
 						}
 					: {
-							nome: "",
+							nome: initialValues?.nome ?? "",
 							codigo: "",
 							descricao: "",
-							custo_producao: "",
+							custo_producao: initialValues?.custo_producao ?? "",
 							estoque_minimo: "0",
 							preco_unitario: "",
 							preco_atacado: "",
@@ -86,7 +93,7 @@ export default function ProdutoModal({
 						}
 			);
 		}
-	}, [open, produto, reset]);
+	}, [open, produto, reset, initialValues]);
 
 	const onSubmit = handleSubmit(async values => {
 		try {

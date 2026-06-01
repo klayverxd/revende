@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, Input, Select, SearchableSelect, useToast } from "@/components/ui";
 import {
-	salvarComoNovoProduto,
 	atualizarCustoProduto,
 	type CalculoSnapshot,
 } from "./actions";
+import ProdutoModal, { type ProdutoInitialValues } from "@/app/(app)/produtos/ProdutoModal";
 
 export interface EquipamentoAtivo {
 	equipamento_id: string;
@@ -207,6 +207,8 @@ export default function CalculadoraView({
 	const [salvando, setSalvando] = useState(false);
 	const [novoNome, setNovoNome] = useState("");
 	const [modeloExistente, setModeloExistente] = useState("");
+	const [modalCriarAberto, setModalCriarAberto] = useState(false);
+	const [modalInitialValues, setModalInitialValues] = useState<ProdutoInitialValues>({});
 
 	const similaresAoNovo = useMemo(() => {
 		const q = novoNome
@@ -422,27 +424,21 @@ export default function CalculadoraView({
 		};
 	}
 
-	async function salvarNovoProduto() {
-		if (!novoNome.trim()) {
-			showToast("Informe o nome do novo produto", "error");
-			return;
-		}
-		setSalvando(true);
+	function abrirModalCriar() {
+		setModalInitialValues({
+			nome: novoNome.trim() || undefined,
+			custo_producao: custoUnitario > 0 ? String(Number(custoUnitario.toFixed(4))) : undefined,
+		});
+		setModalCriarAberto(true);
+	}
+
+	async function handleProdutoCriado(modeloId: string) {
+		setModalCriarAberto(false);
+		setNovoNome("");
 		try {
-			await salvarComoNovoProduto({
-				nome: novoNome.trim(),
-				custo_producao: Number(custoUnitario.toFixed(4)),
-				calculo: buildSnapshot(),
-			});
-			setNovoNome("");
-			showToast("Produto criado com custo atualizado", "success");
-		} catch (err) {
-			showToast(
-				err instanceof Error ? err.message : "Erro ao salvar novo produto",
-				"error"
-			);
-		} finally {
-			setSalvando(false);
+			await atualizarCustoProduto(modeloId, Number(custoUnitario.toFixed(4)), buildSnapshot());
+		} catch {
+			// snapshot é secundário — produto já foi criado com sucesso
 		}
 	}
 
@@ -470,6 +466,7 @@ export default function CalculadoraView({
 	}
 
 	return (
+		<>
 		<div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start w-full">
 			{/* Coluna esquerda — inputs */}
 			<div className="flex flex-col gap-4">
@@ -1128,7 +1125,7 @@ export default function CalculadoraView({
 							</ul>
 						</div>
 					)}
-					<Button loading={salvando} onClick={salvarNovoProduto}>
+					<Button onClick={abrirModalCriar}>
 						Salvar como novo produto
 					</Button>
 
@@ -1160,5 +1157,13 @@ export default function CalculadoraView({
 				</div>
 			</div>
 		</div>
+
+		<ProdutoModal
+			open={modalCriarAberto}
+			onClose={() => setModalCriarAberto(false)}
+			onCreated={handleProdutoCriado}
+			initialValues={modalInitialValues}
+		/>
+		</>
 	);
 }

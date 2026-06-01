@@ -602,17 +602,33 @@ export default function NovoEnvioStepper({
 							</table>
 						</div>
 
-						<div className="rounded-lg border border-[#B5D4F4] bg-[#E6F1FB] px-3 py-2 text-sm text-[#0C447C] flex items-center justify-between">
-							<span>
-								{itens.length} produtos selecionados ({totalUnidades} un.)
-								{custoTotalProducao > 0 && (
-									<span className="ml-2 text-gray-500">
-										· custo {fmtCurrency(custoTotalProducao)}
+						{itens.length > 0 && (
+							<div className="rounded-lg border border-[#B5D4F4] bg-white overflow-hidden">
+								<div className="px-3 py-2 bg-[#E6F1FB] flex items-center justify-between text-sm text-[#0C447C]">
+									<span>
+										{itens.length} produto{itens.length !== 1 ? "s" : ""} selecionado{itens.length !== 1 ? "s" : ""} · {totalUnidades} un.
+										{custoTotalProducao > 0 && (
+											<span className="ml-2 text-gray-500 text-xs">custo {fmtCurrency(custoTotalProducao)}</span>
+										)}
 									</span>
-								)}
-							</span>
-							<strong>{fmtCurrency(total)}</strong>
-						</div>
+									<strong>{fmtCurrency(total)}</strong>
+								</div>
+								<div className="divide-y divide-[#E6F1FB]">
+									{itens.map(item => (
+										<div key={item.modelo_id} className="px-3 py-2 flex items-center justify-between gap-2 text-sm">
+											<span className="text-gray-800 truncate">
+												{item.codigo ? <span className="text-gray-400 font-mono text-xs mr-1">{item.codigo}</span> : null}
+												{item.nome}
+											</span>
+											<span className="shrink-0 text-gray-600">
+												{item.quantidade} un.
+												<span className="ml-2 font-medium text-gray-900">{fmtCurrency(item.preco * item.quantidade)}</span>
+											</span>
+										</div>
+									))}
+								</div>
+							</div>
+						)}
 
 						<div className="flex items-center justify-between gap-2">
 							<Button variant="secondary" onClick={() => setStep(1)}>

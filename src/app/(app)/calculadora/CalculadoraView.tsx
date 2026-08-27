@@ -372,8 +372,7 @@ export default function CalculadoraView({
 
 	const custoUnitario = qtdTotal > 0 ? custoTotalGeral / qtdTotal : 0;
 
-	const LUCROS_PADRAO = [50, 100, 150, 200, 300, 400, 500];
-	const LUCROS_SUGESTAO = [50, 100, 150, 200, 250, 300, 400];
+	const LUCROS_PADRAO = [50, 100, 150, 200, 250, 300, 400];
 	const comissaoRevendaFrac = comissaoRevendaPct / 100;
 	const lucroCustomPct = Number.parseFloat(lucroCustom.replace(",", ".")) || 0;
 
@@ -916,7 +915,7 @@ export default function CalculadoraView({
 							</tr>
 						</thead>
 						<tbody>
-							{LUCROS_SUGESTAO.map(pct => (
+							{LUCROS_PADRAO.map(pct => (
 								<tr
 									key={pct}
 									className="border-b border-[#E6F1FB] last:border-0"

@@ -228,6 +228,7 @@ export default function CalculadoraView({
 		});
 	}, [novoNome, modelos]);
 	const [lucroCustom, setLucroCustom] = useState("");
+	const [comissaoRevendaPct, setComissaoRevendaPct] = useState(30);
 
 	// Carrega calculo gravado de outro local (ex: página de produto)
 	useEffect(() => {
@@ -372,6 +373,8 @@ export default function CalculadoraView({
 	const custoUnitario = qtdTotal > 0 ? custoTotalGeral / qtdTotal : 0;
 
 	const LUCROS_PADRAO = [50, 100, 150, 200, 300, 400, 500];
+	const LUCROS_SUGESTAO = [50, 100, 150, 200, 250, 300, 400];
+	const comissaoRevendaFrac = comissaoRevendaPct / 100;
 	const lucroCustomPct = Number.parseFloat(lucroCustom.replace(",", ".")) || 0;
 
 	function buildSnapshot(): CalculoSnapshot {
@@ -913,7 +916,7 @@ export default function CalculadoraView({
 							</tr>
 						</thead>
 						<tbody>
-							{LUCROS_PADRAO.map(pct => (
+							{LUCROS_SUGESTAO.map(pct => (
 								<tr
 									key={pct}
 									className="border-b border-[#E6F1FB] last:border-0"
@@ -1033,13 +1036,30 @@ export default function CalculadoraView({
 						<h2 className="text-xs font-semibold uppercase tracking-wide text-[#185FA5]">
 							Preço para revendedoras
 						</h2>
-						<p className="text-[11px] text-gray-400 mt-0.5">30% de comissão — você recebe 70% do preço</p>
+						<p className="text-[11px] text-gray-400 mt-0.5">
+							{comissaoRevendaPct}% de comissão — você recebe {100 - comissaoRevendaPct}% do preço
+						</p>
+					</div>
+
+					<div className="flex items-center gap-3">
+						<input
+							type="range"
+							min={5}
+							max={50}
+							step={5}
+							value={comissaoRevendaPct}
+							onChange={e => setComissaoRevendaPct(Number(e.target.value))}
+							className="flex-1 accent-[#185FA5]"
+						/>
+						<span className="text-xs font-semibold text-[#185FA5] w-10 text-right">
+							{comissaoRevendaPct}%
+						</span>
 					</div>
 
 					{lucroCustomPct > 0 && custoUnitario > 0 && (() => {
-						const precoVenda = (custoUnitario * (1 + lucroCustomPct / 100)) / 0.7;
-						const comissao = precoVenda * 0.3;
-						const lucroLiq = precoVenda * 0.7 - custoUnitario;
+						const precoVenda = (custoUnitario * (1 + lucroCustomPct / 100)) / (1 - comissaoRevendaFrac);
+						const comissao = precoVenda * comissaoRevendaFrac;
+						const lucroLiq = precoVenda * (1 - comissaoRevendaFrac) - custoUnitario;
 						return (
 							<div className="rounded-lg bg-[#F4F8FD] border border-[#185FA5] px-3 py-2 flex justify-between items-center gap-2">
 								<span className="text-xs text-gray-600">{lucroCustomPct}% de lucro</span>
@@ -1073,9 +1093,9 @@ export default function CalculadoraView({
 										</tr>
 									);
 								}
-								const precoVenda = (custoUnitario * (1 + pct / 100)) / 0.7;
-								const comissao = precoVenda * 0.3;
-								const lucroLiq = precoVenda * 0.7 - custoUnitario;
+								const precoVenda = (custoUnitario * (1 + pct / 100)) / (1 - comissaoRevendaFrac);
+								const comissao = precoVenda * comissaoRevendaFrac;
+								const lucroLiq = precoVenda * (1 - comissaoRevendaFrac) - custoUnitario;
 								return (
 									<tr key={pct} className="border-b border-[#E6F1FB] last:border-0">
 										<td className="py-1 text-gray-600 font-medium">{pct}%</td>

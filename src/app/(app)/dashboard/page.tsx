@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { buscarEstoqueCalculado } from "@/lib/queries/estoque";
 import { Badge } from "@/components/ui";
 import BarChart8Months, { type MonthBar } from "./BarChart8Months";
 
@@ -48,10 +49,7 @@ export default async function DashboardPage({
 		{ data: acertosRecebidosPeriodo },
 		{ data: revendedores },
 		{ data: enviosAbertos },
-		{ data: modelos },
-		{ data: producoes },
-		{ data: envioItens },
-		{ data: vendasDiretasEstoque },
+		estoque,
 		{ data: vendasDiretas8m },
 		{ data: acertos8m },
 		{ data: producoesTimeline },
@@ -95,25 +93,7 @@ export default async function DashboardPage({
 			.select("envio_id, data_envio, revendedor:revendedor_id(nome)")
 			.eq("status", "ABERTO")
 			.is("deleted_at", null),
-		supabase
-			.from("modelo")
-			.select("modelo_id, nome, estoque_minimo")
-			.is("deleted_at", null),
-		supabase
-			.from("producao")
-			.select("modelo_id, quantidade")
-			.is("deleted_at", null),
-		supabase
-			.from("envio_item")
-			.select(
-				"modelo_id, qtd_enviada, qtd_vendida, qtd_devolvida, envio:envio_id(status)"
-			)
-			.is("deleted_at", null)
-			.not("envio", "is", null),
-		supabase
-			.from("venda_direta_item")
-			.select("modelo_id, quantidade, venda:venda_id(deleted_at)")
-			.not("venda", "is", null),
+		buscarEstoqueCalculado(),
 		supabase
 			.from("venda_direta")
 			.select("data_venda, valor_total")
@@ -187,75 +167,18 @@ export default async function DashboardPage({
 				) / (vendasPeriodo ?? []).length
 			: 0;
 
-	const entradasMap = new Map<string, number>();
-	for (const p of producoes ?? []) {
-		const id = p.modelo_id as string;
-		entradasMap.set(
-			id,
-			(entradasMap.get(id) ?? 0) + ((p.quantidade as number | null) ?? 0)
-		);
-	}
-	const saidasMap = new Map<string, number>();
-	for (const i of envioItens ?? []) {
-		const id = i.modelo_id as string;
-		const envio = i.envio as unknown as { status: string } | null;
-		if (!envio) continue;
-		if (envio.status === "ABERTO")
-			saidasMap.set(
-				id,
-				(saidasMap.get(id) ?? 0) + ((i.qtd_enviada as number | null) ?? 0)
-			);
-		if (envio.status === "CONFERIDO" || envio.status === "ENCERRADO") {
-			const qtdDevolvida = (i.qtd_devolvida as number | null) ?? 0;
-			saidasMap.set(
-				id,
-				(saidasMap.get(id) ?? 0) +
-					(((i.qtd_enviada as number | null) ?? 0) - qtdDevolvida)
-			);
-		}
-	}
-	for (const v of vendasDiretasEstoque ?? []) {
-		const venda = v.venda as unknown as { deleted_at: string | null } | null;
-		if (venda?.deleted_at) continue;
-		const id = v.modelo_id as string;
-		saidasMap.set(
-			id,
-			(saidasMap.get(id) ?? 0) + ((v.quantidade as number | null) ?? 0)
-		);
-	}
-	const produtosSemEstoque = (modelos ?? []).filter(m => {
-		const id = m.modelo_id as string;
-		const disponivel = (entradasMap.get(id) ?? 0) - (saidasMap.get(id) ?? 0);
-		return disponivel <= 0;
-	}).length;
-	const alertasEstoque = (modelos ?? [])
-		.map(m => {
-			const id = m.modelo_id as string;
-			const disponivel = (entradasMap.get(id) ?? 0) - (saidasMap.get(id) ?? 0);
-			return {
-				nome: m.nome as string,
-				minimo: (m.estoque_minimo as number | null) ?? 0,
-				disponivel,
-			};
-		})
-		.filter(m => m.minimo > 0 && m.disponivel <= m.minimo)
-		.slice(0, 5);
+	const produtosSemEstoque = estoque.filter(e => e.disponivel <= 0).length;
+	const alertasEstoque = estoque
+		.filter(e => e.estoque_minimo > 0 && e.disponivel <= e.estoque_minimo)
+		.slice(0, 5)
+		.map(e => ({
+			nome: e.nome,
+			minimo: e.estoque_minimo,
+			disponivel: e.disponivel,
+		}));
 
 	const hoje = new Date();
-	const totalEmConsignacao = (envioItens ?? []).reduce((acc, i) => {
-		const envio = i.envio as unknown as { status: string } | null;
-		if (!envio) return acc;
-		if (envio.status === "ABERTO") {
-			return acc + ((i.qtd_enviada as number | null) ?? 0);
-		}
-		if (envio.status === "CONFERIDO") {
-			const qtdEnviada = (i.qtd_enviada as number | null) ?? 0;
-			const qtdVendida = (i.qtd_vendida as number | null) ?? 0;
-			const qtdDevolvida = (i.qtd_devolvida as number | null) ?? 0;
-			return acc + Math.max(0, qtdEnviada - qtdVendida - qtdDevolvida);
-		}
-		return acc;
-	}, 0);
+	const totalEmConsignacao = estoque.reduce((acc, e) => acc + e.em_consignacao, 0);
 	const enviosAntigos = (enviosAbertos ?? []).filter(e => {
 		const d = new Date(e.data_envio as string);
 		const dias = Math.floor(

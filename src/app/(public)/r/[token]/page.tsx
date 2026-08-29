@@ -1,28 +1,46 @@
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { fmtData } from "@/lib/utils/data";
+import { fmtBRL, fmtData } from "@/lib/format";
+import { validarToken } from "@/lib/tokens";
 
 interface Props {
-	readonly params: Promise<{ revendedor_id: string }>;
+	readonly params: Promise<{ token: string }>;
 }
 
-function fmtBRL(v: number | null | undefined) {
-	if (v == null) return "—";
-	return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
+/**
+ * Extrato público do revendedor, endereçado por token.
+ *
+ * Esta página roda para visitante anônimo, então usa o client de service
+ * role — que ignora o RLS. Por isso o endereçamento é por `extrato_token` e
+ * não por `revendedor_id`: a versão anterior aceitava o UUID da linha na
+ * URL, o que deixava qualquer pessoa ler o extrato de qualquer revendedor de
+ * qualquer workspace.
+ *
+ * Regras que sustentam a segurança daqui:
+ *  - o token é validado como UUID ANTES de tocar o banco;
+ *  - a busca é por token + extrato_ativo, nunca por id vindo da URL;
+ *  - falha sempre em notFound(), nunca em redirect — um redirect para /login
+ *    já contaria como confirmação de que o token existe;
+ *  - todas as consultas seguintes usam o revendedor_id RESOLVIDO do token.
+ */
 export default async function RevendedorExtrato({ params }: Props) {
-	const { revendedor_id } = await params;
+	const { token } = await params;
+	const tokenValido = validarToken(token);
+	if (!tokenValido) notFound();
+
 	const supabase = createAdminClient();
 
 	const { data: revendedor } = await supabase
 		.from("revendedor")
-		.select("nome, modelo_acerto")
-		.eq("revendedor_id", revendedor_id)
+		.select("revendedor_id, nome, modelo_acerto")
+		.eq("extrato_token", tokenValido)
+		.eq("extrato_ativo", true)
 		.is("deleted_at", null)
-		.single();
+		.maybeSingle();
 
 	if (!revendedor) notFound();
+
+	const revendedor_id = revendedor.revendedor_id as string;
 
 	// Step 1: envios e acertos em paralelo (ambos com deleted_at IS NULL)
 	const [{ data: enviosBaseRaw }, { data: acertosRaw }] = await Promise.all([
@@ -138,7 +156,7 @@ export default async function RevendedorExtrato({ params }: Props) {
 			{/* Header */}
 			<div className="bg-[#0C447C] px-4 pt-6 pb-5">
 				<p className="text-[11px] text-[#B5D4F4] font-semibold tracking-widest uppercase mb-1">
-					Revendê
+					Imprimimos
 				</p>
 				<h1 className="text-xl font-bold text-white leading-tight">
 					{revendedor.nome as string}

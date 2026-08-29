@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { gerarCodigoModelo } from "@/lib/queries/modelo";
 
 export interface ProdutoData {
 	nome: string;
@@ -14,27 +15,12 @@ export interface ProdutoData {
 	qtd_minima_atacado?: number | null;
 }
 
-async function gerarCodigo(): Promise<string> {
-	const supabase = await createClient();
-	const { data } = await supabase
-		.from("modelo")
-		.select("codigo")
-		.like("codigo", "M%")
-		.order("codigo", { ascending: false })
-		.limit(1);
-
-	if (!data || data.length === 0) return "M01";
-	const last = data[0].codigo as string;
-	const num = Number.parseInt(last.replace("M", ""), 10);
-	return `M${String(num + 1).padStart(2, "0")}`;
-}
-
 export async function criarProduto(data: ProdutoData) {
 	if (!data.preco_unitario || data.preco_unitario <= 0)
 		throw new Error("Preço de varejo é obrigatório");
 
 	const supabase = await createClient();
-	const codigo = data.codigo?.trim() || (await gerarCodigo());
+	const codigo = data.codigo?.trim() || (await gerarCodigoModelo());
 
 	const { data: novoModelo, error } = await supabase
 		.from("modelo")

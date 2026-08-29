@@ -5,7 +5,7 @@ import ConferenciaRevendedorForm, {
 	type ConferenciaItemMulti,
 	type HistoricoEnvio,
 } from "./ConferenciaRevendedorForm";
-import type { RevendedorResumo } from "../../[envio_id]/ConferenciaForm";
+import type { RevendedorResumo } from "../../types";
 
 interface PageProps {
 	params: Promise<{ revendedor_id: string }>;

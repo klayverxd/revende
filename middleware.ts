@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { ehRotaPublica } from "@/lib/tokens";
 
 export async function middleware(request: NextRequest) {
 	let supabaseResponse = NextResponse.next({ request });
@@ -30,12 +31,11 @@ export async function middleware(request: NextRequest) {
 	} = await supabase.auth.getUser();
 
 	const { pathname } = request.nextUrl;
-	const isPublicRoute =
-		pathname === "/login" ||
-		pathname === "/register" ||
-		pathname === "/auth/callback";
 
-	if (!user && !isPublicRoute) {
+	// Lista única em @/lib/tokens — a versão anterior era inline aqui e
+	// esquecia `/r/`, o que fazia o link do extrato do revendedor cair no
+	// /login em vez de abrir.
+	if (!user && !ehRotaPublica(pathname)) {
 		return NextResponse.redirect(new URL("/login", request.url));
 	}
 

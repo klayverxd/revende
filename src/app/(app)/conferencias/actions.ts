@@ -2,6 +2,21 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { arredondar, clamp } from "@/lib/format";
+import {
+	calcularAcertoComissao,
+	precoPorFaixa,
+	ratearValorManual,
+} from "@/modules/acerto/calcular";
+import { statusAposConferencia } from "@/modules/envio/fechamento";
+import { z } from "zod";
+import {
+	validar,
+	zDataISO,
+	zQuantidadeZero,
+	zUuid,
+	zValor,
+} from "@/lib/validacao";
 
 export interface ConfirmarConferenciaItemInput {
 	envioItemId: string;
@@ -10,15 +25,6 @@ export interface ConfirmarConferenciaItemInput {
 	precoCliente?: number | null;
 	/** Valor total pré-calculado pelo cliente (qtd_vendida × preço editado pelo usuário). */
 	valorVenda?: number;
-}
-
-function clamp(value: number, min: number, max: number) {
-	return Math.max(min, Math.min(max, value));
-}
-
-function precoPorFaixa(qtdVendida: number, precoUnitario: number | null) {
-	if (qtdVendida <= 0) return 0;
-	return qtdVendida * (precoUnitario ?? 0);
 }
 
 async function salvarAcertoPorEnvio(
@@ -116,9 +122,9 @@ async function processarUmEnvio(
 		| "VALOR_MINIMO";
 	let totalCalculadoComissao = 0;
 	let totalValorMinimo = 0;
-	let totalRemanentes = 0;
 	const updates: Array<{
 		envio_item_id: string;
+		qtd_enviada: number;
 		qtd_vendida: number;
 		qtd_devolvida: number;
 		valor_total_venda: number | null;
@@ -145,7 +151,6 @@ async function processarUmEnvio(
 		const qtdVendidaNova = qtdRestante - qtdContada - qtdNovaDevolvida;
 		const qtdVendidaTotal = existingQtdVendida + qtdVendidaNova;
 		const qtdDevolvida = existingQtdDevolvida + qtdNovaDevolvida;
-		totalRemanentes += qtdContada;
 
 		if (modeloAcerto === "COMISSAO") {
 			const existingValorVenda =
@@ -159,6 +164,7 @@ async function processarUmEnvio(
 			totalCalculadoComissao += valorItemTotal;
 			updates.push({
 				envio_item_id: dbItem.envio_item_id as string,
+				qtd_enviada: qtdEnviada,
 				qtd_vendida: qtdVendidaTotal,
 				qtd_devolvida: qtdDevolvida,
 				valor_total_venda: valorItemTotal,
@@ -174,6 +180,7 @@ async function processarUmEnvio(
 			totalValorMinimo += valorReceberTotal;
 			updates.push({
 				envio_item_id: dbItem.envio_item_id as string,
+				qtd_enviada: qtdEnviada,
 				qtd_vendida: qtdVendidaTotal,
 				qtd_devolvida: qtdDevolvida,
 				valor_total_venda: null,
@@ -187,19 +194,16 @@ async function processarUmEnvio(
 	}
 
 	if (modeloAcerto === "COMISSAO" && Number.isFinite(valorManual ?? NaN)) {
-		const manual = Number(Math.max(0, valorManual!).toFixed(2));
+		const manual = arredondar(Math.max(0, valorManual!), 2);
 		if (totalCalculadoComissao > 0) {
-			const fator = manual / totalCalculadoComissao;
-			let distribuido = 0;
-			for (let i = 0; i < updates.length - 1; i++) {
-				const v = Number(((updates[i].valor_total_venda ?? 0) * fator).toFixed(2));
-				updates[i].valor_total_venda = v;
-				updates[i].modo_valor = "MANUAL";
-				distribuido = Number((distribuido + v).toFixed(2));
-			}
-			const last = updates.at(-1)!;
-			last.valor_total_venda = Number((manual - distribuido).toFixed(2));
-			last.modo_valor = "MANUAL";
+			const rateado = ratearValorManual(
+				updates.map(u => u.valor_total_venda ?? 0),
+				manual
+			);
+			updates.forEach((u, i) => {
+				u.valor_total_venda = rateado[i];
+				u.modo_valor = "MANUAL";
+			});
 		} else if (updates.length > 0) {
 			updates[0].valor_total_venda = manual;
 			updates[0].modo_valor = "MANUAL";
@@ -227,16 +231,16 @@ async function processarUmEnvio(
 			comissao_fixa: number | null;
 			comissao_pct: number | null;
 		};
-		const comissaoFixa = rev?.comissao_fixa ?? 0;
-		const comissaoPct = rev?.comissao_pct ?? 0;
-		const comissaoCalculada =
-			comissaoFixa + totalCalculadoComissao * comissaoPct;
-		const valorLiquido = totalCalculadoComissao - comissaoCalculada;
+		const { comissaoCalculada, valorLiquido } = calcularAcertoComissao(
+			totalCalculadoComissao,
+			rev?.comissao_fixa ?? 0,
+			rev?.comissao_pct ?? 0
+		);
 		await salvarAcertoPorEnvio(supabase, envioId, {
 			revendedor_id: envio.revendedor_id as string,
 			modelo_acerto: "COMISSAO",
-			comissao_calculada: Number(comissaoCalculada.toFixed(2)),
-			valor_liquido: Number(valorLiquido.toFixed(2)),
+			comissao_calculada: arredondar(comissaoCalculada, 2),
+			valor_liquido: arredondar(valorLiquido, 2),
 			valor_a_receber: null,
 			status: "PENDENTE",
 			data_conferencia: dataConferencia ?? null,
@@ -247,35 +251,18 @@ async function processarUmEnvio(
 			modelo_acerto: "VALOR_MINIMO",
 			comissao_calculada: null,
 			valor_liquido: null,
-			valor_a_receber: Number(totalValorMinimo.toFixed(2)),
+			valor_a_receber: arredondar(totalValorMinimo, 2),
 			status: "PENDENTE",
 			data_conferencia: dataConferencia ?? null,
 		});
 	}
 
-	const newStatus = totalRemanentes === 0 ? "CONFERIDO" : "ABERTO";
+	const newStatus = statusAposConferencia(updates);
 	const { error: statusError } = await supabase
 		.from("envio")
 		.update({ status: newStatus })
 		.eq("envio_id", envioId);
 	if (statusError) throw new Error(statusError.message);
-}
-
-export async function confirmarConferencia(
-	envioId: string,
-	itens: ConfirmarConferenciaItemInput[],
-	valorManual?: number
-) {
-	if (!envioId) throw new Error("Envio invalido");
-	if (!itens.length) throw new Error("Informe as quantidades contadas");
-
-	const supabase = await createClient();
-	await processarUmEnvio(supabase, envioId, itens, valorManual);
-
-	revalidatePath("/conferencias");
-	revalidatePath(`/conferencias/${envioId}`);
-	revalidatePath("/financeiro");
-	revalidatePath("/estoque");
 }
 
 // ─── Confirmar conferência de múltiplos envios de um revendedor ──────────────
@@ -286,13 +273,42 @@ export interface EnvioConferenciaInput {
 	valorManual?: number;
 }
 
+const itemConferenciaSchema = z.object({
+	envioItemId: zUuid,
+	qtdContada: zQuantidadeZero,
+	qtdDevolvida: zQuantidadeZero.optional(),
+	precoCliente: zValor.nullable().optional(),
+	valorVenda: zValor.optional(),
+});
+
+const conferenciaSchema = z.object({
+	revendedorId: zUuid,
+	enviosInput: z
+		.array(
+			z.object({
+				envioId: zUuid,
+				itens: z.array(itemConferenciaSchema).max(500, "Envio com itens demais"),
+				valorManual: zValor.optional(),
+			})
+		)
+		.min(1, "Nenhum envio informado")
+		.max(100, "Envios demais numa conferência"),
+	dataConferencia: zDataISO.optional(),
+});
+
 export async function confirmarConferenciaRevendedor(
 	revendedorId: string,
 	enviosInput: EnvioConferenciaInput[],
 	dataConferencia?: string
 ) {
-	if (!revendedorId) throw new Error("Revendedor invalido");
-	if (!enviosInput.length) throw new Error("Nenhum envio informado");
+	// A conferência move dinheiro e estoque; é a action que mais merece um
+	// portão de entrada. Quantidades negativas ou ids malformados chegavam
+	// direto no Postgres antes disto.
+	validar(
+		conferenciaSchema,
+		{ revendedorId, enviosInput, dataConferencia },
+		"Não foi possível confirmar a conferência"
+	);
 
 	const supabase = await createClient();
 

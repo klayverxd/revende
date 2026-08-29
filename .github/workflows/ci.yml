@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+# Uma execução por branch: um push novo cancela a anterior.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    name: Typecheck, lint, testes e build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # Garante que src/lib/db/types.ts está em sincronia com as migrations.
+      # Se alguém mudar uma migration e esquecer de rodar `npm run db:types`,
+      # o build para aqui em vez de deixar os tipos mentirem sobre o schema.
+      - name: Tipos do banco em sincronia com as migrations
+        run: npm run db:types:check
+
+      - name: Testes unitários
+        run: npm run test
+
+      # Sobe um PostgreSQL real (PGlite/WASM, vem no npm — sem Docker, sem
+      # container de serviço), aplica todas as migrations num banco limpo e
+      # escreve nele o mesmo payload que o código escreve.
+      #
+      # É a rede de proteção contra o problema que originou a Fase 0: `pedido`,
+      # `pedido_item` e `acerto.data_conferencia` foram criados à mão no painel
+      # e um banco novo a partir do repositório nascia quebrado.
+      - name: Banco reproduzível a partir das migrations
+        run: npm run test:db
+
+      # O build precisa das variáveis do Supabase porque as páginas são Server
+      # Components que instanciam o client em tempo de build. São valores de
+      # leitura pública (a anon key é protegida por RLS); o SERVICE_ROLE nunca
+      # entra no CI.
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}

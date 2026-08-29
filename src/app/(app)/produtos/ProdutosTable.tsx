@@ -213,11 +213,6 @@ function statusVariant(s: StatusEstoque) {
 
 const PAGE_SIZE = 20;
 
-function fmt(value: number | null) {
-	if (value === null) return "—";
-	return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
 interface ProdutosTableProps {
 	readonly produtos: ProdutoRow[];
 }

@@ -161,7 +161,6 @@ export default function PedidoModal({ open, onClose, pedido }: Props) {
 
 	useEffect(() => {
 		recarregarModelos();
-	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
 	useEffect(() => {

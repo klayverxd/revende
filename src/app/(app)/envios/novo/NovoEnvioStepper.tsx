@@ -306,10 +306,6 @@ export default function NovoEnvioStepper({
 		);
 	}
 
-	function removerItem(modeloId: string) {
-		setItens(prev => prev.filter(i => i.modelo_id !== modeloId));
-	}
-
 	async function confirmarEnvio() {
 		if (submittedRef.current) return;
 		if (!revendedor) {

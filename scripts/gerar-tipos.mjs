@@ -289,7 +289,7 @@ L.push(
 );
 L.push(`${ind(1)}Database["public"]["Tables"][T]["Insert"];`);
 L.push("");
-L.push('/** Atalho para um enum: `Enum<"pedido_status_enum">`. */');
+L.push('/** Atalho para um enum: `Enum<"modelo_acerto_enum">`. */');
 L.push('export type Enum<T extends keyof Database["public"]["Enums"]> =');
 L.push(`${ind(1)}Database["public"]["Enums"][T];`);
 L.push("");

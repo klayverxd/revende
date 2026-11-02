@@ -18,7 +18,14 @@
  * garantir que elas ainda quebram (tests/unit/contrato.test.ts).
  */
 import type { Database, Insert, Row } from "@/lib/db/types";
-import type { PedidoStatus } from "@/modules/pedido/status";
+import type {
+	CanalPedido,
+	FormaPagamento,
+	ItemTipo,
+	PedidoStatus,
+	Prioridade,
+	StatusPagamento,
+} from "@/modules/pedido/status";
 
 // ─── Utilitários de asserção ──────────────────────────────────────────────
 
@@ -75,15 +82,20 @@ type PayloadConfere<A, B> = ExigirVazio<
 			"payload escreve colunas que o schema não tem"
 		>;
 
-// ─── Enums do banco == enums do código ────────────────────────────────────
-
-type StatusDoBanco = Database["public"]["Enums"]["pedido_status_enum"];
+// ─── Status: o que o tipo consegue provar, e o que não consegue ──────────
+//
+// Em produção `status`, `canal`, `prioridade` etc. são TEXT — a primeira
+// versão da 010b assumia enum, e a conferência contra o banco real mostrou
+// que não. Para o TypeScript a coluna é só `string`, então ele consegue
+// provar que o código cabe no banco, mas NÃO que o banco só contém valores
+// que o código conhece.
+//
+// Essa segunda garantia agora é do próprio banco: a 022 cria um CHECK com a
+// lista exata, e `tests/integration/producao.test.ts` confere que o CHECK e
+// `PEDIDO_STATUS` têm os mesmos valores, na mesma ordem.
 
 export type _StatusCodigoCabeNoBanco = Assert<
-	Atribuivel<PedidoStatus, StatusDoBanco>
->;
-export type _StatusBancoCabeNoCodigo = Assert<
-	Atribuivel<StatusDoBanco, PedidoStatus>
+	Atribuivel<PedidoStatus, Row<"pedido">["status"]>
 >;
 
 // ─── O insert de criarPedido cabe no schema ───────────────────────────────
@@ -92,16 +104,16 @@ export type _StatusBancoCabeNoCodigo = Assert<
 export type PayloadPedido = {
 	numero_pedido: string;
 	data_pedido: string;
-	canal: Database["public"]["Enums"]["canal_pedido_enum"];
-	status: StatusDoBanco;
-	prioridade: Database["public"]["Enums"]["prioridade_enum"];
+	canal: CanalPedido;
+	status: PedidoStatus;
+	prioridade: Prioridade;
 	cliente_nome: string | null;
 	cliente_telefone: string | null;
 	cliente_email: string | null;
 	cliente_referencia: string | null;
 	data_prazo: string | null;
-	forma_pagamento: Database["public"]["Enums"]["forma_pagamento_enum"] | null;
-	status_pagamento: Database["public"]["Enums"]["status_pagamento_enum"];
+	forma_pagamento: FormaPagamento | null;
+	status_pagamento: StatusPagamento;
 	valor_sinal: number | null;
 	desconto_valor: number | null;
 	taxa_marketplace_pct: number | null;
@@ -117,7 +129,7 @@ export type _PedidoInsertConfere = Assert<
 /** Exatamente as chaves que `criarPedido` monta para cada item. */
 export type PayloadPedidoItem = {
 	pedido_id: string;
-	tipo: Database["public"]["Enums"]["pedido_item_tipo_enum"];
+	tipo: ItemTipo;
 	modelo_id: string | null;
 	descricao_custom: string | null;
 	tempo_impressao_min: number | null;

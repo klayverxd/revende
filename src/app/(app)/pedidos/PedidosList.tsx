@@ -7,7 +7,13 @@ import { useRouter } from "next/navigation";
 import { Button, useToast } from "@/components/ui";
 import PedidoModal from "./PedidoModal";
 import { atualizarStatusPedido, patchPedido } from "./actions";
-import { fmtData } from "@/lib/utils/data";
+import { fmtData } from "@/lib/format";
+import {
+	PEDIDO_STATUS,
+	STATUS_COR,
+	STATUS_LABEL,
+} from "@/modules/pedido/status";
+
 import type { PedidoStatus, CanalPedido, Prioridade, StatusPagamento, FormaPagamento } from "./actions";
 
 export interface PedidoRow {
@@ -27,42 +33,6 @@ export interface PedidoRow {
 	lucro: number | null;
 }
 
-const STATUS_LABEL: Record<PedidoStatus, string> = {
-	NOVO: "Novo",
-	EM_MODELAGEM: "Em modelagem",
-	AGUARDANDO_IMPRESSAO: "Ag. impressão",
-	IMPRIMINDO: "Imprimindo",
-	EM_ACABAMENTO: "Em acabamento",
-	PRONTO: "Pronto",
-	ENVIADO: "Enviado",
-	ENTREGUE: "Entregue",
-	CANCELADO: "Cancelado",
-};
-
-const STATUS_ORDER: PedidoStatus[] = [
-	"NOVO",
-	"EM_MODELAGEM",
-	"AGUARDANDO_IMPRESSAO",
-	"IMPRIMINDO",
-	"EM_ACABAMENTO",
-	"PRONTO",
-	"ENVIADO",
-	"ENTREGUE",
-];
-
-const ALL_STATUSES_WITH_CANCEL: PedidoStatus[] = [...STATUS_ORDER, "CANCELADO"];
-
-const STATUS_COLOR: Record<PedidoStatus, string> = {
-	NOVO: "bg-blue-50 text-blue-700 border-blue-200",
-	EM_MODELAGEM: "bg-gray-100 text-gray-700 border-gray-200",
-	AGUARDANDO_IMPRESSAO: "bg-amber-50 text-amber-700 border-amber-200",
-	IMPRIMINDO: "bg-orange-50 text-orange-700 border-orange-200",
-	EM_ACABAMENTO: "bg-yellow-50 text-yellow-700 border-yellow-200",
-	PRONTO: "bg-teal-50 text-teal-700 border-teal-200",
-	ENVIADO: "bg-indigo-50 text-indigo-700 border-indigo-200",
-	ENTREGUE: "bg-green-50 text-green-700 border-green-200",
-	CANCELADO: "bg-red-50 text-red-700 border-red-200",
-};
 
 
 const PRIORIDADE_STYLE: Record<Prioridade, string> = {
@@ -135,7 +105,7 @@ function StatusDropdown({
 	function handleToggle() {
 		if (!btnRef.current) return;
 		const r = btnRef.current.getBoundingClientRect();
-		const estimatedMenuHeight = ALL_STATUSES_WITH_CANCEL.length * 30 + 16;
+		const estimatedMenuHeight = PEDIDO_STATUS.length * 30 + 16;
 		const flipUp = r.bottom + estimatedMenuHeight > window.innerHeight;
 		if (flipUp) {
 			setMenuPos({ flipUp: true, bottom: window.innerHeight - r.top + 4, left: r.left });
@@ -154,7 +124,7 @@ function StatusDropdown({
 				type="button"
 				disabled={loading || isFinal}
 				onClick={handleToggle}
-				className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${STATUS_COLOR[displayed]} ${
+				className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${STATUS_COR[displayed]} ${
 					isFinal ? "cursor-default" : "cursor-pointer hover:brightness-95"
 				} ${loading ? "opacity-50" : ""}`}
 			>
@@ -171,7 +141,7 @@ function StatusDropdown({
 					}
 					className="z-50 bg-white border border-[#B5D4F4] rounded-xl shadow-lg py-1 min-w-40"
 				>
-					{ALL_STATUSES_WITH_CANCEL.filter(s => s !== displayed).map(s => (
+					{PEDIDO_STATUS.filter(s => s !== displayed).map(s => (
 						<button
 							key={s}
 							type="button"
@@ -184,7 +154,7 @@ function StatusDropdown({
 								s === "CANCELADO" ? "text-red-600 border-t border-[#E6F1FB] mt-1 pt-2" : "text-gray-700"
 							}`}
 						>
-							<span className={`inline-block w-2 h-2 rounded-full border ${STATUS_COLOR[s]}`} />
+							<span className={`inline-block w-2 h-2 rounded-full border ${STATUS_COR[s]}`} />
 							{STATUS_LABEL[s]}
 						</button>
 					))}

@@ -6,7 +6,13 @@ import { useRouter } from "next/navigation";
 import { Button, Badge, useToast } from "@/components/ui";
 import PedidoModal from "../PedidoModal";
 import { atualizarStatusPedido, deletarPedido } from "../actions";
-import { fmtData } from "@/lib/utils/data";
+import { fmtData } from "@/lib/format";
+import {
+	STATUS_LABEL,
+	STATUS_ORDEM,
+	STATUS_VARIANTE,
+} from "@/modules/pedido/status";
+
 import type {
 	PedidoStatus,
 	CanalPedido,
@@ -64,43 +70,6 @@ interface Props {
 	readonly pedido: Pedido;
 }
 
-const STATUS_LABEL: Record<PedidoStatus, string> = {
-	NOVO: "Novo",
-	EM_MODELAGEM: "Em modelagem",
-	AGUARDANDO_IMPRESSAO: "Ag. impressão",
-	IMPRIMINDO: "Imprimindo",
-	EM_ACABAMENTO: "Em acabamento",
-	PRONTO: "Pronto",
-	ENVIADO: "Enviado",
-	ENTREGUE: "Entregue",
-	CANCELADO: "Cancelado",
-};
-
-const STATUS_ORDER: PedidoStatus[] = [
-	"NOVO",
-	"EM_MODELAGEM",
-	"AGUARDANDO_IMPRESSAO",
-	"IMPRIMINDO",
-	"EM_ACABAMENTO",
-	"PRONTO",
-	"ENVIADO",
-	"ENTREGUE",
-];
-
-const STATUS_VARIANT: Record<
-	PedidoStatus,
-	"neutral" | "success" | "warning" | "danger" | "info"
-> = {
-	NOVO: "info",
-	EM_MODELAGEM: "neutral",
-	AGUARDANDO_IMPRESSAO: "warning",
-	IMPRIMINDO: "warning",
-	EM_ACABAMENTO: "warning",
-	PRONTO: "success",
-	ENVIADO: "info",
-	ENTREGUE: "success",
-	CANCELADO: "danger",
-};
 
 const CANAL_LABEL: Record<CanalPedido, string> = {
 	PRESENCIAL: "Presencial",
@@ -146,7 +115,7 @@ export default function PedidoDetalhe({ pedido }: Props) {
 	const [updating, setUpdating] = useState(false);
 	const [confirmDelete, setConfirmDelete] = useState(false);
 
-	const currentIdx = STATUS_ORDER.indexOf(pedido.status);
+	const currentIdx = STATUS_ORDEM.indexOf(pedido.status);
 
 	async function handleStatusChange(status: PedidoStatus) {
 		setUpdating(true);
@@ -228,7 +197,7 @@ export default function PedidoDetalhe({ pedido }: Props) {
 					</h1>
 					<p className="text-xs text-gray-400 font-mono mt-0.5">{pedido.numero_pedido}</p>
 					<div className="flex items-center gap-2 mt-1">
-						<Badge variant={STATUS_VARIANT[pedido.status]}>
+						<Badge variant={STATUS_VARIANTE[pedido.status]}>
 							{STATUS_LABEL[pedido.status]}
 						</Badge>
 						{pedido.prioridade !== "NORMAL" && (
@@ -265,7 +234,7 @@ export default function PedidoDetalhe({ pedido }: Props) {
 						Progresso
 					</p>
 					<div className="flex items-center gap-1 flex-wrap">
-						{STATUS_ORDER.map((s, i) => {
+						{STATUS_ORDEM.map((s, i) => {
 							const done = i < currentIdx;
 							const active = i === currentIdx;
 							const future = i > currentIdx;

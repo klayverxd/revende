@@ -30,6 +30,7 @@ import {
 	statusAposConferencia,
 } from "@/modules/envio/fechamento";
 import { calcularAcertoValorMinimo } from "@/modules/acerto/calcular";
+import { COLUNAS_ESTEIRA, PEDIDO_STATUS } from "@/modules/pedido/status";
 
 const MIGRATIONS_DIR = path.join(process.cwd(), "supabase", "migrations");
 /**
@@ -255,27 +256,74 @@ describe("estrutura do banco", () => {
 		assert.deepEqual(faltando, []);
 	});
 
-	test("enum de status do pedido casa com o do código", async () => {
-		const r = await db.query<{ valor: string }>(
-			`SELECT e.enumlabel AS valor
-       FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
-       WHERE t.typname = 'pedido_status_enum'
-       ORDER BY e.enumsortorder`
+	/** Valores do CHECK de uma coluna, na ordem em que foram declarados. */
+	async function valoresDoCheck(nome: string): Promise<string[]> {
+		const r = await db.query<{ def: string }>(
+			"SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conname = $1",
+			[nome]
 		);
-		assert.deepEqual(
-			r.rows.map(x => x.valor),
-			[
-				"NOVO",
-				"EM_MODELAGEM",
-				"AGUARDANDO_IMPRESSAO",
-				"IMPRIMINDO",
-				"EM_ACABAMENTO",
-				"PRONTO",
-				"ENVIADO",
-				"ENTREGUE",
-				"CANCELADO",
-			]
+		assert.ok(r.rows[0], `CHECK ${nome} não existe`);
+		return (/\{([^}]*)\}/.exec(r.rows[0].def)?.[1] ?? "").split(",");
+	}
+
+	test("CHECK de status do pedido casa com o código", async () => {
+		// Em produção a coluna é TEXT — não há enum. A lista de valores
+		// válidos vive no CHECK da 022 e tem que ser idêntica à do módulo,
+		// na ordem: se uma mudar sem a outra, quebra aqui.
+		assert.deepEqual(await valoresDoCheck("pedido_status_check"), [...PEDIDO_STATUS]);
+	});
+
+	test("todo status aceito pelo banco tem coluna na esteira", async () => {
+		// Um status válido sem coluna no kanban viraria card invisível.
+		const cobertos = new Set<string>(COLUNAS_ESTEIRA.flatMap(c => c.statuses));
+		const orfaos = (await valoresDoCheck("pedido_status_check")).filter(
+			v => !cobertos.has(v)
 		);
+		assert.deepEqual(orfaos, [], `status sem coluna: ${orfaos.join(", ")}`);
+	});
+
+	test("não sobrou nenhum enum de pedido", async () => {
+		// A primeira versão da 010b criava enums que, em produção, nenhuma
+		// coluna usava. Num banco novo eles não podem nem nascer.
+		const r = await db.query<{ typname: string }>(
+			`SELECT typname FROM pg_type WHERE typname IN (
+         'pedido_status_enum','canal_pedido_enum','status_pagamento_enum',
+         'prioridade_enum','pedido_item_tipo_enum')`
+		);
+		assert.deepEqual(r.rows, []);
+	});
+
+	test("pedido_item aceita UPDATE — a armadilha da 010b antiga", async () => {
+		// O trigger de updated_at exige a coluna. Em produção ela faltava, e
+		// todo UPDATE em pedido_item quebrava. Aqui num banco limpo.
+		const cols = await db.query<{ column_name: string }>(
+			`SELECT column_name FROM information_schema.columns
+       WHERE table_name = 'pedido_item' AND column_name IN ('updated_at','deleted_at')`
+		);
+		assert.equal(cols.rows.length, 2);
+	});
+
+	test("as tabelas do card existem", async () => {
+		for (const t of [
+			"pedido_checklist",
+			"pedido_checklist_item",
+			"etiqueta",
+			"pedido_etiqueta",
+			"pedido_comentario",
+			"pedido_anexo",
+		]) {
+			assert.ok(await existeTabela(t), t);
+		}
+		for (const c of [
+			"titulo",
+			"descricao_md",
+			"responsavel_id",
+			"capa_url",
+			"prazo_concluido",
+			"ordem_esteira",
+		]) {
+			assert.ok(await existeColuna("pedido", c), `pedido.${c}`);
+		}
 	});
 
 	test("índices únicos da 019 e 020 foram criados", async () => {
@@ -600,7 +648,7 @@ describe("ciclo de negócio completo no banco real", () => {
 		assert.ok(r.data_inicio_producao);
 	});
 
-	test("numero_pedido é único por workspace, não global", async () => {
+	test("numero_pedido não se repete (UNIQUE global, como em produção)", async () => {
 		await assert.rejects(
 			db.query(
 				`INSERT INTO pedido (numero_pedido, canal, status)

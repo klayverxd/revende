@@ -21,6 +21,13 @@
 --    dois workspaces geram "PED-2026-0001" independentemente. A unicidade
 --    correta é por workspace (user_id), não global.
 --
+--    ATENÇÃO: a conferência mostrou que produção JÁ TEM um UNIQUE global em
+--    numero_pedido (criado à mão, agora descrito na 010b). Enquanto ele
+--    existir, este índice por workspace não acrescenta proteção — e um
+--    segundo workspace que gere "PED-2026-0001" vai falhar ao criar pedido.
+--    Com um workspace só (o caso hoje), isso não acontece. Trocar o global
+--    pelo por-workspace fica para quando houver um segundo workspace.
+--
 -- SEGURANÇA: cada índice só é criado se a tabela já estiver limpa. Havendo
 -- duplicatas, a migration emite WARNING com a contagem e NÃO cria o índice —
 -- em vez de abortar a migration inteira ou apagar dados de negócio por conta

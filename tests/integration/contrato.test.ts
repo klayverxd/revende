@@ -83,8 +83,8 @@ describe("as asserções de contrato têm dente", () => {
 		const { ok, saida } = compilar(`${IMPORTS}
 type Payload = {
 	numero_pedido: string;
-	canal: Database["public"]["Enums"]["canal_pedido_enum"];
-	status: Database["public"]["Enums"]["pedido_status_enum"];
+	canal: string;
+	status: string;
 };
 export type _T = Assert<PayloadConfere<Payload, Insert<"pedido">>>;
 `);
@@ -116,12 +116,19 @@ export type _T = Assert<PayloadConfere<Payload, Insert<"pedido">>>;
 	});
 
 	test("REJEITA valor de enum que o banco não conhece", () => {
+		// Usa envio_item.modelo_acerto, que é enum de verdade. O status de
+		// pedido NÃO serve mais para este teste: em produção ele é TEXT, então
+		// o TypeScript aceita qualquer string — quem barra valor inválido ali
+		// é o CHECK da 022, coberto por tests/integration/producao.test.ts.
 		const { ok } = compilar(`${IMPORTS}
 type Payload = {
-	numero_pedido: string;
-	status: "STATUS_INVENTADO";
+	envio_id: string;
+	modelo_id: string;
+	qtd_enviada: number;
+	preco_origem: Database["public"]["Enums"]["preco_origem_enum"];
+	modelo_acerto: "ACERTO_INVENTADO";
 };
-export type _T = Assert<PayloadConfere<Payload, Insert<"pedido">>>;
+export type _T = Assert<PayloadConfere<Payload, Insert<"envio_item">>>;
 `);
 		assert.ok(!ok, "enum inválido deveria quebrar a compilação");
 	});
@@ -129,7 +136,7 @@ export type _T = Assert<PayloadConfere<Payload, Insert<"pedido">>>;
 	test("REJEITA payload que omite coluna obrigatória", () => {
 		const { ok } = compilar(`${IMPORTS}
 // numero_pedido é NOT NULL sem default → obrigatório no Insert.
-type Payload = { canal: Database["public"]["Enums"]["canal_pedido_enum"] };
+type Payload = { canal: string };
 export type _T = Assert<PayloadConfere<Payload, Insert<"pedido">>>;
 `);
 		assert.ok(!ok, "faltar coluna obrigatória deveria quebrar a compilação");

@@ -5,7 +5,7 @@
  * Regenerar:  npm run db:types
  * Verificar:  npm run db:types:check   (usado no CI)
  *
- * 22 migrations · 20 tabelas · 12 enums
+ * 26 migrations · 26 tabelas · 7 enums
  */
 
 export type Json =
@@ -510,6 +510,39 @@ export type Database = {
 					},
 				];
 			};
+			etiqueta: {
+				Row: {
+					etiqueta_id: string;
+					nome: string;
+					cor: string;
+					ordem: number;
+					user_id: string | null;
+					deleted_at: string | null;
+					created_at: string;
+					updated_at: string;
+				};
+				Insert: {
+					etiqueta_id?: string;
+					nome: string;
+					cor?: string;
+					ordem?: number;
+					user_id?: string | null;
+					deleted_at?: string | null;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Update: {
+					etiqueta_id?: string;
+					nome?: string;
+					cor?: string;
+					ordem?: number;
+					user_id?: string | null;
+					deleted_at?: string | null;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Relationships: [];
+			};
 			membro_equipe: {
 				Row: {
 					id: string;
@@ -548,6 +581,7 @@ export type Database = {
 					updated_at: string;
 					user_id: string | null;
 					foto_url: string | null;
+					is_coringa: boolean;
 				};
 				Insert: {
 					modelo_id?: string;
@@ -562,6 +596,7 @@ export type Database = {
 					updated_at?: string;
 					user_id?: string | null;
 					foto_url?: string | null;
+					is_coringa?: boolean;
 				};
 				Update: {
 					modelo_id?: string;
@@ -576,6 +611,7 @@ export type Database = {
 					updated_at?: string;
 					user_id?: string | null;
 					foto_url?: string | null;
+					is_coringa?: boolean;
 				};
 				Relationships: [];
 			};
@@ -634,18 +670,21 @@ export type Database = {
 					pedido_id: string;
 					numero_pedido: string;
 					data_pedido: string;
-					canal: Database["public"]["Enums"]["canal_pedido_enum"];
-					status: Database["public"]["Enums"]["pedido_status_enum"];
-					prioridade: Database["public"]["Enums"]["prioridade_enum"];
+					canal: string;
+					status: string;
+					prioridade: string;
 					cliente_nome: string | null;
 					cliente_telefone: string | null;
 					cliente_email: string | null;
 					cliente_referencia: string | null;
 					data_prazo: string | null;
-					forma_pagamento: Database["public"]["Enums"]["forma_pagamento_enum"] | null;
-					status_pagamento: Database["public"]["Enums"]["status_pagamento_enum"];
+					forma_pagamento: string | null;
+					status_pagamento: string;
 					valor_sinal: number | null;
 					desconto_valor: number | null;
+					data_inicio_producao: string | null;
+					data_conclusao_producao: string | null;
+					data_entrega: string | null;
 					observacao: string | null;
 					deleted_at: string | null;
 					created_at: string;
@@ -655,27 +694,33 @@ export type Database = {
 					custo_envio: number | null;
 					outros_encargos: number | null;
 					cliente_id: string | null;
-					data_inicio_producao: string | null;
-					data_conclusao_producao: string | null;
-					data_entrega: string | null;
 					criado_por: string | null;
+					titulo: string | null;
+					descricao_md: string | null;
+					responsavel_id: string | null;
+					capa_url: string | null;
+					prazo_concluido: boolean;
+					ordem_esteira: number | null;
 				};
 				Insert: {
 					pedido_id?: string;
 					numero_pedido: string;
 					data_pedido?: string;
-					canal?: Database["public"]["Enums"]["canal_pedido_enum"];
-					status?: Database["public"]["Enums"]["pedido_status_enum"];
-					prioridade?: Database["public"]["Enums"]["prioridade_enum"];
+					canal: string;
+					status?: string;
+					prioridade?: string;
 					cliente_nome?: string | null;
 					cliente_telefone?: string | null;
 					cliente_email?: string | null;
 					cliente_referencia?: string | null;
 					data_prazo?: string | null;
-					forma_pagamento?: Database["public"]["Enums"]["forma_pagamento_enum"] | null;
-					status_pagamento?: Database["public"]["Enums"]["status_pagamento_enum"];
+					forma_pagamento?: string | null;
+					status_pagamento?: string;
 					valor_sinal?: number | null;
 					desconto_valor?: number | null;
+					data_inicio_producao?: string | null;
+					data_conclusao_producao?: string | null;
+					data_entrega?: string | null;
 					observacao?: string | null;
 					deleted_at?: string | null;
 					created_at?: string;
@@ -685,27 +730,33 @@ export type Database = {
 					custo_envio?: number | null;
 					outros_encargos?: number | null;
 					cliente_id?: string | null;
-					data_inicio_producao?: string | null;
-					data_conclusao_producao?: string | null;
-					data_entrega?: string | null;
 					criado_por?: string | null;
+					titulo?: string | null;
+					descricao_md?: string | null;
+					responsavel_id?: string | null;
+					capa_url?: string | null;
+					prazo_concluido?: boolean;
+					ordem_esteira?: number | null;
 				};
 				Update: {
 					pedido_id?: string;
 					numero_pedido?: string;
 					data_pedido?: string;
-					canal?: Database["public"]["Enums"]["canal_pedido_enum"];
-					status?: Database["public"]["Enums"]["pedido_status_enum"];
-					prioridade?: Database["public"]["Enums"]["prioridade_enum"];
+					canal?: string;
+					status?: string;
+					prioridade?: string;
 					cliente_nome?: string | null;
 					cliente_telefone?: string | null;
 					cliente_email?: string | null;
 					cliente_referencia?: string | null;
 					data_prazo?: string | null;
-					forma_pagamento?: Database["public"]["Enums"]["forma_pagamento_enum"] | null;
-					status_pagamento?: Database["public"]["Enums"]["status_pagamento_enum"];
+					forma_pagamento?: string | null;
+					status_pagamento?: string;
 					valor_sinal?: number | null;
 					desconto_valor?: number | null;
+					data_inicio_producao?: string | null;
+					data_conclusao_producao?: string | null;
+					data_entrega?: string | null;
 					observacao?: string | null;
 					deleted_at?: string | null;
 					created_at?: string;
@@ -715,10 +766,13 @@ export type Database = {
 					custo_envio?: number | null;
 					outros_encargos?: number | null;
 					cliente_id?: string | null;
-					data_inicio_producao?: string | null;
-					data_conclusao_producao?: string | null;
-					data_entrega?: string | null;
 					criado_por?: string | null;
+					titulo?: string | null;
+					descricao_md?: string | null;
+					responsavel_id?: string | null;
+					capa_url?: string | null;
+					prazo_concluido?: boolean;
+					ordem_esteira?: number | null;
 				};
 				Relationships: [
 					{
@@ -730,11 +784,232 @@ export type Database = {
 					},
 				];
 			};
+			pedido_anexo: {
+				Row: {
+					anexo_id: string;
+					pedido_id: string;
+					url: string;
+					nome: string;
+					tipo: string | null;
+					tamanho_bytes: number | null;
+					user_id: string | null;
+					criado_por: string | null;
+					deleted_at: string | null;
+					created_at: string;
+					updated_at: string;
+				};
+				Insert: {
+					anexo_id?: string;
+					pedido_id: string;
+					url: string;
+					nome: string;
+					tipo?: string | null;
+					tamanho_bytes?: number | null;
+					user_id?: string | null;
+					criado_por?: string | null;
+					deleted_at?: string | null;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Update: {
+					anexo_id?: string;
+					pedido_id?: string;
+					url?: string;
+					nome?: string;
+					tipo?: string | null;
+					tamanho_bytes?: number | null;
+					user_id?: string | null;
+					criado_por?: string | null;
+					deleted_at?: string | null;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "pedido_anexo_pedido_id_fkey";
+						columns: ["pedido_id"];
+						isOneToOne: false;
+						referencedRelation: "pedido";
+						referencedColumns: ["pedido_id"];
+					},
+				];
+			};
+			pedido_checklist: {
+				Row: {
+					checklist_id: string;
+					pedido_id: string;
+					titulo: string;
+					ordem: number;
+					user_id: string | null;
+					criado_por: string | null;
+					deleted_at: string | null;
+					created_at: string;
+					updated_at: string;
+				};
+				Insert: {
+					checklist_id?: string;
+					pedido_id: string;
+					titulo: string;
+					ordem?: number;
+					user_id?: string | null;
+					criado_por?: string | null;
+					deleted_at?: string | null;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Update: {
+					checklist_id?: string;
+					pedido_id?: string;
+					titulo?: string;
+					ordem?: number;
+					user_id?: string | null;
+					criado_por?: string | null;
+					deleted_at?: string | null;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "pedido_checklist_pedido_id_fkey";
+						columns: ["pedido_id"];
+						isOneToOne: false;
+						referencedRelation: "pedido";
+						referencedColumns: ["pedido_id"];
+					},
+				];
+			};
+			pedido_checklist_item: {
+				Row: {
+					item_id: string;
+					checklist_id: string;
+					texto: string;
+					concluido: boolean;
+					concluido_em: string | null;
+					ordem: number;
+					user_id: string | null;
+					criado_por: string | null;
+					deleted_at: string | null;
+					created_at: string;
+					updated_at: string;
+				};
+				Insert: {
+					item_id?: string;
+					checklist_id: string;
+					texto: string;
+					concluido?: boolean;
+					concluido_em?: string | null;
+					ordem?: number;
+					user_id?: string | null;
+					criado_por?: string | null;
+					deleted_at?: string | null;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Update: {
+					item_id?: string;
+					checklist_id?: string;
+					texto?: string;
+					concluido?: boolean;
+					concluido_em?: string | null;
+					ordem?: number;
+					user_id?: string | null;
+					criado_por?: string | null;
+					deleted_at?: string | null;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "pedido_checklist_item_checklist_id_fkey";
+						columns: ["checklist_id"];
+						isOneToOne: false;
+						referencedRelation: "pedido_checklist";
+						referencedColumns: ["checklist_id"];
+					},
+				];
+			};
+			pedido_comentario: {
+				Row: {
+					comentario_id: string;
+					pedido_id: string;
+					texto_md: string;
+					user_id: string | null;
+					criado_por: string | null;
+					deleted_at: string | null;
+					created_at: string;
+					updated_at: string;
+				};
+				Insert: {
+					comentario_id?: string;
+					pedido_id: string;
+					texto_md: string;
+					user_id?: string | null;
+					criado_por?: string | null;
+					deleted_at?: string | null;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Update: {
+					comentario_id?: string;
+					pedido_id?: string;
+					texto_md?: string;
+					user_id?: string | null;
+					criado_por?: string | null;
+					deleted_at?: string | null;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "pedido_comentario_pedido_id_fkey";
+						columns: ["pedido_id"];
+						isOneToOne: false;
+						referencedRelation: "pedido";
+						referencedColumns: ["pedido_id"];
+					},
+				];
+			};
+			pedido_etiqueta: {
+				Row: {
+					pedido_id: string;
+					etiqueta_id: string;
+					user_id: string | null;
+					created_at: string;
+				};
+				Insert: {
+					pedido_id: string;
+					etiqueta_id: string;
+					user_id?: string | null;
+					created_at?: string;
+				};
+				Update: {
+					pedido_id?: string;
+					etiqueta_id?: string;
+					user_id?: string | null;
+					created_at?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "pedido_etiqueta_etiqueta_id_fkey";
+						columns: ["etiqueta_id"];
+						isOneToOne: false;
+						referencedRelation: "etiqueta";
+						referencedColumns: ["etiqueta_id"];
+					},
+					{
+						foreignKeyName: "pedido_etiqueta_pedido_id_fkey";
+						columns: ["pedido_id"];
+						isOneToOne: false;
+						referencedRelation: "pedido";
+						referencedColumns: ["pedido_id"];
+					},
+				];
+			};
 			pedido_item: {
 				Row: {
 					item_id: string;
 					pedido_id: string;
-					tipo: Database["public"]["Enums"]["pedido_item_tipo_enum"];
+					tipo: string;
 					modelo_id: string | null;
 					descricao_custom: string | null;
 					tempo_impressao_min: number | null;
@@ -744,16 +1019,21 @@ export type Database = {
 					preco_venda_unit: number | null;
 					custo_unit: number | null;
 					observacao: string | null;
-					deleted_at: string | null;
+					produto_codigo_snapshot: string | null;
+					produto_nome_snapshot: string | null;
+					custo_unit_snapshot: number | null;
+					equipamento_id: string | null;
+					materia_prima_id: string | null;
 					created_at: string;
-					updated_at: string;
 					user_id: string | null;
+					updated_at: string;
+					deleted_at: string | null;
 					criado_por: string | null;
 				};
 				Insert: {
 					item_id?: string;
 					pedido_id: string;
-					tipo?: Database["public"]["Enums"]["pedido_item_tipo_enum"];
+					tipo: string;
 					modelo_id?: string | null;
 					descricao_custom?: string | null;
 					tempo_impressao_min?: number | null;
@@ -763,16 +1043,21 @@ export type Database = {
 					preco_venda_unit?: number | null;
 					custo_unit?: number | null;
 					observacao?: string | null;
-					deleted_at?: string | null;
+					produto_codigo_snapshot?: string | null;
+					produto_nome_snapshot?: string | null;
+					custo_unit_snapshot?: number | null;
+					equipamento_id?: string | null;
+					materia_prima_id?: string | null;
 					created_at?: string;
-					updated_at?: string;
 					user_id?: string | null;
+					updated_at?: string;
+					deleted_at?: string | null;
 					criado_por?: string | null;
 				};
 				Update: {
 					item_id?: string;
 					pedido_id?: string;
-					tipo?: Database["public"]["Enums"]["pedido_item_tipo_enum"];
+					tipo?: string;
 					modelo_id?: string | null;
 					descricao_custom?: string | null;
 					tempo_impressao_min?: number | null;
@@ -782,13 +1067,32 @@ export type Database = {
 					preco_venda_unit?: number | null;
 					custo_unit?: number | null;
 					observacao?: string | null;
-					deleted_at?: string | null;
+					produto_codigo_snapshot?: string | null;
+					produto_nome_snapshot?: string | null;
+					custo_unit_snapshot?: number | null;
+					equipamento_id?: string | null;
+					materia_prima_id?: string | null;
 					created_at?: string;
-					updated_at?: string;
 					user_id?: string | null;
+					updated_at?: string;
+					deleted_at?: string | null;
 					criado_por?: string | null;
 				};
 				Relationships: [
+					{
+						foreignKeyName: "pedido_item_equipamento_id_fkey";
+						columns: ["equipamento_id"];
+						isOneToOne: false;
+						referencedRelation: "config_equipamento";
+						referencedColumns: ["equipamento_id"];
+					},
+					{
+						foreignKeyName: "pedido_item_materia_prima_id_fkey";
+						columns: ["materia_prima_id"];
+						isOneToOne: false;
+						referencedRelation: "config_materia_prima";
+						referencedColumns: ["materia_prima_id"];
+					},
 					{
 						foreignKeyName: "pedido_item_modelo_id_fkey";
 						columns: ["modelo_id"];
@@ -1094,17 +1398,12 @@ export type Database = {
 		Functions: Record<string, never>;
 		Enums: {
 			acerto_status_enum: "PENDENTE" | "RECEBIDO";
-			canal_pedido_enum: "PRESENCIAL" | "WHATSAPP" | "INSTAGRAM" | "SHOPEE";
 			canal_venda_enum: "PRESENCIAL" | "WHATSAPP" | "FEIRA" | "EVENTO" | "INSTAGRAM" | "OUTRO";
 			envio_status_enum: "ABERTO" | "CONFERIDO" | "ENCERRADO";
 			forma_pagamento_enum: "PIX" | "DINHEIRO" | "CARTAO" | "OUTRO";
 			modelo_acerto_enum: "COMISSAO" | "VALOR_MINIMO";
 			modo_valor_enum: "CALCULADO" | "MANUAL";
-			pedido_item_tipo_enum: "PRODUTO" | "CORINGA";
-			pedido_status_enum: "NOVO" | "EM_MODELAGEM" | "AGUARDANDO_IMPRESSAO" | "IMPRIMINDO" | "EM_ACABAMENTO" | "PRONTO" | "ENVIADO" | "ENTREGUE" | "CANCELADO";
 			preco_origem_enum: "MODELO" | "REVENDEDOR" | "MANUAL";
-			prioridade_enum: "NORMAL" | "ALTA" | "URGENTE";
-			status_pagamento_enum: "PENDENTE" | "SINAL_RECEBIDO" | "PAGO";
 		};
 		CompositeTypes: Record<string, never>;
 	};
@@ -1118,6 +1417,6 @@ export type Row<T extends keyof Database["public"]["Tables"]> =
 export type Insert<T extends keyof Database["public"]["Tables"]> =
 	Database["public"]["Tables"][T]["Insert"];
 
-/** Atalho para um enum: `Enum<"pedido_status_enum">`. */
+/** Atalho para um enum: `Enum<"modelo_acerto_enum">`. */
 export type Enum<T extends keyof Database["public"]["Enums"]> =
 	Database["public"]["Enums"][T];

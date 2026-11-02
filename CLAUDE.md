@@ -127,9 +127,32 @@ não exibir. Depois de rodar, confira pela consulta se foram criados.
 
 ### Estado da produção
 
-Aplicadas: até a `017b`, mais a `024`. **Pendentes: `018` a `023`.** O código
-desta branch depende delas (extrato por token, `criado_por`, esteira, card):
-aplicar as migrations **antes** de fazer deploy.
+**Todas aplicadas, até a `024`** — conferido em 2026-11-02 com
+`supabase/consultas/conferir_migrations_aplicadas.sql` (12 de 12). Use essa
+consulta para saber o que está aplicado: o histórico do Supabase não serve.
+
+A ordem é sempre **migration primeiro, deploy depois**. A Vercel publica a
+`main` sozinha a cada push; se o código chegar antes da migration, as telas
+que dependem dela quebram.
+
+### Integração Supabase ↔ GitHub — cuidado
+
+Ela está ligada e tenta aplicar `supabase/migrations/` na produção **a cada
+push na `main`**. Hoje falha sempre na `008` e desfaz tudo (sem estrago,
+mas o check "Supabase Preview" fica vermelho). Três razões pelas quais ela
+não serve como está:
+
+1. A produção não tem histórico, então a integração recomeça da `001` — e a
+   `001`–`007` **não são seguras para reaplicar**: a `003` troca o escopo de
+   workspace para "por usuário" em 15 tabelas (membros perderiam acesso).
+2. O CLI do Supabase só aceita arquivos `^([0-9]+)_(.*)\.sql$` — confirmado
+   no binário — e **pula** a `010b` e a `017b`.
+3. A tabela `supabase_migrations.schema_migrations` existe em produção, mas
+   foi criada por essa tentativa que falhou: não reflete o que está aplicado.
+
+Para usá-la de verdade: renomear as migrations para o padrão do CLI e
+registrar no histórico o que já está aplicado. Até lá, desligar a aplicação
+automática ou conviver com o check vermelho.
 
 ### Entidades
 

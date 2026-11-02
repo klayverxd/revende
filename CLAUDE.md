@@ -7,8 +7,8 @@ orçamento → cálculo de custo → produção → acabamento → entrega → f
 mais o módulo de **consignação** (revendedores, envios, conferências, acertos).
 
 O projeto nasceu como "Revendê", focado só em consignação, e está em
-refatoração modular para o escopo maior. O diretório e o `package.json` ainda
-se chamam `revende`; a renomeação completa é da Fase 1.
+refatoração modular para o escopo maior. O `package.json` e a interface já se
+chamam Imprimimos; o diretório e o repositório no GitHub ainda são `revende`.
 
 > **Plano da refatoração:** `~/.claude/plans/ideias-quero-novo-nome-ancient-panda.md`
 > Fases: 0 fundação · 1 esteira · 2 catálogo/calculadora · 3 insumos ·
@@ -52,7 +52,8 @@ src/
     acerto/          calcular.ts — COMISSAO e VALOR_MINIMO
     envio/           fechamento.ts — quando um envio encerra
     estoque/         calcular.ts — disponibilidade canônica
-    pedido/          status.ts — estados da esteira
+    pedido/          status.ts — estados e colunas da esteira
+                     financeiro.ts — receita, custo e lucro do pedido
   lib/
     format.ts        fmtBRL, fmtData, parseNum, parseTempo, clamp, arredondar
     validacao.ts     primitivas zod + validar() para Server Actions
@@ -60,7 +61,8 @@ src/
     db/
       types.ts       GERADO das migrations — não editar (npm run db:types)
       contrato.ts    asserções de tipo: schema × payloads do código
-    queries/         I/O que alimenta os modules (estoque.ts, modelo.ts)
+    queries/         I/O que alimenta os modules (estoque, modelo,
+                     esteira, card, hoje)
     supabase/        client.ts, server.ts, admin.ts
     utils/preco.ts   resolverPreco — hierarquia de preços
   components/
@@ -92,13 +94,42 @@ Fase 1 — hoje há 28 `<table>` montadas à mão.
 
 ## Banco de dados
 
-Migrations em `supabase/migrations/`, aplicadas em ordem de nome de arquivo.
+Migrations em `supabase/migrations/`, aplicadas **à mão, uma por vez, no SQL
+Editor do Supabase**, em ordem de nome de arquivo. Não há tabela de controle
+de migrations: saber o que já rodou em produção exige conferir.
 
-**`010b_pedido_tables.sql` tem esse nome de propósito:** `pedido` e
-`pedido_item` foram criadas à mão no painel do Supabase e nunca tiveram
-migration, mas as migrations 011–017 fazem `ALTER TABLE` nelas. O `CREATE`
-precisa rodar entre a 010 e a 011. O CI valida que um Postgres limpo aceita
-todas as migrations em ordem — foi o que fechou esse buraco.
+### O repositório descreve a produção — conferido, não suposto
+
+Parte do banco de produção foi criada à mão no painel. Em 2026-11 a produção
+foi comparada coluna a coluna com o que as migrations produzem, e as
+divergências foram levadas **para o repositório** (nunca o contrário):
+
+- **`010b_pedido_tables.sql`** cria `pedido`/`pedido_item` *como existem em
+  produção*: `status`, `canal`, `prioridade`, `status_pagamento`,
+  `forma_pagamento` e `tipo` são **TEXT** (não enum), `data_pedido` e as datas
+  de produção são **TIMESTAMPTZ**, `numero_pedido` tem `UNIQUE` global. O "b"
+  é para rodar entre a 010 e a 011, que já fazem `ALTER TABLE` nelas.
+- **`017b`** e **`024`** reconciliam o resto: colunas que faltavam,
+  trigger duplicado, enums órfãos, uma coluna feita à mão (`modelo.is_coringa`,
+  sem uso no código) e uma função feita à mão.
+- **`022`** valida os valores de pedido com **CHECK**, que produção nunca
+  teve. A lista é a de `src/modules/pedido/status.ts`, e o teste confere que
+  as duas são idênticas.
+
+Para conferir de novo: `supabase/consultas/conferir_producao_estrutura.sql` e
+`conferir_producao_regras.sql` (só leem; uma linha por tabela, para caber
+numa colagem). Rode as mesmas consultas localmente contra as migrations e
+compare.
+
+**Migrations com trava de segurança** (`019`, `022`): se encontram dado sujo,
+não criam o índice/CHECK e emitem `WARNING` — que o editor do Supabase pode
+não exibir. Depois de rodar, confira pela consulta se foram criados.
+
+### Estado da produção
+
+Aplicadas: até a `017b`, mais a `024`. **Pendentes: `018` a `023`.** O código
+desta branch depende delas (extrato por token, `criado_por`, esteira, card):
+aplicar as migrations **antes** de fazer deploy.
 
 ### Entidades
 
@@ -136,10 +167,20 @@ pedido (pedido_id, numero_pedido, data_pedido, canal, status, prioridade,
         data_prazo, forma_pagamento, status_pagamento, valor_sinal,
         desconto_valor, taxa_marketplace_pct, custo_envio, outros_encargos,
         data_inicio_producao, data_conclusao_producao, data_entrega,
-        cliente_id, observacao)
+        cliente_id,
+        -- card da esteira (023):
+        titulo, descricao_md, responsavel_id, capa_url, prazo_concluido,
+        ordem_esteira,
+        observacao)   -- DEPRECIADO: a 023 copia para descricao_md
 pedido_item (item_id, pedido_id, tipo, modelo_id, descricao_custom,
              tempo_impressao_min, peso_g, num_placas, quantidade,
-             preco_venda_unit, custo_unit, observacao)
+             preco_venda_unit, custo_unit, observacao,
+             produto_*_snapshot, custo_unit_snapshot,   -- de produção, sem uso
+             equipamento_id, materia_prima_id)          -- de produção, sem uso
+
+-- Card da esteira (023)
+pedido_checklist (+ pedido_checklist_item), etiqueta (+ pedido_etiqueta),
+pedido_comentario, pedido_anexo
 venda_direta (+ venda_direta_item, com descricao_livre para item sem catálogo)
 
 -- Calculadora
@@ -217,8 +258,10 @@ segue fora. Alertas: `<= 0` SEM_ESTOQUE · `< minimo` REPOR ·
 
 ```
 envio:   ABERTO → CONFERIDO → ENCERRADO
-pedido:  NOVO → EM_MODELAGEM → AGUARDANDO_IMPRESSAO → IMPRIMINDO
-         → EM_ACABAMENTO → PRONTO → ENVIADO → ENTREGUE  (ou CANCELADO)
+pedido:  IDEIA → ORCAMENTO → NOVO → EM_MODELAGEM → AGUARDANDO_IMPRESSAO
+         → IMPRIMINDO → EM_ACABAMENTO → MIDIA → PRONTO → ENVIADO → ENTREGUE
+         (ou CANCELADO). Fonte: src/modules/pedido/status.ts, que também
+         define as colunas da esteira (várias por status).
 ```
 
 ---
@@ -299,7 +342,8 @@ npm run dev             # localhost:3000
 npm run typecheck       # tsc --noEmit
 npm run lint            # eslint
 npm run test            # unitários (node --test, com resolução do alias @/)
-npm run test:db         # migrations num Postgres real (PGlite/WASM, sem Docker)
+npm run test:db         # migrations num Postgres real (PGlite/WASM, sem Docker),
+                        # num banco limpo E no caminho da produção
 npm run test:e2e        # Playwright (precisa TEST_USER_EMAIL / TEST_USER_PASSWORD)
 npm run db:types        # regera src/lib/db/types.ts das migrations
 npm run db:types:check  # falha se os tipos divergirem das migrations
@@ -333,12 +377,22 @@ propósito para garantir que as asserções ainda quebram.
 
 ## Estado atual e pendências conhecidas
 
-**Fase 0 concluída e validada:** migrations completas e aplicadas com sucesso
-num PostgreSQL 18 limpo (`npm run test:db`), extrato público seguro por token,
-domínio extraído para `src/modules/`, formatação e validação centralizadas,
-tipos do banco gerados das migrations com detecção de drift, contrato de tipos
-entre schema e código, lint e CI funcionando, boundaries de erro/carregamento,
-~700 linhas de código morto removidas. 148 testes verdes.
+**Fase 0 concluída e validada.** Migrations completas, extrato público seguro
+por token, domínio em `src/modules/`, formatação e validação centralizadas,
+tipos do banco gerados das migrations com detecção de drift, lint e CI.
+
+**Banco conferido contra produção** (2026-11): o repositório reproduz o
+schema real. `tests/integration/producao.test.ts` simula o caminho que a
+produção percorreu — inclusive a versão antiga da 010b que chegou a rodar lá
+(`tests/integration/fixtures/`) — e prova que as migrations seguintes aplicam
+por cima.
+
+**Fase 1 em andamento.** Feitos, com typecheck e testes, mas **nunca abertos
+no navegador**: esteira kanban (`/producao`), card estilo Trello
+(`/producao/[id]`, com Markdown, checklists, etiquetas, comentários) e a tela
+"Hoje" (`/hoje`). Faltam: raiz do site abrir em `/hoje` (ainda abre em
+`/dashboard`), upload de anexos e capa, mensagens de WhatsApp, `DataTable` e
+busca Ctrl+K.
 
 **Pendente:**
 - **Wire do `Database` nos clients Supabase.** O arquivo de tipos existe, mas

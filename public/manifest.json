@@ -1,13 +1,21 @@
 {
-	"name": "Revendê",
-	"short_name": "Revendê",
-	"description": "Controle de vendas e consignação",
-	"start_url": "/dashboard",
+	"name": "Imprimimos",
+	"short_name": "Imprimimos",
+	"description": "Gestão de impressão 3D — produção, catálogo, consignado e financeiro",
+	"start_url": "/hoje",
 	"display": "standalone",
 	"background_color": "#ffffff",
 	"theme_color": "#0C447C",
 	"icons": [
-		{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-		{ "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+		{
+			"src": "/icon-192.png",
+			"sizes": "192x192",
+			"type": "image/png"
+		},
+		{
+			"src": "/icon-512.png",
+			"sizes": "512x512",
+			"type": "image/png"
+		}
 	]
 }

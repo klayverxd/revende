@@ -5,13 +5,13 @@ import "./globals.css";
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 
 export const metadata: Metadata = {
-	title: "Revendê",
-	description: "Controle de vendas e consignação",
+	title: "Imprimimos",
+	description: "Gestão de impressão 3D — produção, catálogo, consignado e financeiro",
 	manifest: "/manifest.json",
 	appleWebApp: {
 		capable: true,
 		statusBarStyle: "default",
-		title: "Revendê",
+		title: "Imprimimos",
 	},
 };
 

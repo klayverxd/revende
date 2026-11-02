@@ -28,20 +28,6 @@ export interface SalvarCalculoInput {
 
 export type CalculoSnapshot = Omit<SalvarCalculoInput, "salvo_em_modelo_id">;
 
-async function gerarCodigo(): Promise<string> {
-	const supabase = await createClient();
-	const { data } = await supabase
-		.from("modelo")
-		.select("codigo")
-		.like("codigo", "M%")
-		.order("codigo", { ascending: false })
-		.limit(1);
-	if (!data || data.length === 0) return "M01";
-	const last = data[0].codigo as string;
-	const num = Number.parseInt(last.replace("M", ""), 10);
-	return `M${String(num + 1).padStart(2, "0")}`;
-}
-
 export async function salvarPrecoKwh(precoKwh: number) {
 	if (!Number.isFinite(precoKwh) || precoKwh <= 0)
 		throw new Error("Preco kWh invalido");
@@ -195,62 +181,6 @@ export async function toggleMateriaPrima(
 	if (error) throw new Error(error.message);
 	revalidatePath("/calculadora/config");
 	revalidatePath("/calculadora");
-}
-
-export async function salvarCalculo(input: SalvarCalculoInput) {
-	const supabase = await createClient();
-	const { error } = await supabase.from("calculo_custo").insert({
-		equipamento_id: input.equipamento_id,
-		tempo_impressao_min: input.tempo_impressao_min,
-		materias_primas: input.materias_primas,
-		pct_falhas: input.pct_falhas,
-		custo_energia: input.custo_energia,
-		custo_materias_primas: input.custo_materias_primas,
-		custo_depreciacao: input.custo_depreciacao,
-		custo_falhas: input.custo_falhas,
-		custo_extra: input.custo_extra,
-		custo_total: input.custo_total,
-		quantidade: input.quantidade,
-		num_placas: input.num_placas,
-		custo_unitario: input.custo_unitario,
-		salvo_em_modelo_id: input.salvo_em_modelo_id ?? null,
-		custo_extra_id: input.custo_extra_id ?? null,
-	});
-	if (error) throw new Error(error.message);
-	revalidatePath("/calculadora");
-}
-
-export async function salvarComoNovoProduto(input: {
-	nome: string;
-	codigo?: string;
-	descricao?: string;
-	custo_producao: number;
-	calculo?: CalculoSnapshot;
-}) {
-	const supabase = await createClient();
-	const codigo = input.codigo?.trim() || (await gerarCodigo());
-	const { data, error } = await supabase
-		.from("modelo")
-		.insert({
-			nome: input.nome,
-			codigo,
-			descricao: input.descricao ?? null,
-			custo_producao: input.custo_producao,
-			estoque_minimo: 0,
-			ativo: true,
-		})
-		.select("modelo_id")
-		.single();
-	if (error) throw new Error(error.message);
-	if (input.calculo) {
-		await supabase.from("calculo_custo").insert({
-			...input.calculo,
-			salvo_em_modelo_id: data.modelo_id,
-		});
-	}
-	revalidatePath("/produtos");
-	revalidatePath("/calculadora");
-	return { modelo_id: data.modelo_id as string };
 }
 
 export async function atualizarCustoProduto(

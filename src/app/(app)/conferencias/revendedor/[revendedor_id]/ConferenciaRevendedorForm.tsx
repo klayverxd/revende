@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Input, useToast } from "@/components/ui";
 import { confirmarConferenciaRevendedor, salvarPrecoNoCadastro, editarDataEnvio, editarDataConferencia } from "../../actions";
-import type { RevendedorResumo } from "../../[envio_id]/ConferenciaForm";
+import type { RevendedorResumo } from "../../types";
 
 export interface ConferenciaItemMulti {
 	envio_item_id: string;

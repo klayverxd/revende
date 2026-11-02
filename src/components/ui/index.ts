@@ -10,3 +10,5 @@ export type { SearchableSelectOption } from "./SearchableSelect";
 export { default as RowActionsMenu } from "./RowActionsMenu";
 export type { RowAction } from "./RowActionsMenu";
 export { default as FotoUpload } from "./FotoUpload";
+export { default as Markdown } from "./Markdown";
+export { default as EditorMarkdown } from "./EditorMarkdown";

@@ -232,3 +232,42 @@ export async function aplicarValorMinimoPadrao(
 
 	revalidatePath(`/revendedores/${revendedorId}`);
 }
+
+// ─── Link público do extrato ──────────────────────────────────────────────
+// O extrato é servido em /r/[token] pelo client de service role, que ignora
+// o RLS. Por isso o endereço é o `extrato_token` e não o `revendedor_id`:
+// trocar o token revoga o link na hora, e `extrato_ativo = false` derruba o
+// acesso sem perder o token.
+
+/** Gera um token novo, invalidando o link anterior imediatamente. */
+export async function regenerarTokenExtrato(revendedorId: string) {
+	if (!revendedorId) throw new Error("Revendedor invalido");
+
+	const supabase = await createClient();
+	const { error } = await supabase
+		.from("revendedor")
+		.update({ extrato_token: crypto.randomUUID() })
+		.eq("revendedor_id", revendedorId)
+		.is("deleted_at", null);
+
+	if (error) throw new Error(error.message);
+	revalidatePath(`/revendedores/${revendedorId}`);
+}
+
+/** Liga ou desliga o extrato público sem trocar o token. */
+export async function definirExtratoAtivo(
+	revendedorId: string,
+	ativo: boolean
+) {
+	if (!revendedorId) throw new Error("Revendedor invalido");
+
+	const supabase = await createClient();
+	const { error } = await supabase
+		.from("revendedor")
+		.update({ extrato_ativo: ativo })
+		.eq("revendedor_id", revendedorId)
+		.is("deleted_at", null);
+
+	if (error) throw new Error(error.message);
+	revalidatePath(`/revendedores/${revendedorId}`);
+}

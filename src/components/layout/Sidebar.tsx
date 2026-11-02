@@ -40,7 +40,7 @@ export function Sidebar({ user }: Props) {
 			{/* Logo */}
 			<div className="px-5 py-5 border-b border-white/10 shrink-0">
 				<p className="text-white font-bold text-base tracking-tight leading-none">
-					Revendê
+					Imprimimos
 				</p>
 				<p className="text-[#B5D4F4] text-xs mt-1">Controle de vendas</p>
 			</div>

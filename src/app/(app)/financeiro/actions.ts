@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { arredondar } from "@/lib/format";
+import { statusAposRecebimento } from "@/modules/envio/fechamento";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -299,7 +301,7 @@ export async function registrarRecebimento(
 		.update({
 			status: "RECEBIDO",
 			data_recebimento: new Date().toISOString().slice(0, 10),
-			valor_repassado: Number(valorRepassado.toFixed(2)),
+			valor_repassado: arredondar(valorRepassado, 2),
 			observacao: observacao?.trim() || null,
 		})
 		.eq("acerto_id", acertoId);
@@ -314,14 +316,13 @@ export async function registrarRecebimento(
 
 	if (itensError) throw new Error(itensError.message);
 
-	const temItensComRevendedor = (envioItens ?? []).some(i => {
-		const qtdEnviada = (i.qtd_enviada as number) ?? 0;
-		const qtdVendida = (i.qtd_vendida as number | null) ?? 0;
-		const qtdDevolvida = (i.qtd_devolvida as number | null) ?? 0;
-		return qtdEnviada > qtdVendida + qtdDevolvida;
-	});
-
-	const proximoStatus = temItensComRevendedor ? "CONFERIDO" : "ENCERRADO";
+	const proximoStatus = statusAposRecebimento(
+		(envioItens ?? []).map(i => ({
+			qtd_enviada: i.qtd_enviada as number | null,
+			qtd_vendida: i.qtd_vendida as number | null,
+			qtd_devolvida: i.qtd_devolvida as number | null,
+		}))
+	);
 
 	const { error: updateEnvioError } = await supabase
 		.from("envio")

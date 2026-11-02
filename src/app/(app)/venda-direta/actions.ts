@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { buscarDisponivelPorModelo } from "@/lib/queries/estoque";
 import { resolverPrecoModelo } from "@/lib/utils/preco";
 
 export interface VendaDiretaItemInput {
@@ -23,52 +24,6 @@ export interface CriarVendaDiretaInput {
 	data_venda?: string;
 }
 
-function disponibilidadeBaseMap(
-	producoes: Array<{ modelo_id: string; quantidade: number }>,
-	envioItens: Array<{
-		modelo_id: string;
-		qtd_enviada: number | null;
-		qtd_vendida: number | null;
-		qtd_devolvida: number | null;
-		envio: unknown;
-	}>,
-	vendasDiretas: Array<{ modelo_id: string; quantidade: number | null }>
-) {
-	const map = new Map<string, number>();
-
-	for (const p of producoes) {
-		map.set(p.modelo_id, (map.get(p.modelo_id) ?? 0) + (p.quantidade ?? 0));
-	}
-
-	for (const item of envioItens) {
-		const envioRaw = item.envio as
-			| { status: string }
-			| Array<{ status: string }>
-			| null;
-		const envio = Array.isArray(envioRaw) ? envioRaw[0] : envioRaw;
-		if (!envio) continue;
-		if (envio.status === "ABERTO") {
-			map.set(
-				item.modelo_id,
-				(map.get(item.modelo_id) ?? 0) - (item.qtd_enviada ?? 0)
-			);
-		} else if (envio.status === "CONFERIDO" || envio.status === "ENCERRADO") {
-			const qtdDevolvida = item.qtd_devolvida ?? 0;
-			map.set(
-				item.modelo_id,
-				(map.get(item.modelo_id) ?? 0) -
-					((item.qtd_enviada ?? 0) - qtdDevolvida)
-			);
-		}
-	}
-
-	for (const v of vendasDiretas) {
-		map.set(v.modelo_id, (map.get(v.modelo_id) ?? 0) - (v.quantidade ?? 0));
-	}
-
-	return map;
-}
-
 export async function resolverPrecoVendaDireta(modelId: string) {
 	return resolverPrecoModelo(modelId);
 }
@@ -78,46 +33,11 @@ export async function criarVendaDireta(data: CriarVendaDiretaInput) {
 
 	const supabase = await createClient();
 
-	const [{ data: producoes }, { data: envioItens }, { data: vendasDiretas }] =
-		await Promise.all([
-			supabase
-				.from("producao")
-				.select("modelo_id, quantidade")
-				.is("deleted_at", null),
-			supabase
-				.from("envio_item")
-				.select(
-					"modelo_id, qtd_enviada, qtd_vendida, qtd_devolvida, envio:envio_id(status)"
-				)
-				.is("deleted_at", null)
-				.not("envio", "is", null),
-			supabase
-				.from("venda_direta_item")
-				.select("modelo_id, quantidade, venda:venda_id(deleted_at)")
-				.not("venda", "is", null),
-		]);
-
-	const vendasValidas = (vendasDiretas ?? [])
-		.filter(v => {
-			const venda = v.venda as unknown as { deleted_at: string | null } | null;
-			return !venda?.deleted_at;
-		})
-		.map(v => ({
-			modelo_id: v.modelo_id as string,
-			quantidade: (v.quantidade as number | null) ?? 0,
-		}));
-
-	const estoqueMap = disponibilidadeBaseMap(
-		(producoes ?? []) as Array<{ modelo_id: string; quantidade: number }>,
-		(envioItens ?? []) as Array<{
-			modelo_id: string;
-			qtd_enviada: number | null;
-			qtd_vendida: number | null;
-			qtd_devolvida: number | null;
-			envio: unknown;
-		}>,
-		vendasValidas
-	);
+	// Só itens de catálogo têm controle de estoque; personalizados não entram.
+	const modeloIds = data.itens
+		.map(i => i.modelId)
+		.filter((id): id is string => Boolean(id));
+	const estoqueMap = await buscarDisponivelPorModelo(modeloIds);
 
 	// Validar estoque apenas para itens de catálogo
 	for (const item of data.itens) {

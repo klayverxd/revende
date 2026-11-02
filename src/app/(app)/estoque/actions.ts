@@ -2,35 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { buscarEstoqueCalculado } from "@/lib/queries/estoque";
+import { gerarCodigoModelo } from "@/lib/queries/modelo";
+import { envioEstaEncerrado } from "@/modules/envio/fechamento";
+import type { EstoqueCalculadoRow } from "@/modules/estoque/calcular";
+
+export type { EstoqueCalculadoRow };
 
 export interface RegistrarProducaoData {
 	modelo_id: string;
 	quantidade: number;
 	data_producao?: string;
 	observacao?: string;
-}
-
-export interface EstoqueCalculadoRow {
-	modelo_id: string;
-	codigo: string;
-	nome: string;
-	estoque_inicial: number;
-	entradas: number;
-	saidas: number;
-	estoque_minimo: number;
-	em_consignacao: number;
-	disponivel: number;
-	status: "OK" | "ATENCAO" | "REPOR" | "SEM_ESTOQUE";
-}
-
-function calcularStatus(
-	disponivel: number,
-	minimo: number
-): EstoqueCalculadoRow["status"] {
-	if (disponivel <= 0) return "SEM_ESTOQUE";
-	if (minimo > 0 && disponivel < minimo) return "REPOR";
-	if (minimo > 0 && disponivel <= minimo * 1.5) return "ATENCAO";
-	return "OK";
 }
 
 export async function registrarProducao(data: RegistrarProducaoData) {
@@ -81,25 +64,7 @@ export async function criarProdutoERegistrarProducao(
 
 	const supabase = await createClient();
 
-	// Gerar código automático se não informado
-	let codigo = data.produto.codigo?.trim() || null;
-	if (!codigo) {
-		const { data: codigos } = await supabase
-			.from("modelo")
-			.select("codigo")
-			.like("codigo", "M%")
-			.order("codigo", { ascending: false })
-			.limit(1);
-		if (!codigos || codigos.length === 0) {
-			codigo = "M01";
-		} else {
-			const num = Number.parseInt(
-				(codigos[0].codigo as string).replace("M", ""),
-				10
-			);
-			codigo = `M${String(num + 1).padStart(2, "0")}`;
-		}
-	}
+	const codigo = data.produto.codigo?.trim() || (await gerarCodigoModelo());
 
 	const { data: novoModelo, error: errModelo } = await supabase
 		.from("modelo")
@@ -131,103 +96,13 @@ export async function criarProdutoERegistrarProducao(
 	revalidatePath("/produtos");
 }
 
+/**
+ * Mantida como server action para não quebrar os chamadores existentes; o
+ * cálculo mora em `@/modules/estoque/calcular` e o carregamento em
+ * `@/lib/queries/estoque`.
+ */
 export async function buscarEstoque(): Promise<EstoqueCalculadoRow[]> {
-	const supabase = await createClient();
-
-	const [
-		{ data: modelos },
-		{ data: producoes },
-		{ data: envioItens },
-		{ data: vendasDiretas },
-	] = await Promise.all([
-		supabase
-			.from("modelo")
-			.select("modelo_id, codigo, nome, estoque_minimo")
-			.is("deleted_at", null)
-			.order("nome"),
-		supabase
-			.from("producao")
-			.select("modelo_id, quantidade")
-			.is("deleted_at", null),
-		supabase
-			.from("envio_item")
-			.select(
-				"modelo_id, qtd_enviada, qtd_vendida, qtd_devolvida, envio:envio_id(status)"
-			)
-			.is("deleted_at", null)
-			.not("envio", "is", null),
-		supabase
-			.from("venda_direta_item")
-			.select("modelo_id, quantidade, venda:venda_id(deleted_at)")
-			.not("venda", "is", null),
-	]);
-
-	const entradasMap = new Map<string, number>();
-	const saidasMap = new Map<string, number>();
-	const consignacaoMap = new Map<string, number>();
-
-	for (const p of producoes ?? []) {
-		const modeloId = p.modelo_id as string;
-		entradasMap.set(
-			modeloId,
-			(entradasMap.get(modeloId) ?? 0) + (p.quantidade ?? 0)
-		);
-	}
-
-	for (const item of envioItens ?? []) {
-		const modeloId = item.modelo_id as string;
-		const envio = item.envio as unknown as { status: string } | null;
-		if (!envio) continue;
-
-		if (envio.status === "ABERTO") {
-			const qtd = (item.qtd_enviada as number) ?? 0;
-			saidasMap.set(modeloId, (saidasMap.get(modeloId) ?? 0) + qtd);
-			consignacaoMap.set(modeloId, (consignacaoMap.get(modeloId) ?? 0) + qtd);
-		}
-		if (envio.status === "CONFERIDO" || envio.status === "ENCERRADO") {
-			// Subtrai vendidos + ainda com revendedor (qtd_enviada - qtd_devolvida).
-			// Somente as devoluções físicas retornam ao estoque.
-			const qtdEnviada = (item.qtd_enviada as number) ?? 0;
-			const qtdVendida = (item.qtd_vendida as number | null) ?? 0;
-			const qtdDevolvida = (item.qtd_devolvida as number | null) ?? 0;
-			saidasMap.set(modeloId, (saidasMap.get(modeloId) ?? 0) + qtdEnviada - qtdDevolvida);
-			const saldoConsig = qtdEnviada - qtdVendida - qtdDevolvida;
-			if (saldoConsig > 0) {
-				consignacaoMap.set(modeloId, (consignacaoMap.get(modeloId) ?? 0) + saldoConsig);
-			}
-		}
-	}
-
-	for (const v of vendasDiretas ?? []) {
-		const venda = v.venda as unknown as { deleted_at: string | null } | null;
-		if (venda?.deleted_at) continue;
-		const modeloId = v.modelo_id as string;
-		saidasMap.set(
-			modeloId,
-			(saidasMap.get(modeloId) ?? 0) + ((v.quantidade as number | null) ?? 0)
-		);
-	}
-
-	return (modelos ?? []).map(m => {
-		const modeloId = m.modelo_id as string;
-		const entradas = entradasMap.get(modeloId) ?? 0;
-		const saidas = saidasMap.get(modeloId) ?? 0;
-		const disponivel = entradas - saidas;
-		const minimo = (m.estoque_minimo as number | null) ?? 0;
-
-		return {
-			modelo_id: modeloId,
-			codigo: (m.codigo as string | null) ?? "-",
-			nome: m.nome as string,
-			estoque_inicial: 0,
-			entradas,
-			saidas,
-			estoque_minimo: minimo,
-			em_consignacao: consignacaoMap.get(modeloId) ?? 0,
-			disponivel,
-			status: calcularStatus(disponivel, minimo),
-		};
-	});
+	return buscarEstoqueCalculado();
 }
 
 export async function registrarBaixaConsignacao(
@@ -289,12 +164,13 @@ export async function registrarBaixaConsignacao(
 		.eq("envio_id", item.envio_id as string)
 		.is("deleted_at", null);
 
-	const tudoEncerrado = (envioItens ?? []).every(i => {
-		const env = (i.qtd_enviada as number) ?? 0;
-		const vend = (i.qtd_vendida as number | null) ?? 0;
-		const dev = (i.qtd_devolvida as number | null) ?? 0;
-		return vend + dev >= env;
-	});
+	const tudoEncerrado = envioEstaEncerrado(
+		(envioItens ?? []).map(i => ({
+			qtd_enviada: i.qtd_enviada as number | null,
+			qtd_vendida: i.qtd_vendida as number | null,
+			qtd_devolvida: i.qtd_devolvida as number | null,
+		}))
+	);
 
 	if (tudoEncerrado) {
 		const { error: updateEnvioError } = await supabase

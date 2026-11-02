@@ -23,7 +23,7 @@ function LoginPageFallback() {
 				<div className="bg-white rounded-2xl shadow-sm border border-[#B5D4F4] px-8 py-10">
 					<div className="mb-8 text-center">
 						<h1 className="text-2xl font-bold text-[#0C447C] tracking-tight">
-							Revendê
+							Imprimimos
 						</h1>
 						<p className="text-sm text-gray-500 mt-1">Carregando...</p>
 					</div>
@@ -70,7 +70,7 @@ function LoginPageContent() {
 				<div className="bg-white rounded-2xl shadow-sm border border-[#B5D4F4] px-8 py-10">
 					<div className="mb-8 text-center">
 						<h1 className="text-2xl font-bold text-[#0C447C] tracking-tight">
-							Revendê
+							Imprimimos
 						</h1>
 						<p className="text-sm text-gray-500 mt-1">Acesse sua conta</p>
 					</div>

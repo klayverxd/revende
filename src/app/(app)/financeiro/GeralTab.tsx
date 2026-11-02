@@ -1,12 +1,5 @@
 import type { GraficoMes } from "./actions";
 
-const CANAL_LABEL: Record<string, string> = {
-	PRESENCIAL: "Presencial",
-	WHATSAPP: "WhatsApp",
-	INSTAGRAM: "Instagram",
-	SHOPEE: "Shopee",
-};
-
 function fmtBRL(v: number) {
 	return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }

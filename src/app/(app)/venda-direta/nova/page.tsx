@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { buscarEstoqueCalculado } from "@/lib/queries/estoque";
 import { Button } from "@/components/ui";
 import NovaVendaDiretaForm, {
 	type ProdutoDisponivel,
@@ -10,35 +11,19 @@ export default async function NovaVendaDiretaPage() {
 	const supabase = await createClient();
 
 	const [
+		estoque,
 		{ data: produtos },
-		{ data: producoes },
-		{ data: envioItens },
-		{ data: vendasDiretas },
 		{ data: equipamentos },
 		{ data: materias },
 		{ data: energiaConfig },
 	] = await Promise.all([
+		buscarEstoqueCalculado(),
 		supabase
 			.from("modelo")
 			.select("modelo_id, codigo, nome")
 			.eq("ativo", true)
 			.is("deleted_at", null)
 			.order("nome"),
-		supabase
-			.from("producao")
-			.select("modelo_id, quantidade")
-			.is("deleted_at", null),
-		supabase
-			.from("envio_item")
-			.select(
-				"modelo_id, qtd_enviada, qtd_vendida, qtd_devolvida, envio:envio_id(status)"
-			)
-			.is("deleted_at", null)
-			.not("envio", "is", null),
-		supabase
-			.from("venda_direta_item")
-			.select("modelo_id, quantidade, venda:venda_id(deleted_at)")
-			.not("venda", "is", null),
 		supabase
 			.from("config_equipamento")
 			.select("equipamento_id, nome, potencia_watts, depreciacao_hora")
@@ -57,45 +42,7 @@ export default async function NovaVendaDiretaPage() {
 			.maybeSingle(),
 	]);
 
-	const estoqueMap = new Map<string, number>();
-
-	for (const p of producoes ?? []) {
-		estoqueMap.set(
-			p.modelo_id as string,
-			(estoqueMap.get(p.modelo_id as string) ?? 0) +
-				((p.quantidade as number) ?? 0)
-		);
-	}
-
-	for (const item of envioItens ?? []) {
-		const envio = item.envio as unknown as { status: string } | null;
-		if (!envio) continue;
-		const modeloId = item.modelo_id as string;
-		if (envio.status === "ABERTO") {
-			estoqueMap.set(
-				modeloId,
-				(estoqueMap.get(modeloId) ?? 0) - ((item.qtd_enviada as number) ?? 0)
-			);
-		}
-		if (envio.status === "CONFERIDO" || envio.status === "ENCERRADO") {
-			const qtdDevolvida = (item.qtd_devolvida as number | null) ?? 0;
-			estoqueMap.set(
-				modeloId,
-				(estoqueMap.get(modeloId) ?? 0) -
-					(((item.qtd_enviada as number | null) ?? 0) - qtdDevolvida)
-			);
-		}
-	}
-
-	for (const v of vendasDiretas ?? []) {
-		const venda = v.venda as unknown as { deleted_at: string | null } | null;
-		if (venda?.deleted_at) continue;
-		const modeloId = v.modelo_id as string;
-		estoqueMap.set(
-			modeloId,
-			(estoqueMap.get(modeloId) ?? 0) - ((v.quantidade as number | null) ?? 0)
-		);
-	}
+	const estoqueMap = new Map(estoque.map(e => [e.modelo_id, e.disponivel]));
 
 	const produtosDisponiveis: ProdutoDisponivel[] = (produtos ?? []).map(p => ({
 		modelo_id: p.modelo_id as string,

@@ -1,29 +1,46 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import {
+	CANAL_PEDIDO,
+	FORMA_PAGAMENTO,
+	ITEM_TIPO,
+	PEDIDO_STATUS,
+	PRIORIDADE,
+	STATUS_PAGAMENTO,
+} from "@/modules/pedido/status";
+import {
+	validar,
+	zDataISO,
+	zPercentual,
+	zQuantidade,
+	zTextoOpcional,
+	zUuid,
+	zValor,
+} from "@/lib/validacao";
 
-export type PedidoStatus =
-	| "NOVO"
-	| "EM_MODELAGEM"
-	| "AGUARDANDO_IMPRESSAO"
-	| "IMPRIMINDO"
-	| "EM_ACABAMENTO"
-	| "PRONTO"
-	| "ENVIADO"
-	| "ENTREGUE"
-	| "CANCELADO";
+// Os valores vivem em @/modules/pedido/status porque arquivos "use server"
+// só podem exportar funções async. Os tipos seguem reexportados daqui para
+// não quebrar quem já importava de "./actions".
+import type {
+	CanalPedido,
+	FormaPagamento,
+	ItemTipo,
+	PedidoStatus,
+	Prioridade,
+	StatusPagamento,
+} from "@/modules/pedido/status";
 
-export type CanalPedido =
-	| "PRESENCIAL"
-	| "WHATSAPP"
-	| "INSTAGRAM"
-	| "SHOPEE";
-
-export type FormaPagamento = "PIX" | "DINHEIRO" | "CARTAO" | "OUTRO";
-export type StatusPagamento = "PENDENTE" | "SINAL_RECEBIDO" | "PAGO";
-export type Prioridade = "NORMAL" | "ALTA" | "URGENTE";
-export type ItemTipo = "PRODUTO" | "CORINGA";
+export type {
+	CanalPedido,
+	FormaPagamento,
+	ItemTipo,
+	PedidoStatus,
+	Prioridade,
+	StatusPagamento,
+};
 
 export interface PedidoItemInput {
 	tipo: ItemTipo;
@@ -75,7 +92,55 @@ async function gerarNumeroPedido(): Promise<string> {
 	return `PED-${ano}-${String(seq + 1).padStart(4, "0")}`;
 }
 
+const pedidoItemSchema = z
+	.object({
+		tipo: z.enum(ITEM_TIPO),
+		modelo_id: zUuid.nullable().optional(),
+		descricao_custom: zTextoOpcional(500),
+		tempo_impressao_min: zValor.nullable().optional(),
+		peso_g: zValor.nullable().optional(),
+		num_placas: zQuantidade.nullable().optional(),
+		quantidade: zQuantidade,
+		preco_venda_unit: zValor.nullable().optional(),
+		custo_unit: zValor.nullable().optional(),
+		observacao: zTextoOpcional(500),
+	})
+	.refine(i => i.tipo !== "PRODUTO" || Boolean(i.modelo_id), {
+		message: "Item de catálogo precisa de um produto",
+		path: ["modelo_id"],
+	})
+	.refine(i => i.tipo !== "CORINGA" || Boolean(i.descricao_custom), {
+		message: "Item sob medida precisa de uma descrição",
+		path: ["descricao_custom"],
+	});
+
+const criarPedidoSchema = z.object({
+	canal: z.enum(CANAL_PEDIDO),
+	status: z.enum(PEDIDO_STATUS).optional(),
+	prioridade: z.enum(PRIORIDADE).optional(),
+	cliente_nome: zTextoOpcional(200),
+	cliente_telefone: zTextoOpcional(50),
+	cliente_email: zTextoOpcional(200),
+	cliente_referencia: zTextoOpcional(500),
+	data_pedido: zDataISO.optional(),
+	data_prazo: zDataISO.nullable().optional(),
+	forma_pagamento: z.enum(FORMA_PAGAMENTO).nullable().optional(),
+	status_pagamento: z.enum(STATUS_PAGAMENTO).optional(),
+	valor_sinal: zValor.nullable().optional(),
+	desconto_valor: zValor.nullable().optional(),
+	taxa_marketplace_pct: zPercentual.nullable().optional(),
+	custo_envio: zValor.nullable().optional(),
+	outros_encargos: zValor.nullable().optional(),
+	observacao: zTextoOpcional(),
+	itens: z
+		.array(pedidoItemSchema)
+		.min(1, "Adicione ao menos um item")
+		.max(200, "Pedido com itens demais"),
+});
+
 export async function criarPedido(input: CriarPedidoInput) {
+	validar(criarPedidoSchema, input, "Não foi possível criar o pedido");
+
 	const supabase = await createClient();
 	const numero_pedido = await gerarNumeroPedido();
 

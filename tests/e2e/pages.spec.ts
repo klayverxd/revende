@@ -20,25 +20,13 @@ test.describe("Financeiro", () => {
 		await expect(page).not.toHaveURL(/\/login/);
 	});
 
-	test("fluxo de caixa — ano atual é exibido", async ({ page }) => {
+	// Havia aqui 3 testes de um "fluxo de caixa" com navegacao por ano e 14
+	// colunas. Essa tela nao existe mais: /financeiro/fluxo virou redirect
+	// para /financeiro. Os testes eram impossiveis de passar, e ninguem
+	// percebeu porque o lint e o CI tambem estavam quebrados.
+	test("/financeiro/fluxo redireciona para /financeiro", async ({ page }) => {
 		await page.goto("/financeiro/fluxo");
-		const year = new Date().getFullYear().toString();
-		await expect(page.getByText(year)).toBeVisible();
-	});
-
-	test("fluxo de caixa — navegação entre anos funciona", async ({ page }) => {
-		await page.goto("/financeiro/fluxo");
-		const prevYear = (new Date().getFullYear() - 1).toString();
-		await page.getByRole("link", { name: new RegExp(`← ${prevYear}`) }).click();
-		await expect(page).toHaveURL(new RegExp(`ano=${prevYear}`));
-		await expect(page.getByText(prevYear)).toBeVisible();
-	});
-
-	test("fluxo de caixa tem 12 colunas de meses", async ({ page }) => {
-		await page.goto("/financeiro/fluxo");
-		const headers = page.getByRole("columnheader");
-		// Jan-Dez + "Linha" + "Total" = 14 columns
-		await expect(headers).toHaveCount(14);
+		await expect(page).toHaveURL(/\/financeiro$/);
 	});
 });
 
@@ -52,9 +40,28 @@ test.describe("Conferências", () => {
 	});
 });
 
-test.describe("Acertos / Financeiro", () => {
-	test("página de acertos carrega sem erro", async ({ page }) => {
+test.describe("Acertos", () => {
+	test("/acertos redireciona para /financeiro", async ({ page }) => {
 		await page.goto("/acertos");
+		await expect(page).toHaveURL(/\/financeiro$/);
+	});
+});
+
+test.describe("Extrato publico do revendedor", () => {
+	// A rota /r/ e a unica servida fora do login, e roda com service role
+	// (ignora RLS). Antes era enderecada pelo revendedor_id e sem token, e o
+	// middleware nem a liberava. Estes testes travam as duas pontas.
+	test("token invalido responde 404, nao manda para o login", async ({
+		page,
+	}) => {
+		const resposta = await page.goto("/r/nao-e-um-uuid");
+		expect(resposta?.status()).toBe(404);
+		await expect(page).not.toHaveURL(/\/login/);
+	});
+
+	test("token bem formado mas inexistente responde 404", async ({ page }) => {
+		const resposta = await page.goto("/r/00000000-0000-4000-8000-000000000000");
+		expect(resposta?.status()).toBe(404);
 		await expect(page).not.toHaveURL(/\/login/);
 	});
 });

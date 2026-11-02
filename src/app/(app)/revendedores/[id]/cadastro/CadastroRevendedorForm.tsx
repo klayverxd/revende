@@ -46,7 +46,6 @@ export default function CadastroRevendedorForm({ revendedor }: { revendedor: Rev
 		reset,
 		control,
 		setValue,
-		watch,
 		formState: { errors, isSubmitting, isDirty },
 	} = useForm<FormValues>({
 		resolver: zodResolver(schema),

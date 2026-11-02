@@ -11,6 +11,11 @@ import ProdutoModal from "@/app/(app)/produtos/ProdutoModal";
 import { criarPedido, atualizarPedido, buscarModelos } from "./actions";
 import type { CanalPedido, FormaPagamento, Prioridade, StatusPagamento } from "./actions";
 
+import {
+	PEDIDO_STATUS,
+	type PedidoStatus,
+} from "@/modules/pedido/status";
+
 type ModeloOption = {
 	modelo_id: string;
 	codigo: string;
@@ -32,8 +37,6 @@ const itemSchema = z.object({
 	observacao: z.string().optional(),
 });
 
-const PEDIDO_STATUSES = ["NOVO","EM_MODELAGEM","AGUARDANDO_IMPRESSAO","IMPRIMINDO","EM_ACABAMENTO","PRONTO","ENVIADO","ENTREGUE","CANCELADO"] as const;
-
 const CANAL_TAXA_DEFAULT: Record<string, { pct: number; fixo: number }> = {
 	SHOPEE:     { pct: 20, fixo: 4 },
 	PRESENCIAL: { pct: 0,  fixo: 0 },
@@ -43,7 +46,7 @@ const CANAL_TAXA_DEFAULT: Record<string, { pct: number; fixo: number }> = {
 
 const schema = z.object({
 	canal: z.enum(["PRESENCIAL", "WHATSAPP", "INSTAGRAM", "SHOPEE"]),
-	status: z.enum(PEDIDO_STATUSES),
+	status: z.enum(PEDIDO_STATUS),
 	prioridade: z.enum(["NORMAL", "ALTA", "URGENTE"]),
 	data_pedido: z.string().min(1),
 	cliente_nome: z.string().optional(),
@@ -70,7 +73,7 @@ export interface PedidoParaEditar {
 	pedido_id: string;
 	numero_pedido: string;
 	canal: CanalPedido;
-	status: typeof PEDIDO_STATUSES[number];
+	status: PedidoStatus;
 	prioridade: Prioridade;
 	data_pedido: string;
 	cliente_nome: string | null;
@@ -161,7 +164,6 @@ export default function PedidoModal({ open, onClose, pedido }: Props) {
 
 	useEffect(() => {
 		recarregarModelos();
-	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
 	useEffect(() => {

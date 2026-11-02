@@ -34,7 +34,7 @@ export default async function RevendedorVisaoGeralPage({ params }: Props) {
 
 	const { data: revendedor } = await supabase
 		.from("revendedor")
-		.select("revendedor_id, nome, modelo_acerto, telefone, email")
+		.select("revendedor_id, nome, modelo_acerto, telefone, email, extrato_token, extrato_ativo")
 		.eq("revendedor_id", id)
 		.is("deleted_at", null)
 		.single();
@@ -129,7 +129,11 @@ export default async function RevendedorVisaoGeralPage({ params }: Props) {
 					<Link href={`/envios/novo?revendedor=${id}`}>
 						<Button size="sm">+ Novo envio</Button>
 					</Link>
-					<CopiarLinkExtrato revendedorId={id} />
+					<CopiarLinkExtrato
+						revendedorId={id}
+						token={revendedor.extrato_token as string}
+						ativo={(revendedor.extrato_ativo as boolean | null) ?? true}
+					/>
 				</div>
 			</div>
 
